@@ -1,0 +1,82 @@
+TODO:
+- Validate incoming data
+- Get compile time down
+- Separate thread to verify member names?
+- Get generated data to be completely off of class definition data
+	- max member size
+	- bitfield num values
+- Have manual_deserialization.h be completely auto-generated
+- Resource type from string needs to be automated
+- Better logging system (pass down through parameter->options)
+- Figure out slicing...how to have constraints based on runtime data
+	- might just have to reverse how the "required fields" works, set when a field is found, 
+	  then check if completes requirements
+	- update requirements at runtime based on which fields are present
+- Get rid of warnings
+- I think people can specify new primative types...need to check on that
+
+DONE:
+- Unknown resource-type parsing (DONE)
+- Basic Cardinality check (DONE)
+- ISO8601 parsing (DONE)
+- Organize src folder (DONE)
+- Marshal the classes to c# (DONE)
+- Generated member names should have uppercase first character, (DONE)
+  This way there are no collisions with languages...
+- Nullable Types
+	- Generate a nullable type for each used case
+	- What really needs to be nullable?
+		- string8.size == 0 (check)
+		- ISOTime.year == 0 (check)
+		- array == ptr == 0 (check)
+		- class reference == ptr == 0 (check)
+		- integers!
+            - Integer (DONE)
+            - PositiveInteger (DONE)
+            - UnsignedInteger (DONE)
+            - Integer64
+        - Decimal (DONE)
+        - Boolean (DONE)
+		- unions, enum needs "unknown" (could wrap union in nullable)
+            Everything is nullable now, no need (DONE)
+/////////////////////////////////
+
+I tried to make classes contain all of their structs inline (size known at compile time)
+but it is not possible. Reference -> Identifier -> Reference ...
+
+struct Reference
+{
+	...
+	Identifier identifier;
+};
+
+struct Identifier
+{
+	...
+	Reference ref;
+};
+
+Therefore, we _have_ to use a pointer when there are members with a class reference
+
+Must be something along the lines of (or using unique_ptr)
+
+struct Reference
+{
+	...
+	Identifier* identifier;
+};
+
+struct Identifier
+{
+	...
+	Reference* ref;
+};
+
+This is a non-issue when the cardinality is 0/1..*, then you can use a vector<>
+which does not need to know the complete size of each class in order in the file
+
+/////////////////////////////////////////
+The first thing that I noticed with the conversion process is the speed of Constructor.Invoke. Slow.
+The same applied for GetValue and SetValue
+
+I believe I should be able to "compile" these at runtime using Expression's which is said to have a performance increase.
