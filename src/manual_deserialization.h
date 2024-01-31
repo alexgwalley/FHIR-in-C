@@ -1608,14 +1608,19 @@ namespace fhir_deserialize
     
 
 	struct MemberNameAndOffset {
-		char *name;
-		size_t offset;
-		size_t member_index;
-		S64 type_index;
-		String8 member_name;
-		ResourceType member_first_type_class_type;
-		ValueType union_type_type;
-		ResourceType union_resource_type;
+		char *name; // 8
+		uint16_t offset; // 2
+        uint8_t member_index; // 1
+        uint8_t type_index; // 1
+
+		/*ResourceType*/
+        uint16_t member_first_type_class_type; // 2
+		/*ResourceType*/
+		uint16_t union_resource_type; // 2
+
+		/*ValueType*/
+		uint8_t union_type_type; // 1
+        uint8_t reserved[3];
 	};
 };
 #endif

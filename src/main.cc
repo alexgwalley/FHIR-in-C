@@ -285,16 +285,14 @@ GPerfRow(Arena *arena, String8 name, size_t offset, size_t member_index, size_t 
 
 	// TODO(agw): make namespace non-constant
 	return PushStr8F(arena,
-	                 "%S, 0x%x, %d, %d, {(U8*)\"%S\", %d}, fhir_deserialize::ResourceType::%S, fhir_deserialize::ValueType::%S, fhir_deserialize::ResourceType::%S\n", 
+	                 "%S, 0x%x, %d, %d, (uint16_t)fhir_deserialize::ResourceType::%S, (uint16_t)fhir_deserialize::ResourceType::%S, (uint8_t)fhir_deserialize::ValueType::%S\n", 
 					name,
-					offset,
-					member_index,
-					type_index,
-					member_name,
-					member_name.size,
+					(uint16_t)offset,
+					(uint8_t)member_index,
+					(uint8_t)type_index,
 					mem_type_name,
-					union_type_as_string,
-					class_name);
+					class_name,
+					union_type_as_string);
 }
 
 
@@ -729,6 +727,8 @@ int main()
     
 ////////////////////////////
 // Output class definitions
+    OS_CreateDirectory(Str8Lit("generated"));
+
 	{
 		Temp scratch = ScratchBegin(&arena, 1);
 		OutputClassDefinitions(scratch.arena,

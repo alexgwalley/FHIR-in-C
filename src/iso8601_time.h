@@ -15,7 +15,8 @@ struct ISO8601_Time
 
 	uint16_t year;
 	uint16_t millisecond;
-	char reserved[4];
+    uint8_t precision;
+	uint8_t reserved[3];
 };
 
 

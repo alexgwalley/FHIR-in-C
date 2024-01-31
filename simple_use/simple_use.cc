@@ -47,6 +47,7 @@ ReadEntireFile(Arena *arena, String8 file_name)
 	return result;
 }
 
+
 void*
 Deserialize_File(Arena *arena, 
                  fhir_deserialize::DeserializationOptions *options,
@@ -57,9 +58,9 @@ Deserialize_File(Arena *arena,
     
 	Temp scratch = ScratchBegin(&arena, 1);
     
-	simdjson::ondemand::parser parser;
 	std::string_view file_string_view{(char*)file_name.str};
     
+    simdjson::ondemand::parser parser;
 	auto simd_json = simdjson::padded_string::load(file_string_view);
 	simdjson::ondemand::document simd_doc = parser.iterate(simd_json);
 	options->file_name = file_name;
@@ -114,9 +115,9 @@ RunOptionsFromArgs(Arena *arena, int args_count, char** args)
 	return options;
 }
 
-
-
-
+typedef void (WINAPI *DLL_Deserialize_File)(char*, fhir_r4::Resource**);
+typedef void (WINAPI *DLL_Init)();
+typedef void (WINAPI *DLL_End)();
 
 int 
 main(int arg_count, char** args)
@@ -158,6 +159,17 @@ main(int arg_count, char** args)
 	Temp scratch = ScratchBegin(&arena, 1);
 	String8 path = PushStr8F(scratch.arena, "%S\\*", dir_name);
 	String16 path16 = Str16From8(scratch.arena, path);
+
+    HMODULE dllHandle = LoadLibrary("deserialization_dll");
+    if (dllHandle == NULL) printf("could not find dll\n");
+    DLL_Init dll_init = (DLL_Init)GetProcAddress(dllHandle, "ND_Init");
+
+    DLL_End dll_end = (DLL_End)GetProcAddress(dllHandle, "ND_Cleanup");
+
+    if (dll_init == NULL) printf("could not find dll_init\n");
+    dll_init();
+    DLL_Deserialize_File deserialize_file_ptr = (DLL_Deserialize_File)GetProcAddress(dllHandle, "ND_DeserializeFile");
+    if (deserialize_file_ptr == NULL) printf("could not find deserialize_file_ptr\n");
     
     
     FileEntries entries = OS_EnumerateDirectory(arena, dir_name);
@@ -185,14 +197,25 @@ main(int arg_count, char** args)
         ResourceType type = ResourceType::Bundle;
         
         count++;
+        size_t pos = arena->pos;
+        /*
         fhir_r4::Bundle* resource = (fhir_r4::Bundle*)Deserialize_File(arena, 
                                                                        &options,
                                                                        bundle_file_name,
                                                                        ResourceType::Bundle,
                                                                        &type);
+            */
+        fhir_r4::Bundle *resource;
+        TimeBlock("Deserialize_DLL")
+        {
+            deserialize_file_ptr((char*)bundle_file_name.str, (fhir_r4::Resource**) & resource);
+        }
+        printf("resource->_id %.*s\n", resource->_id.size, resource->_id.str);
 
 		fhir_r4::StructureDefinition* ext = (fhir_r4::StructureDefinition*)(*resource->_entry)->_resource;
 		total_bytes_processed += entries.v[i].file_size_low;
+
+        ArenaPopTo(arena, pos);
 
 		// TODO(agw): deal with this later
 		Assert(entries.v[i].file_size_high == 0);
@@ -214,7 +237,7 @@ main(int arg_count, char** args)
         for(int i = 0; i < ArrayCount(GlobalProfiler.Anchors); i++)
         {
 			if (GlobalProfiler.Anchors[i].TSCElapsed > 0 && GlobalProfiler.Anchors[i].Label != NULL &&
-                strcmp(GlobalProfiler.Anchors[i].Label, "Resource_Deserialize_SIMDJSON") == 0)
+                strcmp(GlobalProfiler.Anchors[i].Label, "Deserialize_DLL") == 0)
             {
                 deserialization_elapsed = GlobalProfiler.Anchors[i].TSCElapsed;
                 break;
@@ -246,6 +269,8 @@ main(int arg_count, char** args)
         fwrite(test_str.str, test_str.size, 1, f);
         fclose(f);
     }
+
+    dll_end();
     
     return 0;
 }

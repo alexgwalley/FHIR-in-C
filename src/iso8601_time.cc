@@ -33,6 +33,8 @@ Deserialize_ISO8601_Impl(String8 str,
         ptr++;
         time.year += CharToInt(*ptr);
         ptr++;
+
+        time.precision = 4;
     
         if (ptr - (char*)str.str >= str.size)
         {
@@ -52,6 +54,7 @@ Deserialize_ISO8601_Impl(String8 str,
         ptr++;
         time.month += CharToInt(*ptr);
         ptr++;
+        time.precision = 6;
     
         if (ptr - (char*)str.str >= str.size)
         {
@@ -72,6 +75,7 @@ Deserialize_ISO8601_Impl(String8 str,
         ptr++;
         time.day += CharToInt(*ptr);
         ptr++;
+        time.precision = 8;
 
         if (ptr - (char*)str.str >= str.size)
         {
@@ -105,6 +109,8 @@ Deserialize_ISO8601_Impl(String8 str,
         ptr++;
         Assert(time.hour >= 0 && time.hour < 23);
         
+        time.precision += 2;
+        
         Assert(*ptr == ':');
         ptr++;
 
@@ -116,6 +122,8 @@ Deserialize_ISO8601_Impl(String8 str,
         ptr++;
         Assert(time.minute >= 0 && time.minute < 60);
 
+        time.precision += 2;
+
         Assert(*ptr == ':');
         ptr++;
     
@@ -126,6 +134,8 @@ Deserialize_ISO8601_Impl(String8 str,
         time.second += CharToInt(*ptr);
         ptr++;
         Assert(time.second >= 0 && time.second < 60);
+
+        time.precision += 2;
 
         ////////////////////////
         // MILLISECOND
@@ -145,6 +155,8 @@ Deserialize_ISO8601_Impl(String8 str,
             ptr++;
             time.millisecond += CharToInt(*ptr);
             ptr++;
+
+            time.precision += 3;
             Assert(time.millisecond >= 0 && time.millisecond < 1000);
         }
 
@@ -169,7 +181,6 @@ Deserialize_ISO8601_Impl(String8 str,
             return time;
         }
 
-
         // NOTE(agw): should have MM:SS <- 5 chars
         Assert(ptr - (char*)str.str >= 5);
 
@@ -181,6 +192,8 @@ Deserialize_ISO8601_Impl(String8 str,
         ptr++;
         Assert(time.timezone_hour >= 0 && time.timezone_hour < 60);
 
+        time.precision += 2;
+
         Assert(*ptr == ':');
         ptr++;
 
@@ -191,6 +204,7 @@ Deserialize_ISO8601_Impl(String8 str,
         time.timezone_minute += CharToInt(*ptr);
         ptr++;
         Assert(time.timezone_minute >= 0 && time.timezone_minute < 60);
+        time.precision += 2;
 
         Assert(ptr - (char*)str.str >= str.size);
     }

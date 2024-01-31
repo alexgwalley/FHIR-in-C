@@ -100,13 +100,12 @@ BOOL APIENTRY DllMain(
 	return TRUE;
 }
 
-
-	__declspec(dllexport) void __cdecl FD_Init(void);
-	__declspec(dllexport) void __cdecl FD_End(void);
-	__declspec(dllexport) void __cdecl Deserialize_File(char* file_name, fhir_r4::Resource **out);
+	__declspec(dllexport) void __cdecl ND_Init(void);
+	__declspec(dllexport) void __cdecl ND_Cleanup(void);
+	__declspec(dllexport) void __cdecl ND_DeserializeFile(char* file_name, fhir_r4::Resource **out);
 
 	void
-	FD_Init(void)
+	ND_Init(void)
 	{
 		context.options = {};
 		context.options.class_metadata = (ClassMetadata*)&fhir_deserialize::class_metadata[0];
@@ -122,18 +121,28 @@ BOOL APIENTRY DllMain(
 	}
 
 	void
-	FD_End(void)
+	ND_Cleanup(void)
 	{
 		for(U64 arena_idx = 0; arena_idx < ArrayCount(context.scratch_arenas); arena_idx += 1)
 		{
-			ArenaRelease(context.scratch_arenas[arena_idx]);
+            if (context.scratch_arenas[arena_idx])
+            {
+                ArenaRelease(context.scratch_arenas[arena_idx]);
+            }
 		}
-		ArenaRelease(global_log.arena);
-		ArenaRelease(context.main_arena);
+        if (global_log.arena)
+        {
+            ArenaRelease(global_log.arena);
+        }
+
+        if (context.main_arena)
+        {
+            ArenaRelease(context.main_arena);
+        }
 	}
 
 	void
-	Deserialize_File(char* file_name, fhir_r4::Resource **out)
+	ND_DeserializeFile(char* file_name, fhir_r4::Resource **out)
 	{
 		if (context.main_arena)
 		{
