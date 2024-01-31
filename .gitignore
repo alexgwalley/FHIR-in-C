@@ -3,6 +3,7 @@ src/generated/**/*
 src/gperf_hash_tables/**/*
 src/code/**/*
 generated/
+bundles/
 
 *.4ed
 *.exp
