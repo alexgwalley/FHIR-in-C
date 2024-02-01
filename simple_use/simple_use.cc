@@ -17,11 +17,12 @@
 #include "base/nullable.h"
 #include "base/threading.h"
 #include "base/os.h"
+#include "base/logging.h"
+
+#include "manual_deserialization.h"
+#include "generated/fhir_class_definitions.h"
 
 #include "iso8601_time.h"
-#include "manual_deserialization.h"
-
-#include "generated/fhir_class_definitions.h"
 
 #include "base/profiler.cc"
 #include "base/core.c"
@@ -30,6 +31,7 @@
 #include "base/bitfield.cc"
 #include "base/threading.c"
 #include "base/os.cc"
+#include "base/logging.cc"
 
 #include "iso8601_time.cc"
 

@@ -1,6 +1,8 @@
 TODO:
 - Validate incoming data
 - Get compile time down
+    - wrapping gperf stuff in dll?
+    - have two versions, static and dynamic linking
 - Separate thread to verify member names?
 - Get generated data to be completely off of class definition data
 	- max member size

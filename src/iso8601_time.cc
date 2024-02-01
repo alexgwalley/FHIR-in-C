@@ -1,3 +1,6 @@
+
+using namespace fhir_deserialize;
+
 /* REGEX for FHIR version
 ([0-9]([0-9]([0-9][1-9]|[1-9]0)|[1-9]00)|[1-9]000)(-(0[1-9]|1[0-2])(-(0[1-9]|[1-2][0-9]|3[0-1])
 	(T([01][0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\.[0-9]{1,9})?)?)?(Z|(\+|-)((0[0-9]|1[0-3]):[0-
@@ -34,7 +37,7 @@ Deserialize_ISO8601_Impl(String8 str,
         time.year += CharToInt(*ptr);
         ptr++;
 
-        time.precision = 4;
+        time.precision = Year;
     
         if (ptr - (char*)str.str >= str.size)
         {
@@ -54,7 +57,7 @@ Deserialize_ISO8601_Impl(String8 str,
         ptr++;
         time.month += CharToInt(*ptr);
         ptr++;
-        time.precision = 6;
+        time.precision = Month;
     
         if (ptr - (char*)str.str >= str.size)
         {
@@ -75,7 +78,7 @@ Deserialize_ISO8601_Impl(String8 str,
         ptr++;
         time.day += CharToInt(*ptr);
         ptr++;
-        time.precision = 8;
+        time.precision = Day;
 
         if (ptr - (char*)str.str >= str.size)
         {
@@ -109,7 +112,7 @@ Deserialize_ISO8601_Impl(String8 str,
         ptr++;
         Assert(time.hour >= 0 && time.hour < 23);
         
-        time.precision += 2;
+        time.precision = Hour;
         
         Assert(*ptr == ':');
         ptr++;
@@ -122,7 +125,7 @@ Deserialize_ISO8601_Impl(String8 str,
         ptr++;
         Assert(time.minute >= 0 && time.minute < 60);
 
-        time.precision += 2;
+        time.precision = Minute;
 
         Assert(*ptr == ':');
         ptr++;
@@ -135,7 +138,7 @@ Deserialize_ISO8601_Impl(String8 str,
         ptr++;
         Assert(time.second >= 0 && time.second < 60);
 
-        time.precision += 2;
+        time.precision = Second;
 
         ////////////////////////
         // MILLISECOND
@@ -156,7 +159,7 @@ Deserialize_ISO8601_Impl(String8 str,
             time.millisecond += CharToInt(*ptr);
             ptr++;
 
-            time.precision += 3;
+            time.precision = Millisecond;
             Assert(time.millisecond >= 0 && time.millisecond < 1000);
         }
 
@@ -192,7 +195,7 @@ Deserialize_ISO8601_Impl(String8 str,
         ptr++;
         Assert(time.timezone_hour >= 0 && time.timezone_hour < 60);
 
-        time.precision += 2;
+        time.precision = TimezoneMinute;
 
         Assert(*ptr == ':');
         ptr++;
@@ -204,10 +207,49 @@ Deserialize_ISO8601_Impl(String8 str,
         time.timezone_minute += CharToInt(*ptr);
         ptr++;
         Assert(time.timezone_minute >= 0 && time.timezone_minute < 60);
-        time.precision += 2;
+        time.precision = TimezoneSecond;
 
         Assert(ptr - (char*)str.str >= str.size);
     }
 
     return time;
+}
+
+
+ISO8601_Time
+Deserialize_ISO8601(String8 str,
+                    ValueType type)
+{
+
+    U32 required, optional, exclude = 0;
+    switch (type) {
+        case ValueType::Date:
+            required = ISO_YEAR;
+            optional = ISO_MONTH | ISO_DAY;
+            exclude = ISO_TIME | ISO_TIME_OFFSET;
+            break;
+
+        case ValueType::DateTime:
+            required = ISO_YEAR;
+            optional = ISO_MONTH | ISO_DAY | ISO_TIME | ISO_TIME_OFFSET;
+            exclude = ISO_TIME;
+            break;
+
+        case ValueType::Instant:
+            required = ISO_YEAR | ISO_MONTH | ISO_DAY | ISO_TIME | ISO_MILLISECOND | ISO_TIME_OFFSET;
+            optional = 0;
+            exclude = 0;
+            break;
+
+        case ValueType::Time:
+            required = ISO_TIME;
+            optional = 0;
+            exclude = ISO_TIME_OFFSET;
+            break;
+    }
+
+    return Deserialize_ISO8601_Impl(str,
+                         required,
+                         optional,
+                         exclude);
 }

@@ -67,34 +67,6 @@ namespace fhir_deserialize
 		U64 size;
 	};
     
-    // TODO(agw): this should be generated
-	ValueTypeSizePair value_type_to_size[] =
-	{
-		{ ValueType::Unknown, 0 },
-		{ ValueType::Base64Binary, sizeof(String8) },
-		{ ValueType::Canonical, sizeof(String8) },
-		{ ValueType::Code, sizeof(String8) },
-		{ ValueType::Id, sizeof(String8) },
-		{ ValueType::Markdown, sizeof(String8) },
-		{ ValueType::Oid, sizeof(String8) },
-		{ ValueType::String, sizeof(String8) },
-		{ ValueType::Xhtml, sizeof(String8) },
-		{ ValueType::Uri, sizeof(String8) },
-		{ ValueType::Url, sizeof(String8) },
-		{ ValueType::Uuid, sizeof(String8) },
-		{ ValueType::Boolean, sizeof(NullableBoolean) },
-		{ ValueType::PositiveInt, sizeof(NullableInt32) },
-		{ ValueType::UnsignedInt, sizeof(NullableInt32) },
-		{ ValueType::Decimal, sizeof(String8) },
-		{ ValueType::Date, sizeof(ISO8601_Time) },
-		{ ValueType::DateTime, sizeof(ISO8601_Time) },
-		{ ValueType::Time, sizeof(ISO8601_Time) },
-		{ ValueType::Instant, sizeof(ISO8601_Time) },
-		{ ValueType::ClassReference, sizeof(void*) },
-		{ ValueType::ResourceType, ENUM_SIZE },
-		{ ValueType::ArrayCount, sizeof(size_t) }
-	};
-    
 	enum class ClassMemberType
 	{
 		Unknown,

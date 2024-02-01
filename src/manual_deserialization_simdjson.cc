@@ -11,28 +11,12 @@
 #include "resources-gperf.cc"
 //#undef strncmp
 
-// TODO(agw); the fhir_r4 nonesense should be a using statement
-
-
 using namespace fhir_deserialize;
-
-inline int
-IsUnion(ClassMemberMetadata *meta)
-{
-	return meta->types[1].type != ValueType::Unknown;
-}
-
-typedef struct ClassMemberPtrAndUnionType ClassMemberPtrAndUnionType;
-struct ClassMemberPtrAndUnionType
-{
-	ClassMemberMetadata *mem;
-	ValueTypeAndName union_type;
-	int mem_index;
-};
 
 void*
 Resource_Deserialize(Arena *arena, ResourceType type, cJSON *json);
 
+// TODO(agw): this fhir_r4 should be a macro for which namespace to use
 fhir_r4::Resource*
 Resource_Deserialize_Impl_SIMDJSON(Arena *arena, 
                                    DeserializationOptions *options,
@@ -52,204 +36,10 @@ String8FromResourceType(ResourceType type)
 	return resource_type_pairs[(int)type].str;
 }
 
-//TODO(agw): this is a repeat function
-//TODO(agw): we could store both names, not sure if worth it?
-String8
-GetClassNameFromUnionName(Arena* arena, String8 union_name, String8 member_name)
-{
-	String8 str = PushStr8Copy(arena, union_name);
-	String8 result = Str8Skip(str, member_name.size);
-	result.str[0] = CharToUpper(result.str[0]);
-	return result;
-}
-
-// NOTE (agw): Memory Pointers and access ========================================================
-typedef struct ValuesList
-{
-	ValueTypeAndName value_type;
-    
-	// NOTE(agw): is_array, value will be ptr to the array of values
-	// NOTE(agw): else, value will be value, could be String8 could be ResourceType... 
-	boolean is_array;
-	String8 union_value_name;
-    
-	U64 value_count;
-	U64 value_size;
-    
-	void *value;
-} ValuesList;
-
-int
-NumTypesFull(ClassMemberMetadata *meta)
-{
-	int index = 0;
-	while (meta->types[index].type != ValueType::Unknown &&
-           index < ArrayCount(meta->types))
-	{
-		index++;
-	}
-	return index;
-}
-
-U64
-ValuesListValueSize(ValueTypeAndName type, boolean is_array)
-{
-	return value_type_to_size[(int)type.type].size;
-}
-
-ValuesList
-ValuesListFromMeta(Arena *arena, void* resource, ClassMemberMetadata *meta, U64 previous_value)
-{
-	ValuesList list = {};
-	list.is_array = (meta->cardinality == Cardinality::ZeroToInf ||
-                     meta->cardinality == Cardinality::OneToInf);
-	list.value_count = 1;
-	list.value_type = meta->types[0];
-    
-    
-    
-	int num_full_types = NumTypesFull(meta);
-	if (num_full_types > 1) // Union
-	{
-		Assert(previous_value < num_full_types);
-		list.union_value_name = meta->types[previous_value].name;
-		list.value_type = meta->types[previous_value];
-	}
-    
-	if (list.is_array)
-	{
-		list.value_count = previous_value;
-	}
-    
-	if (list.value_type.type == ValueType::ClassReference)
-	{
-		ResourceType res_type = ResourceTypeFromString8(list.value_type.name);
-		ClassMetadata *class_meta = &class_metadata[(int)res_type];
-		list.value_size = class_meta->size;
-	}
-	else
-	{
-		list.value_size = value_type_to_size[(int)list.value_type.type].size;
-	}
-    
-	// NOTE(alex): when deserializing, the value _must_ be a pointer or else you lose data...
-	list.value = (char*)resource + meta->offset;
-    
-	if (resource == NULL)
-	{
-		list.value = NULL;
-		list.value_count = 0;
-		list.value_size = 0;
-	}
-    
-	return list;
-}
-
-enum ValuePtrType
-{
-	Pointer,
-	StartOfValue
-};
-typedef struct ValuePtr
-{
-	ValuePtrType ptr_type;
-	ValueTypeAndName type;
-	String8 union_value_name;
-	void *ptr;
-} ValuePtr;
-
-ValuePtr
-GetValuePtr(ValuesList list, int member_index)
-{
-	ValuePtr mem_ptr = {};
-	Assert(member_index < list.value_count);
-	mem_ptr.type = list.value_type;
-	mem_ptr.union_value_name = list.union_value_name;
-	mem_ptr.ptr = (char*)list.value + list.value_size * member_index;
-	return mem_ptr;
-}
-
-ValuePtr
-GetSerializationValuePtr(ValuesList list, int member_index)
-{
-	ValuePtr ptr = GetValuePtr(list, member_index);
-	if (list.is_array)
-	{
-		void* resource_array_ptr = (void*)*(size_t*)list.value;
-		ptr.ptr = (char*)resource_array_ptr + list.value_size * member_index;
-		ptr.ptr_type = ValuePtrType::StartOfValue;
-	}
-	return ptr;
-}
-
 // NOTE (agw): Error Logging ========================================================
-enum class LogType
-{
-	Unknown,
-	Information,
-	Warning,
-	Error
-};
-
-
-struct LogNode
-{
-	LogNode* next;
-	LogType type;
-	String8 log_message;
-};
-
-struct LogList 
-{
-	LogNode* first;
-	LogNode* last;
-	size_t node_count;
-};
-
-struct Log
-{
-	Arena *arena;
-	LogList logs;
-};
-
-// TODO(agw): have a log per thread (ThreadCtx)
+// TODO(agw): this should be passed in from caller
 static Log global_log = {};
 
-void
-AddError(Log *log, LogType type, char* format, ...)
-{
-    return;
-	va_list args = 0;
-	va_start(args, format);
-	String8 log_message = PushStr8FV(log->arena, format, args);
-	va_end(args);
-    
-	LogNode *node = PushStruct(log->arena, LogNode);
-	node->type = type;
-	node->log_message = log_message;
-	QueuePush(log->logs.first, log->logs.last, node);
-}
-
-void
-PrintLog(Log *log)
-{
-	for (LogNode *node = log->logs.first; node; node = node->next)
-	{
-		switch (node->type)
-		{
-			case LogType::Error:
-            printf("LOG_ERROR: ");
-            break;
-			case LogType::Information:
-            printf("LOG_INFORMATION: ");
-            break;
-			case LogType::Warning:
-            printf("LOG_WARNING: ");
-            break;
-		}
-		printf("%.*s\n", (int)node->log_message.size, node->log_message.str);
-	}
-}
 
 // NOTE (agw): Deserialization ========================================================
 
@@ -320,44 +110,8 @@ Deserialize_NullableInt32( double _double,
 }
 
 
-ISO8601_Time
-Deserialize_ISO8601(String8 str,
-                    ValueType type)
-{
 
-    U32 required, optional, exclude = 0;
-    switch (type) {
-        case ValueType::Date:
-            required = ISO_YEAR;
-            optional = ISO_MONTH | ISO_DAY;
-            exclude = ISO_TIME | ISO_TIME_OFFSET;
-            break;
-
-        case ValueType::DateTime:
-            required = ISO_YEAR;
-            optional = ISO_MONTH | ISO_DAY | ISO_TIME | ISO_TIME_OFFSET;
-            exclude = ISO_TIME;
-            break;
-
-        case ValueType::Instant:
-            required = ISO_YEAR | ISO_MONTH | ISO_DAY | ISO_TIME | ISO_MILLISECOND | ISO_TIME_OFFSET;
-            optional = 0;
-            exclude = 0;
-            break;
-
-        case ValueType::Time:
-            required = ISO_TIME;
-            optional = 0;
-            exclude = ISO_TIME_OFFSET;
-            break;
-    }
-
-    return Deserialize_ISO8601_Impl(str,
-                         required,
-                         optional,
-                         exclude);
-}
-
+#define ArrayValueLit(ptr, type) {(void*)(ptr), sizeof(type)}
 
 typedef struct ArrayValue ArrayValue;
 struct ArrayValue
@@ -394,6 +148,26 @@ ArrayValueListPush(Arena *arena, ArrayValueList *list, ArrayValue array_value)
 	list->total_size += array_value.size;
 }
 
+inline String8
+Str8FromStringView(std::string_view view)
+{
+    String8 str = {};
+    str.size = view.size();
+    str.str = (U8*)view.data();
+    return str;
+}
+
+inline String8
+PushStr8FromStringView(Arena *arena,
+                       std::string_view view)
+{
+    String8 str = {};
+    str.size = view.size();
+    str.str = (U8*)ArenaPushNoZero(arena, str.size);
+    MemoryCopy(str.str, view.data(), str.size);
+    return str;
+}
+
 void*
 Deserialize_Array(Arena *arena,
                   DeserializationOptions *options,
@@ -425,18 +199,11 @@ Deserialize_Array(Arena *arena,
                     value_type == ValueType::Date ||
                     value_type == ValueType::Instant)
                 {
-
-                    String8 str = {};
-                    str.size = str_view.size();
-                    str.str = (U8*)str_view.data();
-
-                    ISO8601_Time *time_ptr = (ISO8601_Time*)ArenaPushNoZero(arena, sizeof(ISO8601_Time));
-
+                    String8 str = Str8FromStringView(str_view);
+                    ISO8601_Time *time_ptr = PushStructNoZero(arena, ISO8601_Time);
                     *time_ptr = Deserialize_ISO8601(str, value_type);
                 
-                    ArrayValue value;
-                    value.data = (void*)time_ptr;
-                    value.size = sizeof(ISO8601_Time);
+                    ArrayValue value = ArrayValueLit(time_ptr, ISO8601_Time);
                     ArrayValueListPush(temp.arena, &list, value);
                 }
                 else if (value_type == ValueType::Integer64)
@@ -446,17 +213,12 @@ Deserialize_Array(Arena *arena,
                 }
                 else
                 {
-                    String8 str = {};
-                    str.size = str_view.size();
-                    str.str = (U8*)ArenaPushNoZero(arena, str_view.size());
-                    MemoryCopy(str.str, str_view.data(), str.size);
+                    String8 str = PushStr8FromStringView(arena, str_view);
 
-                    String8 *str_ptr = (String8*)ArenaPushNoZero(arena, sizeof(String8));
+                    String8 *str_ptr = PushStructNoZero(arena, String8);
                     *str_ptr = str;
-                
-                    ArrayValue value;
-                    value.data = (void*)str_ptr;
-                    value.size = sizeof(String8);
+
+                    ArrayValue value = ArrayValueLit(str_ptr, String8);
                     ArrayValueListPush(temp.arena, &list, value);
                 }
 			} break;
@@ -477,12 +239,10 @@ Deserialize_Array(Arena *arena,
                                                                             meta->name,
                                                                             meta->members[mem_info->member_index].name);
 
-                    NullableInt32* arena_integer_value = (NullableInt32*)ArenaPushNoZero(arena, sizeof(NullableInt32));
-                    *arena_integer_value = integer_value;
+                    NullableInt32* int_ptr = PushStructNoZero(arena, NullableInt32);
+                    *int_ptr = integer_value;
 
-					ArrayValue value;
-                    value.data = arena_integer_value;
-					value.size = sizeof(NullableInt32);
+					ArrayValue value = ArrayValueLit(int_ptr, NullableInt32);
 					ArrayValueListPush(temp.arena, &list, value);
 				}
 				else
@@ -492,17 +252,12 @@ Deserialize_Array(Arena *arena,
 
                     std::string_view view = raw_value.value_unsafe();
 
-					String8 str = {};
-                    str.size = view.size();
-					str.str = (U8*)ArenaPushNoZero(arena, str.size);
-                    MemoryCopy(str.str, view.data(), str.size);
+                    String8 str = PushStr8FromStringView(arena, view);
 
-                    String8 *str_ptr = (String8*)ArenaPushNoZero(arena, sizeof(String8));
+                    String8 *str_ptr = PushStructNoZero(arena, String8);
                     *str_ptr = str;
                     
-                    ArrayValue value;
-                    value.data = (void*)str_ptr;
-                    value.size = sizeof(String8);
+                    ArrayValue value = ArrayValueLit(str_ptr, String8);
                     ArrayValueListPush(temp.arena, &list, value);
 				}
 			} break;
@@ -512,9 +267,8 @@ Deserialize_Array(Arena *arena,
 				auto res = value.get(*(bool*)(&_boolean->value));
 				// TODO(agw): this should be linked to fhir classes
 				Assert(res == simdjson::error_code::SUCCESS);
-				ArrayValue value;
-				value.data = _boolean;
-				value.size = sizeof(_boolean);
+
+                ArrayValue value = ArrayValueLit(_boolean, NullableBoolean);
 				ArrayValueListPush(temp.arena, &list, value);
 			} break;
 			case simdjson::ondemand::json_type::object: // copy into dest
@@ -529,12 +283,10 @@ Deserialize_Array(Arena *arena,
 																	res_type,
 																	child);
 				// TODO(agw): we don't want to have to do this copy
-				size_t *resource_ptr = (size_t*)ArenaPushNoZero(arena, sizeof(size_t));
+				size_t *resource_ptr = PushStructNoZero(arena, size_t);
 				*resource_ptr = (size_t)resource;
 
-				ArrayValue value;
-				value.data = (void*)resource_ptr;
-				value.size = sizeof(size_t);
+				ArrayValue value = ArrayValueLit(resource_ptr, size_t);
 				ArrayValueListPush(temp.arena, &list, value);
 			} break;
 			case simdjson::ondemand::json_type::array: // copy into dest
@@ -597,43 +349,37 @@ Resource_Deserialize_Impl_SIMDJSON(Arena *arena,
 
 	ClassMetadata *meta = &class_metadata[(int)resource_type];
 
-
 	// TODO(agw) handle the case where we don't know the type ahead of time
 	BitField required_members = meta->required_members;
     
-	bool type_found = resource_type != ResourceType::Unknown && resource_type != ResourceType::Resource;
 	int index = -1;
 	for (auto field : simdjson_object)
 	{
 		index++;
         
-		std::string_view key_view = field.unescaped_key();
-		String8 key = {};
-		key.str = (U8*)key_view.data();
-		key.size = key_view.size();
+		String8 key = Str8FromStringView(field.unescaped_key());
         
         const MemberNameAndOffset *mem_info = GetMemberMetadata(options->class_metadata,
                                                                 resource_type,
                                                                 key);
 
-		if (mem_info == NULL)
+		// NOTE(agw): the first index is resourceType, let's skip that
+		if (mem_info == NULL || mem_info->member_index == 0)
 			continue;
 
-		// NOTE(agw): the first index is resourceType, let's skip that
-		if (mem_info->member_index == 0)
-			continue;
+		void *dest = (char*)out + mem_info->offset;
         
 		if ((ValueType)mem_info->union_type_type != ValueType::Unknown)
 		{
 			// NOTE(agw): get union_type offset in struct
-
 			ClassMemberMetadata *enum_type_meta = &meta->members[mem_info->member_index + 1];
 			U32 *enum_type = (U32*)((char*)out + enum_type_meta->offset);
 			*enum_type = (U32)mem_info->type_index;
 		}
         
-		void *dest = (char*)out + mem_info->offset;
+
 		simdjson::ondemand::value value = field.value();
+
 		switch (value.type())
 		{
 			case simdjson::ondemand::json_type::string: // copy into dest
@@ -645,32 +391,24 @@ Resource_Deserialize_Impl_SIMDJSON(Arena *arena,
                 // TODO(agw): could possibly be a switch statement for each type of time
                 ClassMemberMetadata *mem_meta = &meta->members[mem_info->member_index];
                 ValueType value_type = mem_meta->types[mem_info->type_index].type;
+
+                // TODO(agw): could be cached?
                 if (value_type == ValueType::Time ||
                     value_type == ValueType::DateTime ||
                     value_type == ValueType::Date ||
                     value_type == ValueType::Instant)
                 {
 
-                    String8 str = {};
-                    str.size = str_view.size();
-                    str.str = (U8*)str_view.data();
+                    String8 str = Str8FromStringView(str_view);
                     *(ISO8601_Time*)dest = Deserialize_ISO8601(str, mem_meta->types[mem_info->type_index].type);
-                }
-                else if (mem_meta->types[mem_info->type_index].type == ValueType::Integer64)
-                {
-                    // TODO(agw): parse integer64
-                    //*(NullableInt64*)dest = { true, (int64_t)_double };
                 }
                 else
                 {
-                    String8 str = {};
-                    str.size = str_view.size();
-                    str.str = (U8*)ArenaPushNoZero(arena, str.size);
-                    MemoryCopy(str.str, str_view.data(), str.size);
+                    // NOTE(agw): this is most common case...way to remove some branch misses?
+                    String8 str = PushStr8FromStringView(arena, str_view);
                     *(String8*)dest = str;
                 }
 
-                BitField_ResetIndex(&required_members, mem_info->member_index);
 			} break;
 			case simdjson::ondemand::json_type::number:
 			{
@@ -697,24 +435,18 @@ Resource_Deserialize_Impl_SIMDJSON(Arena *arena,
 
                     std::string_view view = raw_value.value_unsafe();
 
-                    String8 str = {};
-                    str.size = view.size();
-                    str.str = (U8*)ArenaPushNoZero(arena, str.size);
-                    MemoryCopy(str.str, view.data(), str.size);
+                    String8 str = PushStr8FromStringView(arena, view);
                     *(String8*)dest = str;
-
-                    //*(NullableDouble*)dest = { true, _double };
                 }
 
-                BitField_ResetIndex(&required_members, mem_info->member_index);
 			} break;
 			case simdjson::ondemand::json_type::boolean: // copy into dest
 			{
 				bool _boolean;
 				auto res = value.get(_boolean);
 				Assert(res == simdjson::error_code::SUCCESS);
+
                 *(NullableBoolean*)dest = { true, (B32)_boolean };
-                BitField_ResetIndex(&required_members, mem_info->member_index);
 			} break;
 			case simdjson::ondemand::json_type::object: // copy into dest
 			{
@@ -722,26 +454,21 @@ Resource_Deserialize_Impl_SIMDJSON(Arena *arena,
 				auto res = value.get(child);
                 
 				// TODO(agw): check if it would be faster if inside an "else" clause
-				ResourceType type;
+				ResourceType type = (ResourceType)mem_info->member_first_type_class_type;
 				if ((ValueType)mem_info->union_type_type == ValueType::ClassReference)
 				{
 					type = (ResourceType)mem_info->union_resource_type;
 				}
-				else
-				{
-					type = (ResourceType)mem_info->member_first_type_class_type;
-				}
                 
 				void *resource = Resource_Deserialize_Impl_SIMDJSON(arena, options, type, child);
 				*(size_t*)dest = (size_t)resource;
-				BitField_ResetIndex(&required_members, mem_info->member_index);
 			} break;
 			case simdjson::ondemand::json_type::array:
 			{
 				simdjson::ondemand::array arr;
 				auto res = value.get(arr);
-				U64 count = 0;
 
+				U64 count = 0;
 				void *array_result = Deserialize_Array(arena, 
 				                                       options,
 				                                       mem_info,
@@ -752,13 +479,15 @@ Resource_Deserialize_Impl_SIMDJSON(Arena *arena,
                 
 				ClassMemberMetadata *prev_mem = &meta->members[mem_info->member_index-1];
 				void *count_dest = (char*)out + prev_mem->offset;
-				// TODO(agw): need to link this 
+
 				Assert(sizeof(count) == prev_mem->size);
+
 				*(size_t*)count_dest = count;
 
-				BitField_ResetIndex(&required_members, mem_info->member_index);
 			} break;
 		}
+
+        BitField_ResetIndex(&required_members, mem_info->member_index);
 	}
 
 	// TODO(agw): simd compare? 
