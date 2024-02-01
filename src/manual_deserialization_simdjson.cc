@@ -10,10 +10,6 @@
 #include "generated/gperf-inc.cc"
 #include "resources-gperf.cc"
 //#undef strncmp
-#include "bitfield.h"
-#include "bitfield.cc"
-#include "iso8601_time.h"
-#include "iso8601_time.cc"
 
 // TODO(agw); the fhir_r4 nonesense should be a using statement
 
@@ -355,7 +351,6 @@ Deserialize_ISO8601(String8 str,
             exclude = ISO_TIME_OFFSET;
             break;
     }
-
 
     return Deserialize_ISO8601_Impl(str,
                          required,

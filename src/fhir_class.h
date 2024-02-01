@@ -1,7 +1,5 @@
 #ifndef FHIR_CLASS_H
 #define FHIR_CLASS_H
-#include "resource.h"
-#include "nullable.h"
 
 #define ENUM_SIZE 4
 

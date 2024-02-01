@@ -3,7 +3,7 @@
 // TODO(agw): this can be determined at compiletime
 #define SIZE_T_BITS 64
 //#define BIT_FIELD_COUNT (METADATA_MEMBER_COUNT + (SIZE_T_BITS - 1) / SIZE_T_BITS)
-#include "bitfield.h"
+#define METADATA_MAGIC 0xEAC0
 
 struct ClassMemberMetadata
 {
@@ -22,6 +22,19 @@ struct ClassMetadata
 	U64 members_count;
 	BitField required_members;
 	ClassMemberMetadata members[METADATA_MEMBER_COUNT];
+};
+
+struct MetadataHeader
+{
+    U32 magic;
+    U16 num_classes;
+    U16 version;
+};
+
+struct MetadataFile
+{
+    MetadataHeader header;
+    ClassMetadata class_metadata[];
 };
 
 typedef enum class ResourceType {

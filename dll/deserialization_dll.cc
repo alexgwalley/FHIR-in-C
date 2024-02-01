@@ -3,27 +3,31 @@
 
 /////////////////////////
 // json includes
-#include "cJSON.h"
+#include "third_party/cJSON.h"
 #include "third_party/simdjson.h"
 
-#include "core.h"
-#include "arena.h"
-#include "string8.h"
-#include "threading.h"
-#include "os.h"
-#include "nullable.h"
-#include "manual_deserialization.h"
+#include "base/core.h"
+#include "base/arena.h"
+#include "base/string8.h"
+#include "base/bitfield.h"
+#include "base/nullable.h"
+#include "base/threading.h"
+#include "base/os.h"
 
+#include "iso8601_time.h"
+
+#include "manual_deserialization.h"
 #include "generated/fhir_class_definitions.h"
 
-#include "src/profiler.cc"
-#include "src/core.c"
-#include "src/arena.c"
-#include "src/string8.cc"
+#include "base/profiler.cc"
+#include "base/core.c"
+#include "base/arena.c"
+#include "base/string8.cc"
+#include "base/bitfield.cc"
+#include "base/threading.c"
+#include "base/os.cc"
 
-#include "src/threading.c"
-
-#include "os.cc"
+#include "iso8601_time.cc"
 
 #define USE_SIMDJSON
 #define USE_PROFILER

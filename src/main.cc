@@ -3,11 +3,15 @@
 #include <sstream>
 #include <fstream>
 
-#include "core.h"
-#include "arena.h"
-#include "string8.h"
-#include "os.h"
-#include "threading.h"
+#include "base/core.h"
+#include "base/arena.h"
+#include "base/string8.h"
+#include "base/nullable.h"
+#include "base/bitfield.h"
+#include "base/os.h"
+#include "base/threading.h"
+
+#include "third_party/cJSON.h"
 
 #include "iso8601_time.h"
 #include "fhir_structure.h"
@@ -15,22 +19,22 @@
 #include "fhir_class.h"
 #include "exporter.h"
 #include "metadata.h"
-#include "cJSON.h"
 
-#include "core.c"
-#include "arena.c"
-#include "string8.cc"
-#include "threading.c"
-#include "os.cc"
+#include "base/core.c"
+#include "base/arena.c"
+#include "base/string8.cc"
+#include "base/threading.c"
+#include "base/os.cc"
+#include "base/bitfield.cc"
 
-#include "bitfield.cc"
+#include "third_party/cJSON.c"
+
 #include "hash_table.cc"
 #include "fhir_structure.cc"
 #include "resource.cc"
 #include "fhir_class.cc"
 #include "metadata.cc"
 
-#include "cJSON.c"
 #include "exporter.cc"
 
 #define STL

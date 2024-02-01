@@ -2,7 +2,6 @@
 #define FHIR_STRUCTURE_H
 
 //#include "code/base/base_strings.h"
-#include "cJSON.h"
 #include <optional>
 
 struct FhirPath

@@ -7,25 +7,31 @@
 
 /////////////////////////
 // json includes
-#include "cJSON.h"
+#include "third_party/cJSON.h"
 #include "third_party/simdjson.h"
 
-#include "core.h"
-#include "arena.h"
-#include "string8.h"
-#include "threading.h"
-#include "os.h"
-#include "nullable.h"
+#include "base/core.h"
+#include "base/arena.h"
+#include "base/string8.h"
+#include "base/bitfield.h"
+#include "base/nullable.h"
+#include "base/threading.h"
+#include "base/os.h"
+
+#include "iso8601_time.h"
 #include "manual_deserialization.h"
 
 #include "generated/fhir_class_definitions.h"
 
-#include "src/profiler.cc"
-#include "src/core.c"
-#include "src/arena.c"
-#include "src/string8.cc"
-#include "src/threading.c"
-#include "os.cc"
+#include "base/profiler.cc"
+#include "base/core.c"
+#include "base/arena.c"
+#include "base/string8.cc"
+#include "base/bitfield.cc"
+#include "base/threading.c"
+#include "base/os.cc"
+
+#include "iso8601_time.cc"
 
 #define USE_SIMDJSON
 #define USE_PROFILER
@@ -55,20 +61,29 @@ Deserialize_File(Arena *arena,
                  ResourceType assumed_type,
                  ResourceType *out_type)
 {
-    
+    TimeFunction;
 	Temp scratch = ScratchBegin(&arena, 1);
     
 	std::string_view file_string_view{(char*)file_name.str};
-    
+    simdjson::ondemand::document simd_doc;
     simdjson::ondemand::parser parser;
-	auto simd_json = simdjson::padded_string::load(file_string_view);
-	simdjson::ondemand::document simd_doc = parser.iterate(simd_json);
+    simdjson::simdjson_result<simdjson::padded_string> simd_json;
+
+    TimeBlock("Load And Iterate")
+    {
+        simd_json = simdjson::padded_string::load(file_string_view);
+        simd_doc = parser.iterate(simd_json);
+    }
 	options->file_name = file_name;
     
-	fhir_r4::Resource* result = Resource_Deserialize_SIMDJSON(arena,
-	                                             options,
-	                                             assumed_type,
-	                                             simd_doc.get_object());
+    fhir_r4::Resource* result;
+    TimeBlock("Deserialize")
+    {
+        result = Resource_Deserialize_SIMDJSON(arena,
+                                               options,
+                                               assumed_type,
+                                               simd_doc.get_object());
+    }
 	ScratchEnd(scratch);
 	return result;
 }
@@ -198,18 +213,18 @@ main(int arg_count, char** args)
         
         count++;
         size_t pos = arena->pos;
-        /*
         fhir_r4::Bundle* resource = (fhir_r4::Bundle*)Deserialize_File(arena, 
                                                                        &options,
                                                                        bundle_file_name,
                                                                        ResourceType::Bundle,
                                                                        &type);
-            */
-        fhir_r4::Bundle *resource;
+        /*
+        //fhir_r4::Bundle *resource;
         TimeBlock("Deserialize_DLL")
         {
             deserialize_file_ptr((char*)bundle_file_name.str, (fhir_r4::Resource**) & resource);
         }
+            */
         printf("resource->_id %.*s\n", resource->_id.size, resource->_id.str);
 
 		fhir_r4::StructureDefinition* ext = (fhir_r4::StructureDefinition*)(*resource->_entry)->_resource;
@@ -237,7 +252,7 @@ main(int arg_count, char** args)
         for(int i = 0; i < ArrayCount(GlobalProfiler.Anchors); i++)
         {
 			if (GlobalProfiler.Anchors[i].TSCElapsed > 0 && GlobalProfiler.Anchors[i].Label != NULL &&
-                strcmp(GlobalProfiler.Anchors[i].Label, "Deserialize_DLL") == 0)
+                strcmp(GlobalProfiler.Anchors[i].Label, "Deserialize_File") == 0)
             {
                 deserialization_elapsed = GlobalProfiler.Anchors[i].TSCElapsed;
                 break;

@@ -1,4 +1,3 @@
-#include "bitfield.h"
 #include <inttypes.h>
 
 struct OffsetContext

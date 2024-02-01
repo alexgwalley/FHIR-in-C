@@ -1,8 +1,6 @@
 #ifndef MANUAL_DESERIALIZATION_H
 #define MANUAL_DESERIALIZATION_H
 
-#include "bitfield.h"
-
 // TODO(agw): this can be a strict fact from metadata 
 #define POSSIBLE_TYPES_COUNT 100
 #define METADATA_MEMBER_COUNT 100
@@ -69,6 +67,7 @@ namespace fhir_deserialize
 		U64 size;
 	};
     
+    // TODO(agw): this should be generated
 	ValueTypeSizePair value_type_to_size[] =
 	{
 		{ ValueType::Unknown, 0 },
@@ -83,17 +82,17 @@ namespace fhir_deserialize
 		{ ValueType::Uri, sizeof(String8) },
 		{ ValueType::Url, sizeof(String8) },
 		{ ValueType::Uuid, sizeof(String8) },
-		{ ValueType::Boolean, sizeof(B32) },
-		{ ValueType::PositiveInt, sizeof(U64) },
-		{ ValueType::UnsignedInt, sizeof(U64) },
-		{ ValueType::Decimal, sizeof(double) },
-		{ ValueType::Date, sizeof(String8) },
-		{ ValueType::DateTime, sizeof(String8) },
-		{ ValueType::Time, sizeof(String8) },
-		{ ValueType::Instant, sizeof(String8) },
+		{ ValueType::Boolean, sizeof(NullableBoolean) },
+		{ ValueType::PositiveInt, sizeof(NullableInt32) },
+		{ ValueType::UnsignedInt, sizeof(NullableInt32) },
+		{ ValueType::Decimal, sizeof(String8) },
+		{ ValueType::Date, sizeof(ISO8601_Time) },
+		{ ValueType::DateTime, sizeof(ISO8601_Time) },
+		{ ValueType::Time, sizeof(ISO8601_Time) },
+		{ ValueType::Instant, sizeof(ISO8601_Time) },
 		{ ValueType::ClassReference, sizeof(void*) },
 		{ ValueType::ResourceType, ENUM_SIZE },
-		{ ValueType::ArrayCount, sizeof(U64) }
+		{ ValueType::ArrayCount, sizeof(size_t) }
 	};
     
 	enum class ClassMemberType
@@ -1564,49 +1563,11 @@ namespace fhir_deserialize
 		{ResourceType::Ehrsrle_provenance, Str8Lit("Ehrsrle_provenance")},
 	};
     
-	enum class JsonItemValueCardinality
-	{
-		None,
-		Single,
-		Array
-	};
-    
-	enum class JsonItemType
-	{
-		None,
-		CJSON,
-		YYJSON,
-		SimdJSON,
-	};
-    
-	struct JsonItem
-	{
-#ifdef USE_CJSON
-		cJSON *json;
-#endif
-#ifdef USE_YYJSON
-		yyjson_val *yyjson_value;
-#endif
-        
-		simdjson::ondemand::value simdjson_value;
-		simdjson::ondemand::object simdjson_object;
-		simdjson::ondemand::array simdjson_array;
-        
-		JsonItemValueCardinality cardinality;
-		JsonItemType type;
-		U64 count;
-	};
-    
 	typedef struct SerializationSettings
 	{
 		bool pretty_print : 1;
 	} SerializationSettings;
     
-    
-	JsonItem*
-        JsonItemFromcJSON(Arena *arena, cJSON *json);
-    
-
 	struct MemberNameAndOffset {
 		char *name; // 8
 		uint16_t offset; // 2
