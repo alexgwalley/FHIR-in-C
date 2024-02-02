@@ -18,7 +18,8 @@ Resource_Deserialize(Arena *arena, ResourceType type, cJSON *json);
 
 // TODO(agw): this fhir_r4 should be a macro for which namespace to use
 fhir_r4::Resource*
-Resource_Deserialize_Impl_SIMDJSON(Arena *arena, 
+Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
+                                   Arena *arena, 
                                    DeserializationOptions *options,
                                    ResourceType type,
                                    simdjson::ondemand::object simdjson_object);
@@ -36,15 +37,11 @@ String8FromResourceType(ResourceType type)
 	return resource_type_pairs[(int)type].str;
 }
 
-// NOTE (agw): Error Logging ========================================================
-// TODO(agw): this should be passed in from caller
-static Log global_log = {};
-
-
 // NOTE (agw): Deserialization ========================================================
 
 inline const MemberNameAndOffset*
-GetMemberMetadata(ClassMetadata *in_class_metadata,
+GetMemberMetadata(ND_Context *context,
+                  ClassMetadata *in_class_metadata,
                   ResourceType type, 
                   String8 unvalidated_key)
 {
@@ -52,7 +49,7 @@ GetMemberMetadata(ClassMetadata *in_class_metadata,
     
 	if (mem_and_offset == NULL)
 	{
-		AddError(&global_log, LogType::Error, "Could not find key \"%S\" on resource type \"%S\"",
+		AddError(&context->log, LogType::Error, "Could not find key \"%S\" on resource type \"%S\"",
 		         unvalidated_key, String8FromResourceType(type));
 		return NULL;
 	}
@@ -68,7 +65,8 @@ PushResource(Arena *arena, ResourceType type)
 
 
 inline NullableInt32
-Deserialize_NullableInt32( double _double,
+Deserialize_NullableInt32( ND_Context *context,
+                        double _double,
                           ValueType type,
                           String8 file_name,
                           String8 class_name,
@@ -83,7 +81,7 @@ Deserialize_NullableInt32( double _double,
     else if (type == ValueType::PositiveInt)
     {
         if ((int32_t)_double <= 0) {
-            AddError(&global_log, 
+            AddError(&context->log, 
                      LogType::Error,
                      "File: %S Class \"%S\" field: \"%S\" must be greater than 0.",
                      file_name,
@@ -96,7 +94,7 @@ Deserialize_NullableInt32( double _double,
     else if(type == ValueType::UnsignedInt)
     {
         if ((int32_t)_double < 0) {
-            AddError(&global_log, 
+            AddError(&context->log, 
                      LogType::Error,
                      "File: %S Class \"%S\" field: \"%S\" must be 0 or greater.",
                      file_name,
@@ -107,6 +105,44 @@ Deserialize_NullableInt32( double _double,
     }
 
     return ret;
+}
+
+ISO8601_Time
+Deserialize_ISO8601(String8 str,
+                    ValueType type)
+{
+
+    U32 required, optional, exclude = 0;
+    switch (type) {
+        case ValueType::Date:
+            required = ISO_YEAR;
+            optional = ISO_MONTH | ISO_DAY;
+            exclude = ISO_TIME | ISO_TIME_OFFSET;
+            break;
+
+        case ValueType::DateTime:
+            required = ISO_YEAR;
+            optional = ISO_MONTH | ISO_DAY | ISO_TIME | ISO_TIME_OFFSET;
+            exclude = ISO_TIME;
+            break;
+
+        case ValueType::Instant:
+            required = ISO_YEAR | ISO_MONTH | ISO_DAY | ISO_TIME | ISO_MILLISECOND | ISO_TIME_OFFSET;
+            optional = 0;
+            exclude = 0;
+            break;
+
+        case ValueType::Time:
+            required = ISO_TIME;
+            optional = 0;
+            exclude = ISO_TIME_OFFSET;
+            break;
+    }
+
+    return Deserialize_ISO8601_Impl(str,
+                                    required,
+                                    optional,
+                                    exclude);
 }
 
 
@@ -169,14 +205,15 @@ PushStr8FromStringView(Arena *arena,
 }
 
 void*
-Deserialize_Array(Arena *arena,
+Deserialize_Array(ND_Context *context,
+                  Arena *arena,
                   DeserializationOptions *options,
                   const MemberNameAndOffset *mem_info,
                   ClassMetadata *meta,
                   simdjson::ondemand::array array,
                   U64 *count)
 {
-	Temp temp = ScratchBegin(&arena, 1);
+	Temp temp = DLL_Scratch_Begin(context, &arena, 1);
 	ArrayValueList list = {};
     ValueType value_type = meta->members[mem_info->member_index].types[mem_info->type_index].type;
     
@@ -233,7 +270,8 @@ Deserialize_Array(Arena *arena,
                     value_type == ValueType::PositiveInt)
 				{
 
-                    NullableInt32 integer_value = Deserialize_NullableInt32(double_value, 
+                    NullableInt32 integer_value = Deserialize_NullableInt32(context, 
+                                                                            double_value, 
                                                                             value_type,
                                                                             options->file_name,
                                                                             meta->name,
@@ -278,7 +316,9 @@ Deserialize_Array(Arena *arena,
                 
 				ResourceType res_type = (ResourceType)mem_info->member_first_type_class_type;
 				U64 size = 0;
-				fhir_r4::Resource *resource = Resource_Deserialize_Impl_SIMDJSON(arena,
+				fhir_r4::Resource *resource = Resource_Deserialize_Impl_SIMDJSON(
+                                                                    context,
+                                                                    arena,
 				                                                    options,
 																	res_type,
 																	child);
@@ -292,7 +332,7 @@ Deserialize_Array(Arena *arena,
 			case simdjson::ondemand::json_type::array: // copy into dest
 			{
 				// NOTE(agw): assuming we would never have this option
-				AddError(&global_log, LogType::Error, "Array of arrays");
+				AddError(&context->log, LogType::Error, "Array of arrays");
 				Assert(false);
 			} break;
 		}
@@ -316,7 +356,8 @@ Deserialize_Array(Arena *arena,
 }
 
 fhir_r4::Resource*
-Resource_Deserialize_Impl_SIMDJSON(Arena *arena, 
+Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
+                                   Arena *arena, 
                                    DeserializationOptions *options,
                                    ResourceType type,
                                    simdjson::ondemand::object simdjson_object)
@@ -359,7 +400,8 @@ Resource_Deserialize_Impl_SIMDJSON(Arena *arena,
         
 		String8 key = Str8FromStringView(field.unescaped_key());
         
-        const MemberNameAndOffset *mem_info = GetMemberMetadata(options->class_metadata,
+        const MemberNameAndOffset *mem_info = GetMemberMetadata(context, 
+                                                                options->class_metadata,
                                                                 resource_type,
                                                                 key);
 
@@ -422,7 +464,8 @@ Resource_Deserialize_Impl_SIMDJSON(Arena *arena,
                     double _double;
                     auto res = value.get(_double);
                     Assert(res == simdjson::error_code::SUCCESS);
-                    *(NullableInt32*)dest = Deserialize_NullableInt32(_double,
+                    *(NullableInt32*)dest = Deserialize_NullableInt32(context,
+                                                                      _double,
                                                                     value_type,
                                                                     options->file_name,
                                                                     meta->name,
@@ -460,7 +503,11 @@ Resource_Deserialize_Impl_SIMDJSON(Arena *arena,
 					type = (ResourceType)mem_info->union_resource_type;
 				}
                 
-				void *resource = Resource_Deserialize_Impl_SIMDJSON(arena, options, type, child);
+				void *resource = Resource_Deserialize_Impl_SIMDJSON(context,
+				                                                    arena,
+				                                                    options,
+				                                                    type,
+				                                                    child);
 				*(size_t*)dest = (size_t)resource;
 			} break;
 			case simdjson::ondemand::json_type::array:
@@ -469,7 +516,8 @@ Resource_Deserialize_Impl_SIMDJSON(Arena *arena,
 				auto res = value.get(arr);
 
 				U64 count = 0;
-				void *array_result = Deserialize_Array(arena, 
+				void *array_result = Deserialize_Array(context, 
+				                                       arena, 
 				                                       options,
 				                                       mem_info,
 				                                       meta,
@@ -502,7 +550,7 @@ Resource_Deserialize_Impl_SIMDJSON(Arena *arena,
 				if (copy & 1)
 				{
 					String8 field_name = meta->members[index].name;
-					AddError(&global_log, 
+					AddError(&context->log, 
 					         LogType::Error,
 					         "File: %S Class \"%S\" is missing field: \"%S\"",
 					         options->file_name,
@@ -520,13 +568,15 @@ Resource_Deserialize_Impl_SIMDJSON(Arena *arena,
 }
 
 fhir_r4::Resource*
-Resource_Deserialize_SIMDJSON(Arena *arena, 
+Resource_Deserialize_SIMDJSON(ND_Context *context,
+                              Arena *arena, 
                               DeserializationOptions *options,
                               ResourceType assumed_type,
                               simdjson::ondemand::object simdjson_object)
 {
 	TimeFunction;
-	return Resource_Deserialize_Impl_SIMDJSON(arena,
+	return Resource_Deserialize_Impl_SIMDJSON(context,
+                                              arena,
 	                                          options,
 	                                          assumed_type,
 	                                          simdjson_object);

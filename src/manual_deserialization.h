@@ -14,6 +14,7 @@
 namespace fhir_deserialize
 {
     
+
 	enum class Cardinality
 	{
 		Unknown,
@@ -1555,5 +1556,20 @@ namespace fhir_deserialize
 		uint8_t union_type_type; // 1
         uint8_t reserved[3];
 	};
+
+
+    struct ND_Context
+    {
+        Arena *main_arena;
+        Arena *scratch_arenas[2];
+        Log log;
+        fhir_deserialize::DeserializationOptions options;
+    };
+
+    struct ND_ContextNode {
+        ND_ContextNode *next;
+        ND_Context value;
+    };
+
 };
 #endif

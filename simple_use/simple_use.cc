@@ -19,10 +19,10 @@
 #include "base/os.h"
 #include "base/logging.h"
 
+#include "iso8601_time.h"
 #include "manual_deserialization.h"
 #include "generated/fhir_class_definitions.h"
 
-#include "iso8601_time.h"
 
 #include "base/profiler.cc"
 #include "base/core.c"
@@ -39,7 +39,7 @@
 #define USE_PROFILER
 
 #include "generated/fhir_class_metadata.h"
-#include "src/manual_deserialization_simdjson.cc"
+//#include "src/manual_deserialization_simdjson.cc"
 
 void*
 ReadEntireFile(Arena *arena, String8 file_name)
@@ -81,10 +81,13 @@ Deserialize_File(Arena *arena,
     fhir_r4::Resource* result;
     TimeBlock("Deserialize")
     {
+        
+        /*
         result = Resource_Deserialize_SIMDJSON(arena,
                                                options,
                                                assumed_type,
                                                simd_doc.get_object());
+        */
     }
 	ScratchEnd(scratch);
 	return result;
@@ -133,7 +136,8 @@ RunOptionsFromArgs(Arena *arena, int args_count, char** args)
 }
 
 typedef void (WINAPI *DLL_Deserialize_File)(char*, fhir_r4::Resource**);
-typedef void (WINAPI *DLL_Init)();
+typedef void (WINAPI *DLL_Deserialize_String)(char*, size_t len, fhir_r4::Resource**);
+typedef void (WINAPI *DLL_Init)(int);
 typedef void (WINAPI *DLL_End)();
 
 int 
@@ -145,7 +149,6 @@ main(int arg_count, char** args)
 	SetThreadCtx(&tctx);
     
 	Arena *arena = ArenaAlloc(Gigabytes(16));
-	global_log.arena = ArenaAlloc(Megabytes(64));
     
 	RunOptions run_options = RunOptionsFromArgs(arena, arg_count, args);
     
@@ -184,9 +187,13 @@ main(int arg_count, char** args)
     DLL_End dll_end = (DLL_End)GetProcAddress(dllHandle, "ND_Cleanup");
 
     if (dll_init == NULL) printf("could not find dll_init\n");
-    dll_init();
+    dll_init(1);
     DLL_Deserialize_File deserialize_file_ptr = (DLL_Deserialize_File)GetProcAddress(dllHandle, "ND_DeserializeFile");
     if (deserialize_file_ptr == NULL) printf("could not find deserialize_file_ptr\n");
+
+
+    DLL_Deserialize_String deserialize_string_ptr = (DLL_Deserialize_String)GetProcAddress(dllHandle, "ND_DeserializeString");
+    if (deserialize_string_ptr == NULL) printf("could not find deserialize_file_ptr\n");
     
     
     FileEntries entries = OS_EnumerateDirectory(arena, dir_name);
@@ -215,18 +222,15 @@ main(int arg_count, char** args)
         
         count++;
         size_t pos = arena->pos;
-        fhir_r4::Bundle* resource = (fhir_r4::Bundle*)Deserialize_File(arena, 
-                                                                       &options,
-                                                                       bundle_file_name,
-                                                                       ResourceType::Bundle,
-                                                                       &type);
-        /*
-        //fhir_r4::Bundle *resource;
+
+        fhir_r4::Bundle *resource;
         TimeBlock("Deserialize_DLL")
         {
-            deserialize_file_ptr((char*)bundle_file_name.str, (fhir_r4::Resource**) & resource);
+            //const char* data = "{\"resourceType\":\"Bundle\", \"id\": \"hello\"}";
+            //simdjson::padded_string str(data, strlen(data));
+            //deserialize_string_ptr(str.data(), str.size(), (fhir_r4::Resource**) & resource);
+            deserialize_file_ptr((char*)bundle_file_name.str, (fhir_r4::Resource**)&resource);
         }
-            */
         printf("resource->_id %.*s\n", resource->_id.size, resource->_id.str);
 
 		fhir_r4::StructureDefinition* ext = (fhir_r4::StructureDefinition*)(*resource->_entry)->_resource;
@@ -240,9 +244,6 @@ main(int arg_count, char** args)
     }
     
     printf("DONE, count: %d\n", count);
-    
-    // TODO(agw): behind some define? deserialization_options somehow?
-    PrintLog(&global_log);
     
     if (should_profile)
     {

@@ -1,5 +1,18 @@
 #ifndef ISO8601_Time_H
 #define ISO8601_Time_H
+
+enum Precision : U8 {
+    Year,
+    Month,
+    Day,
+    Hour,
+    Minute,
+    Second,
+    Millisecond,
+    TimezoneMinute,
+    TimezoneSecond,
+};
+
 struct ISO8601_Time
 {
 	uint8_t month;
@@ -27,17 +40,6 @@ struct ISO8601_Time
 #define ISO_TIME (1 << 4)
 #define ISO_TIME_OFFSET (1 << 5)
 
-enum Precision : U8 {
-    Year,
-    Month,
-    Day,
-    Hour,
-    Minute,
-    Second,
-    Millisecond,
-    TimezoneMinute,
-    TimezoneSecond,
-};
 
 ISO8601_Time
 Deserialize_ISO8601_Impl(String8 str,
@@ -45,8 +47,4 @@ Deserialize_ISO8601_Impl(String8 str,
                          U32 optional,
                          U32 exclude);
 
-// TODO(agw): I don't want this namespace here
-ISO8601_Time
-Deserialize_ISO8601(String8 str,
-                    fhir_deserialize::ValueType type);
 #endif
