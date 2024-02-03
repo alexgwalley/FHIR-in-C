@@ -143,7 +143,7 @@ Deserialize_ISO8601_Impl(String8 str,
         ////////////////////////
         // MILLISECOND
 
-        if (required & ISO_MILLISECOND)
+        if (required & ISO_MILLISECOND || (optional & ISO_MILLISECOND && *ptr == '.'))
         {
             //.sss
             Assert(ptr - (char*)str.str >= 4);

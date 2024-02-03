@@ -110,8 +110,9 @@ BOOL APIENTRY DllMain(
 
 	__declspec(dllexport) void __cdecl ND_Init(int num_contexts);
 	__declspec(dllexport) void __cdecl ND_Cleanup(void);
-	__declspec(dllexport) void __cdecl ND_DeserializeFile(char* file_name, fhir_r4::Resource **out);
-	__declspec(dllexport) void __cdecl ND_DeserializeString(char* bytes, size_t length, fhir_r4::Resource **out);
+	__declspec(dllexport) ND_ContextNode* __cdecl ND_DeserializeFile(char* file_name, fhir_r4::Resource **out);
+	__declspec(dllexport) ND_ContextNode* __cdecl ND_DeserializeString(char* bytes, size_t length, fhir_r4::Resource **out);
+    __declspec(dllexport) void __cdecl ND_FreeContext(ND_ContextNode *node);
 
 
 	void
@@ -212,7 +213,7 @@ BOOL APIENTRY DllMain(
 
 	}
 
-    void
+    ND_ContextNode*
     ND_DeserializeString(char* bytes, size_t length, fhir_r4::Resource **out)
     {
         ND_ContextNode *node = ND_GetFreeContext(contexts_arena);
@@ -233,7 +234,7 @@ BOOL APIENTRY DllMain(
         if (obj_res.error())
         {
             *out = nullptr;
-            return;
+            return NULL;
         }
         simdjson::ondemand::object obj = obj_res.value_unsafe();
 
@@ -245,10 +246,10 @@ BOOL APIENTRY DllMain(
 		                                                          obj);
 		fhir_r4::Bundle* bundle = (fhir_r4::Bundle*)result;
 		*out = result;
-        ND_PushFreeContext(node);
+        return node;
     }
 
-	void
+    ND_ContextNode*
 	ND_DeserializeFile(char* file_name, fhir_r4::Resource **out)
 	{
         ND_ContextNode *node = ND_GetFreeContext(contexts_arena);
@@ -268,7 +269,7 @@ BOOL APIENTRY DllMain(
 		if (simd_json.error())
 		{
 			printf("SIMD_JSON ERROR: %d\n", simd_json.error());
-			return;
+			return NULL;
 		}
 
         simdjson::ondemand::parser parser;
@@ -282,6 +283,15 @@ BOOL APIENTRY DllMain(
                                                                 simd_doc.get_object());
 		fhir_r4::Bundle* bundle = (fhir_r4::Bundle*)result;
 		*out = result;
-        ND_PushFreeContext(node);
+        return node;
 	}
+
+    
+    void
+    ND_FreeContext(ND_ContextNode *node)
+    {
+        if (node == NULL) return;
+        ND_PushFreeContext(node);
+    }
+
 }

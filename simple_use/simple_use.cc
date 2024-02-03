@@ -135,10 +135,11 @@ RunOptionsFromArgs(Arena *arena, int args_count, char** args)
 	return options;
 }
 
-typedef void (WINAPI *DLL_Deserialize_File)(char*, fhir_r4::Resource**);
-typedef void (WINAPI *DLL_Deserialize_String)(char*, size_t len, fhir_r4::Resource**);
+typedef void* (WINAPI *DLL_Deserialize_File)(char*, fhir_r4::Resource**);
+typedef void* (WINAPI *DLL_Deserialize_String)(char*, size_t len, fhir_r4::Resource**);
 typedef void (WINAPI *DLL_Init)(int);
 typedef void (WINAPI *DLL_End)();
+typedef void (WINAPI *DLL_FreeContext)(void*);
 
 int 
 main(int arg_count, char** args)
@@ -191,9 +192,12 @@ main(int arg_count, char** args)
     DLL_Deserialize_File deserialize_file_ptr = (DLL_Deserialize_File)GetProcAddress(dllHandle, "ND_DeserializeFile");
     if (deserialize_file_ptr == NULL) printf("could not find deserialize_file_ptr\n");
 
-
     DLL_Deserialize_String deserialize_string_ptr = (DLL_Deserialize_String)GetProcAddress(dllHandle, "ND_DeserializeString");
     if (deserialize_string_ptr == NULL) printf("could not find deserialize_file_ptr\n");
+
+
+    DLL_FreeContext free_context_ptr = (DLL_Deserialize_String)GetProcAddress(dllHandle, "ND_FreeContext");
+    if (free_context_ptr == NULL) printf("could not find free_context_ptr\n");
     
     
     FileEntries entries = OS_EnumerateDirectory(arena, dir_name);
@@ -229,7 +233,8 @@ main(int arg_count, char** args)
             //const char* data = "{\"resourceType\":\"Bundle\", \"id\": \"hello\"}";
             //simdjson::padded_string str(data, strlen(data));
             //deserialize_string_ptr(str.data(), str.size(), (fhir_r4::Resource**) & resource);
-            deserialize_file_ptr((char*)bundle_file_name.str, (fhir_r4::Resource**)&resource);
+            void* ptr = deserialize_file_ptr((char*)bundle_file_name.str, (fhir_r4::Resource**)&resource);
+            free_context_ptr(ptr);
         }
         printf("resource->_id %.*s\n", resource->_id.size, resource->_id.str);
 

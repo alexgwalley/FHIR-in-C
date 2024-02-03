@@ -122,7 +122,7 @@ Deserialize_ISO8601(String8 str,
 
         case ValueType::DateTime:
             required = ISO_YEAR;
-            optional = ISO_MONTH | ISO_DAY | ISO_TIME | ISO_TIME_OFFSET;
+            optional = ISO_MONTH | ISO_DAY | ISO_TIME | ISO_MILLISECOND | ISO_TIME_OFFSET;
             exclude = ISO_TIME;
             break;
 
