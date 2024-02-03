@@ -55,6 +55,11 @@ extern "C"
 struct ND_GlobalContext {
     ND_ContextNode *first_free;
     ND_ContextNode *last_free;
+
+    // NOTE(agw): to make sure they _all_ get cleaned up on clean up
+    // in case someone forgot to free it individually
+    ND_ContextNode *first;
+    ND_ContextNode *last;
 };
 
 std::mutex mutex;
@@ -114,13 +119,12 @@ BOOL APIENTRY DllMain(
 	__declspec(dllexport) ND_ContextNode* __cdecl ND_DeserializeString(char* bytes, size_t length, fhir_r4::Resource **out);
     __declspec(dllexport) void __cdecl ND_FreeContext(ND_ContextNode *node);
 
-
 	void
 	ND_Cleanup(void)
 	{
         // NOTE(agw): theoretically the free list should be "full" with all possible values...
         // should probably have a way to check this
-        for (ND_ContextNode *node = contexts.first_free; node; node = node->next)
+        for (ND_ContextNode *node = contexts.first; node; node = node->next)
         {
             ND_Context context = node->value;
             for(U64 arena_idx = 0; arena_idx < ArrayCount(context.scratch_arenas); arena_idx += 1)
@@ -160,6 +164,9 @@ BOOL APIENTRY DllMain(
         }
 
         context->log.arena = ArenaAlloc(Megabytes(64));
+
+        QueuePush(contexts.first, contexts.last, node);
+
         return node;
     }
 
@@ -199,7 +206,6 @@ BOOL APIENTRY DllMain(
         mutex.unlock();
     }
 
-
 	void
 	ND_Init(int num_contexts)
 	{
@@ -209,6 +215,7 @@ BOOL APIENTRY DllMain(
         {
             ND_ContextNode *node = ND_CreateContext(contexts_arena);
             QueuePush(contexts.first_free, contexts.last_free, node);
+            QueuePush(contexts.first, contexts.last, node);
         }
 
 	}
@@ -286,7 +293,6 @@ BOOL APIENTRY DllMain(
         return node;
 	}
 
-    
     void
     ND_FreeContext(ND_ContextNode *node)
     {

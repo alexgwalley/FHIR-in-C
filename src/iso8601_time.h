@@ -1,7 +1,8 @@
 #ifndef ISO8601_Time_H
 #define ISO8601_Time_H
 
-enum Precision : U8 {
+enum class Precision : U8 {
+    Unknown,
     Year,
     Month,
     Day,
