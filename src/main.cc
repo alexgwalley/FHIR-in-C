@@ -31,7 +31,7 @@ GetStructureDefinitionsForFile(Arena *arena, StructureDefinitionList* list, Stri
 	void *json_string = ReadEntireFile(scratch.arena, file_path);
 	if (json_string == NULL)
 	{
-		fprintf(stderr, "Could not find file %*.s\n", file_path.size, file_path.str);
+		printf("Could not find file %*.s\n", file_path.size, file_path.str);
 		exit(-1);
 	}
 
@@ -395,8 +395,7 @@ OutputGperfFiles(Arena *arena, CodeGenerationOptions *options, String8 in_dir_na
 		FILE *f = fopen((char*)file_name.str, "w");
 		if (!f)
 		{
-			Assert(false);
-			fprintf(stderr, "could not open file with file_name %*.s\n", (int)file_name.size, file_name.str);
+			printf("could not open file with file_name %*.s\n", (int)file_name.size, file_name.str);
 			exit(-1);
 		}
 		fwrite(gperf_contents.str, gperf_contents.size, 1, f);
@@ -679,10 +678,9 @@ int main()
 		StructureDefinitionList list = { 0 };
 
 		//TODO(agw): take directory name input
-		Temp scratch = ScratchBegin(&arena, 1);
-		GetStructureDefinitionsForFile(scratch.arena, &list, Str8Lit("fhir/profiles-resources.json"));
-		GetStructureDefinitionsForFile(scratch.arena, &list, Str8Lit("fhir/profiles-types.json"));
-		GetStructureDefinitionsForFile(scratch.arena, &list, Str8Lit("fhir/profiles-others.json"));
+		GetStructureDefinitionsForFile(arena, &list, Str8Lit("fhir/profiles-resources.json"));
+		GetStructureDefinitionsForFile(arena, &list, Str8Lit("fhir/profiles-types.json"));
+		GetStructureDefinitionsForFile(arena, &list, Str8Lit("fhir/profiles-others.json"));
 
 		printf("Converting to resources...\n");
 		// Map to resources
@@ -696,7 +694,6 @@ int main()
 				ResourceListPush(arena, resource_list, res);
 			}
 		}
-		ScratchEnd(scratch);
 	}
     
 	////////////////////////////
