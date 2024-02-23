@@ -55,6 +55,7 @@ extern "C"
 struct ND_GlobalContext {
     ND_ContextNode *first_free;
     ND_ContextNode *last_free;
+    int num_contexts;
 
     // NOTE(agw): to make sure they _all_ get cleaned up on clean up
     // in case someone forgot to free it individually
@@ -166,6 +167,10 @@ BOOL APIENTRY DllMain(
         context->log.arena = ArenaAlloc(Megabytes(64));
 
         QueuePush(contexts.first, contexts.last, node);
+        contexts.num_contexts++;
+#if DEBUG
+        OutputDebugString("Created a new Context\n");
+#endif
 
         return node;
     }
@@ -177,8 +182,9 @@ BOOL APIENTRY DllMain(
         
         mutex.lock();
 
-        if (contexts.first_free != NULL)
+        if (contexts.first_free)
         {
+         // OutputDebugString("Using free context\n");
             node = contexts.first_free;
             if (contexts.first_free == contexts.last_free) {
                 contexts.first_free = NULL;
@@ -224,15 +230,42 @@ BOOL APIENTRY DllMain(
     ND_DeserializeString(char* bytes, size_t length, fhir_r4::Resource **out)
     {
         ND_ContextNode *node = ND_GetFreeContext(contexts_arena);
-		if (node->value.main_arena)
-		{
-			ArenaPopTo(node->value.main_arena, 0);
-		}
+        if (node->value.main_arena)
+        {
+          ArenaPopTo(node->value.main_arena, 0);
+        }
 
-		if (node->value.log.arena)
-		{
-			ArenaPopTo(node->value.log.arena, 0);
-		}
+        if (node->value.log.arena)
+        {
+          ArenaPopTo(node->value.log.arena, 0);
+        }
+
+#if DEBUG
+        char buffer[4096];
+        sprintf(buffer, "Main Arena Commit Pos: %llu\n", node->value.main_arena->commit_pos);
+        OutputDebugString(buffer);
+
+        sprintf(buffer, "Scratch Arena[0] Commit Pos: %llu\n", node->value.scratch_arenas[0]->commit_pos);
+        OutputDebugString(buffer);
+
+        sprintf(buffer, "Scratch Arena[1] Commit Pos: %llu\n", node->value.scratch_arenas[1]->commit_pos);
+        OutputDebugString(buffer);
+
+        sprintf(buffer, "Log Arena Commit Pos: %llu\n", node->value.log.arena->commit_pos);
+        OutputDebugString(buffer);
+
+        sprintf(buffer, "num_contexts: %d\n", contexts.num_contexts);
+        OutputDebugString(buffer);
+
+        size_t total_memory_usage = node->value.main_arena->commit_pos;
+        total_memory_usage += node->value.log.arena->commit_pos;
+        total_memory_usage += node->value.scratch_arenas[0]->commit_pos;
+        total_memory_usage += node->value.scratch_arenas[1]->commit_pos;
+
+        sprintf(buffer, "total memory usage for context: %llu\n", total_memory_usage);
+        OutputDebugString(buffer);
+#endif
+
 
         simdjson::ondemand::parser parser;
 		simdjson::ondemand::document simd_doc = parser.iterate(bytes, length-64, length);
@@ -260,15 +293,6 @@ BOOL APIENTRY DllMain(
 	ND_DeserializeFile(char* file_name, fhir_r4::Resource **out)
 	{
         ND_ContextNode *node = ND_GetFreeContext(contexts_arena);
-		if (node->value.main_arena)
-		{
-			ArenaPopTo(node->value.main_arena, 0);
-		}
-
-		if (node->value.log.arena)
-		{
-			ArenaPopTo(node->value.log.arena, 0);
-		}
 
 		std::string_view file_string_view{file_name};
 
@@ -296,8 +320,35 @@ BOOL APIENTRY DllMain(
     void
     ND_FreeContext(ND_ContextNode *node)
     {
-        if (node == NULL) return;
-        ND_PushFreeContext(node);
-    }
+#if DEBUG
+        char buffer[4096];
+        sprintf(buffer, "Freeing Node: %p\n", node);
+        OutputDebugString(buffer);
+#endif
+        if (node == NULL)
+        {
+          return;
+        }
+
+        for(U64 i = 0; i < ArrayCount(node->value.scratch_arenas); i += 1)
+        {
+          if(node->value.scratch_arenas[i])
+          {
+            ArenaPopTo(node->value.scratch_arenas[i], 0);
+          }
+        }
+
+
+        if (node->value.main_arena)
+        {
+          ArenaPopTo(node->value.main_arena, 0);
+        }
+
+        if (node->value.log.arena)
+        {
+          ArenaPopTo(node->value.log.arena, 0);
+        }
+            ND_PushFreeContext(node);
+        }
 
 }

@@ -10,7 +10,7 @@
 #endif
 
 #if !defined(ARENA_DECOMMIT_THRESHOLD)
-#define ARENA_DECOMMIT_THRESHOLD Megabytes(64)
+#define ARENA_DECOMMIT_THRESHOLD Kilobytes(64)
 #endif
 
 void OS_Init();

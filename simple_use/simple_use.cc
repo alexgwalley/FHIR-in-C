@@ -196,7 +196,7 @@ main(int arg_count, char** args)
     if (deserialize_string_ptr == NULL) printf("could not find deserialize_file_ptr\n");
 
 
-    DLL_FreeContext free_context_ptr = (DLL_Deserialize_String)GetProcAddress(dllHandle, "ND_FreeContext");
+    DLL_FreeContext free_context_ptr = (DLL_FreeContext)GetProcAddress(dllHandle, "ND_FreeContext");
     if (free_context_ptr == NULL) printf("could not find free_context_ptr\n");
     
     
