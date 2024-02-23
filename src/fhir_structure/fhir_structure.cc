@@ -65,7 +65,7 @@ SDListPush(Arena *arena, StructureDefinitionList *list, StructureDefinition *def
 }
 
 const String8 element_types[] = {
-	Str8Lit("BackboneElement"), 
+	Str8Lit("BackboneElement"),
 	Str8Lit("Element")
 };
 B32
@@ -90,17 +90,17 @@ StructureDefinitionFromJson(Arena *arena, cJSON *resource)
 
 	StructureDefinition *result = PushArray(arena, StructureDefinition, 1);
 
-    cJSON *_kind = cJSON_GetObjectItem(resource, "kind");
-    if (_kind) {
-        char* _kind_value = cJSON_GetStringValue(_kind);
-        // TODO(agw): we are ignoring primative type definitions for now
-        if (strcmp(_kind_value, "primitive-type") == 0) {
-            return nullptr;
-        }
-    }
+	cJSON *_kind = cJSON_GetObjectItem(resource, "kind");
+	if (_kind) {
+		char* _kind_value = cJSON_GetStringValue(_kind);
+		// TODO(agw): we are ignoring primative type definitions for now
+		if (strcmp(_kind_value, "primitive-type") == 0) {
+			return nullptr;
+		}
+	}
 
 
-#if 1
+	#if 1
 	cJSON *_id = cJSON_GetObjectItem(resource, "id");
 	if (_id) {
 		result->id = FhirPathFromString8(arena, Str8C(cJSON_GetStringValue(_id)));
@@ -110,7 +110,7 @@ StructureDefinitionFromJson(Arena *arena, cJSON *resource)
 			result->id = FhirPathFromString8(arena, Str8C(cJSON_GetStringValue(name)));
 		}
 	}
-#endif
+	#endif
 
 	cJSON *_type = cJSON_GetObjectItem(resource, "type");
 	result->type = Str8C(cJSON_GetStringValue(_type));

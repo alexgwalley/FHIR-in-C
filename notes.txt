@@ -1,4 +1,6 @@
 TODO:
+- Need to get easy building working.
+ - bulid C structs and dll in one go
 - Validate incoming data
 - Get compile time down
     - wrapping gperf stuff in dll?
@@ -41,6 +43,7 @@ DONE:
         - Boolean (DONE)
 		- unions, enum needs "unknown" (could wrap union in nullable)
             Everything is nullable now, no need (DONE)
+
 /////////////////////////////////
 
 I tried to make classes contain all of their structs inline (size known at compile time)

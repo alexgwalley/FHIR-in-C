@@ -19,7 +19,7 @@ Resource_Deserialize(Arena *arena, ResourceType type, cJSON *json);
 // TODO(agw): this fhir_r4 should be a macro for which namespace to use
 fhir_r4::Resource*
 Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
-                                   Arena *arena, 
+                                   Arena *arena,
                                    DeserializationOptions *options,
                                    ResourceType type,
                                    simdjson::ondemand::object simdjson_object);
@@ -42,7 +42,7 @@ String8FromResourceType(ResourceType type)
 inline const MemberNameAndOffset*
 GetMemberMetadata(ND_Context *context,
                   ClassMetadata *in_class_metadata,
-                  ResourceType type, 
+                  ResourceType type,
                   String8 unvalidated_key)
 {
 	const MemberNameAndOffset *mem_and_offset = ClassMemberLookup(type, unvalidated_key);
@@ -65,46 +65,46 @@ PushResource(Arena *arena, ResourceType type)
 
 
 inline NullableInt32
-Deserialize_NullableInt32( ND_Context *context,
-                        double _double,
+Deserialize_NullableInt32(ND_Context *context,
+                          double _double,
                           ValueType type,
                           String8 file_name,
                           String8 class_name,
                           String8 member_name)
 {				// TODO(agw): this may need to be casted to int...need
-    NullableInt32 ret = { 0 };
+	NullableInt32 ret = { 0 };
 
-    if (type == ValueType::Integer)
-    {
-        ret = { true, (int32_t)_double };
-    }
-    else if (type == ValueType::PositiveInt)
-    {
-        if ((int32_t)_double <= 0) {
-            AddError(&context->log, 
-                     LogType::Error,
-                     "File: %S Class \"%S\" field: \"%S\" must be greater than 0.",
-                     file_name,
-                     class_name,
-                     member_name);
-        }
+	if (type == ValueType::Integer)
+	{
+		ret = { true, (int32_t)_double };
+	}
+	else if (type == ValueType::PositiveInt)
+	{
+		if ((int32_t)_double <= 0) {
+			AddError(&context->log,
+			         LogType::Error,
+			         "File: %S Class \"%S\" field: \"%S\" must be greater than 0.",
+			         file_name,
+			         class_name,
+			         member_name);
+		}
 
-        ret = { true, (int32_t)_double };
-    }
-    else if(type == ValueType::UnsignedInt)
-    {
-        if ((int32_t)_double < 0) {
-            AddError(&context->log, 
-                     LogType::Error,
-                     "File: %S Class \"%S\" field: \"%S\" must be 0 or greater.",
-                     file_name,
-                     class_name,
-                     member_name);
-        }
-        ret = { true, (int32_t)_double };
-    }
+		ret = { true, (int32_t)_double };
+	}
+	else if (type == ValueType::UnsignedInt)
+	{
+		if ((int32_t)_double < 0) {
+			AddError(&context->log,
+			         LogType::Error,
+			         "File: %S Class \"%S\" field: \"%S\" must be 0 or greater.",
+			         file_name,
+			         class_name,
+			         member_name);
+		}
+		ret = { true, (int32_t)_double };
+	}
 
-    return ret;
+	return ret;
 }
 
 ISO8601_Time
@@ -112,42 +112,42 @@ Deserialize_ISO8601(String8 str,
                     ValueType type)
 {
 
-    U32 required, optional, exclude = 0;
-    switch (type) {
-        case ValueType::Date:
-            required = ISO_YEAR;
-            optional = ISO_MONTH | ISO_DAY;
-            exclude = ISO_TIME | ISO_TIME_OFFSET;
-            break;
+	U32 required, optional, exclude = 0;
+	switch (type) {
+		case ValueType::Date:
+			required = ISO_YEAR;
+			optional = ISO_MONTH | ISO_DAY;
+			exclude = ISO_TIME | ISO_TIME_OFFSET;
+			break;
 
-        case ValueType::DateTime:
-            required = ISO_YEAR;
-            optional = ISO_MONTH | ISO_DAY | ISO_TIME | ISO_MILLISECOND | ISO_TIME_OFFSET;
-            exclude = ISO_TIME;
-            break;
+		case ValueType::DateTime:
+			required = ISO_YEAR;
+			optional = ISO_MONTH | ISO_DAY | ISO_TIME | ISO_MILLISECOND | ISO_TIME_OFFSET;
+			exclude = ISO_TIME;
+			break;
 
-        case ValueType::Instant:
-            required = ISO_YEAR | ISO_MONTH | ISO_DAY | ISO_TIME | ISO_MILLISECOND | ISO_TIME_OFFSET;
-            optional = 0;
-            exclude = 0;
-            break;
+		case ValueType::Instant:
+			required = ISO_YEAR | ISO_MONTH | ISO_DAY | ISO_TIME | ISO_MILLISECOND | ISO_TIME_OFFSET;
+			optional = 0;
+			exclude = 0;
+			break;
 
-        case ValueType::Time:
-            required = ISO_TIME;
-            optional = 0;
-            exclude = ISO_TIME_OFFSET;
-            break;
-    }
+		case ValueType::Time:
+			required = ISO_TIME;
+			optional = 0;
+			exclude = ISO_TIME_OFFSET;
+			break;
+	}
 
-    return Deserialize_ISO8601_Impl(str,
-                                    required,
-                                    optional,
-                                    exclude);
+	return Deserialize_ISO8601_Impl(str,
+	                                required,
+	                                optional,
+	                                exclude);
 }
 
 
 
-#define ArrayValueLit(ptr, type) {(void*)(ptr), sizeof(type)}
+#define ArrayValueLit(ptr, type) { (void*)(ptr), sizeof(type) }
 
 typedef struct ArrayValue ArrayValue;
 struct ArrayValue
@@ -187,21 +187,21 @@ ArrayValueListPush(Arena *arena, ArrayValueList *list, ArrayValue array_value)
 inline String8
 Str8FromStringView(std::string_view view)
 {
-    String8 str = {};
-    str.size = view.size();
-    str.str = (U8*)view.data();
-    return str;
+	String8 str = {};
+	str.size = view.size();
+	str.str = (U8*)view.data();
+	return str;
 }
 
 inline String8
 PushStr8FromStringView(Arena *arena,
                        std::string_view view)
 {
-    String8 str = {};
-    str.size = view.size();
-    str.str = (U8*)ArenaPushNoZero(arena, str.size);
-    MemoryCopy(str.str, view.data(), str.size);
-    return str;
+	String8 str = {};
+	str.size = view.size();
+	str.str = (U8*)ArenaPushNoZero(arena, str.size);
+	MemoryCopy(str.str, view.data(), str.size);
+	return str;
 }
 
 void*
@@ -215,7 +215,7 @@ Deserialize_Array(ND_Context *context,
 {
 	Temp temp = DLL_Scratch_Begin(context, &arena, 1);
 	ArrayValueList list = {};
-    ValueType value_type = meta->members[mem_info->member_index].types[mem_info->type_index].type;
+	ValueType value_type = meta->members[mem_info->member_index].types[mem_info->type_index].type;
     
 	int field_count = 0;
 	for (auto field : array)
@@ -231,33 +231,33 @@ Deserialize_Array(ND_Context *context,
 				auto res = value.get(str_view);
 				Assert(res == simdjson::error_code::SUCCESS);
 
-                if (value_type == ValueType::Time ||
-                    value_type == ValueType::DateTime ||
-                    value_type == ValueType::Date ||
-                    value_type == ValueType::Instant)
-                {
-                    String8 str = Str8FromStringView(str_view);
-                    ISO8601_Time *time_ptr = PushStructNoZero(arena, ISO8601_Time);
-                    *time_ptr = Deserialize_ISO8601(str, value_type);
+				if (value_type == ValueType::Time ||
+					value_type == ValueType::DateTime ||
+					value_type == ValueType::Date ||
+					value_type == ValueType::Instant)
+				{
+					String8 str = Str8FromStringView(str_view);
+					ISO8601_Time *time_ptr = PushStructNoZero(arena, ISO8601_Time);
+					*time_ptr = Deserialize_ISO8601(str, value_type);
                 
-                    ArrayValue value = ArrayValueLit(time_ptr, ISO8601_Time);
-                    ArrayValueListPush(temp.arena, &list, value);
-                }
-                else if (value_type == ValueType::Integer64)
-                {
-                    // TODO(agw): parse integer64
-                    //*(NullableInt64*)dest = { true, (int64_t)_double };
-                }
-                else
-                {
-                    String8 str = PushStr8FromStringView(arena, str_view);
+					ArrayValue value = ArrayValueLit(time_ptr, ISO8601_Time);
+					ArrayValueListPush(temp.arena, &list, value);
+				}
+				else if (value_type == ValueType::Integer64)
+				{
+					// TODO(agw): parse integer64
+					//*(NullableInt64*)dest = { true, (int64_t)_double };
+				}
+				else
+				{
+					String8 str = PushStr8FromStringView(arena, str_view);
 
-                    String8 *str_ptr = PushStructNoZero(arena, String8);
-                    *str_ptr = str;
+					String8 *str_ptr = PushStructNoZero(arena, String8);
+					*str_ptr = str;
 
-                    ArrayValue value = ArrayValueLit(str_ptr, String8);
-                    ArrayValueListPush(temp.arena, &list, value);
-                }
+					ArrayValue value = ArrayValueLit(str_ptr, String8);
+					ArrayValueListPush(temp.arena, &list, value);
+				}
 			} break;
 			case simdjson::ondemand::json_type::number: // copy into dest
 			{
@@ -266,47 +266,47 @@ Deserialize_Array(ND_Context *context,
 				auto res = value.get(double_value);
 				Assert(res == simdjson::error_code::SUCCESS);
 				if (value_type == ValueType::Integer ||
-                    value_type == ValueType::UnsignedInt ||
-                    value_type == ValueType::PositiveInt)
+					value_type == ValueType::UnsignedInt ||
+					value_type == ValueType::PositiveInt)
 				{
 
-                    NullableInt32 integer_value = Deserialize_NullableInt32(context, 
-                                                                            double_value, 
-                                                                            value_type,
-                                                                            options->file_name,
-                                                                            meta->name,
-                                                                            meta->members[mem_info->member_index].name);
+					NullableInt32 integer_value = Deserialize_NullableInt32(context,
+					                                                        double_value,
+					                                                        value_type,
+					                                                        options->file_name,
+					                                                        meta->name,
+					                                                        meta->members[mem_info->member_index].name);
 
-                    NullableInt32* int_ptr = PushStructNoZero(arena, NullableInt32);
-                    *int_ptr = integer_value;
+					NullableInt32* int_ptr = PushStructNoZero(arena, NullableInt32);
+					*int_ptr = integer_value;
 
 					ArrayValue value = ArrayValueLit(int_ptr, NullableInt32);
 					ArrayValueListPush(temp.arena, &list, value);
 				}
 				else
 				{
-                    auto raw_value = field.value().raw_json();
-                    Assert(raw_value.error() == simdjson::error_code::SUCCESS);
+					auto raw_value = field.value().raw_json();
+					Assert(raw_value.error() == simdjson::error_code::SUCCESS);
 
-                    std::string_view view = raw_value.value_unsafe();
+					std::string_view view = raw_value.value_unsafe();
 
-                    String8 str = PushStr8FromStringView(arena, view);
+					String8 str = PushStr8FromStringView(arena, view);
 
-                    String8 *str_ptr = PushStructNoZero(arena, String8);
-                    *str_ptr = str;
+					String8 *str_ptr = PushStructNoZero(arena, String8);
+					*str_ptr = str;
                     
-                    ArrayValue value = ArrayValueLit(str_ptr, String8);
-                    ArrayValueListPush(temp.arena, &list, value);
+					ArrayValue value = ArrayValueLit(str_ptr, String8);
+					ArrayValueListPush(temp.arena, &list, value);
 				}
 			} break;
-			case simdjson::ondemand::json_type::boolean: 
+			case simdjson::ondemand::json_type::boolean:
 			{
-                NullableBoolean* _boolean = (NullableBoolean*)ArenaPushNoZero(arena, sizeof(NullableBoolean));
+				NullableBoolean* _boolean = (NullableBoolean*)ArenaPushNoZero(arena, sizeof(NullableBoolean));
 				auto res = value.get(*(bool*)(&_boolean->value));
 				// TODO(agw): this should be linked to fhir classes
 				Assert(res == simdjson::error_code::SUCCESS);
 
-                ArrayValue value = ArrayValueLit(_boolean, NullableBoolean);
+				ArrayValue value = ArrayValueLit(_boolean, NullableBoolean);
 				ArrayValueListPush(temp.arena, &list, value);
 			} break;
 			case simdjson::ondemand::json_type::object: // copy into dest
@@ -317,11 +317,11 @@ Deserialize_Array(ND_Context *context,
 				ResourceType res_type = (ResourceType)mem_info->member_first_type_class_type;
 				U64 size = 0;
 				fhir_r4::Resource *resource = Resource_Deserialize_Impl_SIMDJSON(
-                                                                    context,
-                                                                    arena,
-				                                                    options,
-																	res_type,
-																	child);
+					context,
+					arena,
+					options,
+					res_type,
+					child);
 				// TODO(agw): we don't want to have to do this copy
 				size_t *resource_ptr = PushStructNoZero(arena, size_t);
 				*resource_ptr = (size_t)resource;
@@ -357,7 +357,7 @@ Deserialize_Array(ND_Context *context,
 
 fhir_r4::Resource*
 Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
-                                   Arena *arena, 
+                                   Arena *arena,
                                    DeserializationOptions *options,
                                    ResourceType type,
                                    simdjson::ondemand::object simdjson_object)
@@ -400,10 +400,10 @@ Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
         
 		String8 key = Str8FromStringView(field.unescaped_key());
         
-        const MemberNameAndOffset *mem_info = GetMemberMetadata(context, 
-                                                                options->class_metadata,
-                                                                resource_type,
-                                                                key);
+		const MemberNameAndOffset *mem_info = GetMemberMetadata(context,
+		                                                        options->class_metadata,
+		                                                        resource_type,
+		                                                        key);
 
 		// NOTE(agw): the first index is resourceType, let's skip that
 		if (mem_info == NULL || mem_info->member_index == 0)
@@ -430,57 +430,57 @@ Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
 				auto res = value.get(str_view);
 				Assert(res == simdjson::error_code::SUCCESS);
 
-                // TODO(agw): could possibly be a switch statement for each type of time
-                ClassMemberMetadata *mem_meta = &meta->members[mem_info->member_index];
-                ValueType value_type = mem_meta->types[mem_info->type_index].type;
+				// TODO(agw): could possibly be a switch statement for each type of time
+				ClassMemberMetadata *mem_meta = &meta->members[mem_info->member_index];
+				ValueType value_type = mem_meta->types[mem_info->type_index].type;
 
-                // TODO(agw): could be cached?
-                if (value_type == ValueType::Time ||
-                    value_type == ValueType::DateTime ||
-                    value_type == ValueType::Date ||
-                    value_type == ValueType::Instant)
-                {
+				// TODO(agw): could be cached?
+				if (value_type == ValueType::Time ||
+					value_type == ValueType::DateTime ||
+					value_type == ValueType::Date ||
+					value_type == ValueType::Instant)
+				{
 
-                    String8 str = Str8FromStringView(str_view);
-                    *(ISO8601_Time*)dest = Deserialize_ISO8601(str, mem_meta->types[mem_info->type_index].type);
-                }
-                else
-                {
-                    // NOTE(agw): this is most common case...way to remove some branch misses?
-                    String8 str = PushStr8FromStringView(arena, str_view);
-                    *(String8*)dest = str;
-                }
+					String8 str = Str8FromStringView(str_view);
+					*(ISO8601_Time*)dest = Deserialize_ISO8601(str, mem_meta->types[mem_info->type_index].type);
+				}
+				else
+				{
+					// NOTE(agw): this is most common case...way to remove some branch misses?
+					String8 str = PushStr8FromStringView(arena, str_view);
+					*(String8*)dest = str;
+				}
 
 			} break;
 			case simdjson::ondemand::json_type::number:
 			{
-                ClassMemberMetadata *mem_meta = &meta->members[mem_info->member_index];
-                ValueType value_type = mem_meta->types[mem_info->type_index].type;
-                if (value_type == ValueType::Integer ||
-                    value_type == ValueType::PositiveInt ||
-                    value_type == ValueType::UnsignedInt
-                )
-                {
-                    double _double;
-                    auto res = value.get(_double);
-                    Assert(res == simdjson::error_code::SUCCESS);
-                    *(NullableInt32*)dest = Deserialize_NullableInt32(context,
-                                                                      _double,
-                                                                    value_type,
-                                                                    options->file_name,
-                                                                    meta->name,
-                                                                    meta->members[mem_info->member_index].name);
-                }
-                else
-                {
-                    auto raw_value = field.value().raw_json();
-                    Assert(raw_value.error() == simdjson::error_code::SUCCESS);
+				ClassMemberMetadata *mem_meta = &meta->members[mem_info->member_index];
+				ValueType value_type = mem_meta->types[mem_info->type_index].type;
+				if (value_type == ValueType::Integer ||
+					value_type == ValueType::PositiveInt ||
+					value_type == ValueType::UnsignedInt
+				)
+				{
+					double _double;
+					auto res = value.get(_double);
+					Assert(res == simdjson::error_code::SUCCESS);
+					*(NullableInt32*)dest = Deserialize_NullableInt32(context,
+					                                                  _double,
+					                                                  value_type,
+					                                                  options->file_name,
+					                                                  meta->name,
+					                                                  meta->members[mem_info->member_index].name);
+				}
+				else
+				{
+					auto raw_value = field.value().raw_json();
+					Assert(raw_value.error() == simdjson::error_code::SUCCESS);
 
-                    std::string_view view = raw_value.value_unsafe();
+					std::string_view view = raw_value.value_unsafe();
 
-                    String8 str = PushStr8FromStringView(arena, view);
-                    *(String8*)dest = str;
-                }
+					String8 str = PushStr8FromStringView(arena, view);
+					*(String8*)dest = str;
+				}
 
 			} break;
 			case simdjson::ondemand::json_type::boolean: // copy into dest
@@ -489,7 +489,7 @@ Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
 				auto res = value.get(_boolean);
 				Assert(res == simdjson::error_code::SUCCESS);
 
-                *(NullableBoolean*)dest = { true, (B32)_boolean };
+				*(NullableBoolean*)dest = { true, (B32)_boolean };
 			} break;
 			case simdjson::ondemand::json_type::object: // copy into dest
 			{
@@ -516,8 +516,8 @@ Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
 				auto res = value.get(arr);
 
 				U64 count = 0;
-				void *array_result = Deserialize_Array(context, 
-				                                       arena, 
+				void *array_result = Deserialize_Array(context,
+				                                       arena,
 				                                       options,
 				                                       mem_info,
 				                                       meta,
@@ -525,7 +525,7 @@ Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
 				                                       &count);
 				*(size_t*)dest = (size_t)array_result;
                 
-				ClassMemberMetadata *prev_mem = &meta->members[mem_info->member_index-1];
+				ClassMemberMetadata *prev_mem = &meta->members[mem_info->member_index - 1];
 				void *count_dest = (char*)out + prev_mem->offset;
 
 				Assert(sizeof(count) == prev_mem->size);
@@ -535,7 +535,7 @@ Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
 			} break;
 		}
 
-        BitField_ResetIndex(&required_members, mem_info->member_index);
+		BitField_ResetIndex(&required_members, mem_info->member_index);
 	}
 
 	// TODO(agw): simd compare? 
@@ -550,7 +550,7 @@ Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
 				if (copy & 1)
 				{
 					String8 field_name = meta->members[index].name;
-					AddError(&context->log, 
+					AddError(&context->log,
 					         LogType::Error,
 					         "File: %S Class \"%S\" is missing field: \"%S\"",
 					         options->file_name,
@@ -569,14 +569,14 @@ Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
 
 fhir_r4::Resource*
 Resource_Deserialize_SIMDJSON(ND_Context *context,
-                              Arena *arena, 
+                              Arena *arena,
                               DeserializationOptions *options,
                               ResourceType assumed_type,
                               simdjson::ondemand::object simdjson_object)
 {
 	TimeFunction;
 	return Resource_Deserialize_Impl_SIMDJSON(context,
-                                              arena,
+	                                          arena,
 	                                          options,
 	                                          assumed_type,
 	                                          simdjson_object);

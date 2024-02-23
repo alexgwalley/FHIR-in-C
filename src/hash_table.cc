@@ -12,7 +12,6 @@ struct HashTable
 	U64 mod;
 };
 
-
 U128
 HashFromString(String8 string)
 {
@@ -26,11 +25,11 @@ void
 HashTable_Add(HashTable *table, String8 key, String8 data)
 {
 	U128 hash = HashFromString(key);
-	U64 entry_index = hash.u64[1] & table->mod;
+	U64 entry_index = hash.u64[1] % table->mod;
 	if (table->entries[entry_index].key.size != 0)
 	{
 		U64 start_index = entry_index;
-		entry_index = entry_index+1 & table->mod;
+		entry_index = entry_index+1 % table->mod;
 		while (start_index != entry_index)
 		{
 			if (table->entries[entry_index].key.size == 0)
@@ -38,7 +37,7 @@ HashTable_Add(HashTable *table, String8 key, String8 data)
 				break;
 			}
 			entry_index++;
-			entry_index &= table->mod;
+			entry_index %= table->mod;
 		}
 	}
     
@@ -51,7 +50,7 @@ HashTable_Has(HashTable *table, String8 key)
 {
 	U128 hash = HashFromString(key);
     
-	U64 entry_index = hash.u64[1] & table->mod;
+	U64 entry_index = hash.u64[1] % table->mod;
 
 	if (table->entries[entry_index].key.size == 0)
 		return false;
@@ -63,13 +62,13 @@ HashTable_Has(HashTable *table, String8 key)
     
 	U64 start_index = entry_index;
 	entry_index++;
-	entry_index &= table->mod;
+	entry_index %= table->mod;
     
 	while (!Str8Match(key, table->entries[entry_index].key, 0) &&
            entry_index != start_index)
 	{
 		entry_index++;
-		entry_index &= table->mod;
+		entry_index %= table->mod;
 	}
 
 	if (entry_index == start_index) return false;
@@ -83,7 +82,7 @@ HashTable_Get(HashTable *table, String8 key)
 {
 	U128 hash = HashFromString(key);
     
-	U64 entry_index = hash.u64[1] & table->mod;
+	U64 entry_index = hash.u64[1] % table->mod;
 #if 0
 	if (table->entries[entry_index].key.size == 0)
 		Assert(false);
@@ -97,13 +96,13 @@ HashTable_Get(HashTable *table, String8 key)
     
 	U64 start_index = entry_index;
 	entry_index++;
-	entry_index &= table->mod;
+	entry_index %= table->mod;
     
 	while ( !Str8Match(key, table->entries[entry_index].key, 0) &&
            entry_index != start_index)
 	{
 		entry_index++;
-		entry_index &= table->mod;
+		entry_index %= table->mod;
 	}
 
 	Assert(entry_index != start_index);
@@ -111,6 +110,7 @@ HashTable_Get(HashTable *table, String8 key)
     
 	return table->entries[entry_index].value;
 }
+
 
 HashTable
 HashTable_Create(Arena *arena, U64 num_entries)

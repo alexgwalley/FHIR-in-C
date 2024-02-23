@@ -5,9 +5,9 @@ GetSubResource(Arena *arena, Resource *res, FhirPath resource_path, bool use_end
 ////////////////////////////
 // FHIR Path helpers 
 FhirPath
-FhirPathFromString8(Arena *arena, String8 path) 
+FhirPathFromString8(Arena *arena, String8 path)
 {
-	String8 splits[] = {Str8Lit(".")};
+	String8 splits[] = { Str8Lit(".") };
 	String8List strs = StrSplit8(arena, path, ArrayCount(splits), splits);
 	FhirPath fhir_path;
 	fhir_path.parts = strs;
@@ -52,7 +52,7 @@ FhirPathWithoutEnd(Arena *arena, FhirPath path)
 	parts_array->first = path.parts.first;
 	String8Node *ptr = path.parts.first;
 
-	for (int i = 0; i < parts_array->node_count-1; i++)
+	for (int i = 0; i < parts_array->node_count - 1; i++)
 	{
 		ptr = ptr->next;
 	}
@@ -81,8 +81,8 @@ CardinalityFromElementDefinition(ElementDefinition *elem_def)
 	} else if (elem_def->min == 0.0 && max_is_inf)
 	{
 		return Cardinality::ZeroToInf;
-	} 
-	else if (elem_def->min == 1.0 && max_is_inf) 
+	}
+	else if (elem_def->min == 1.0 && max_is_inf)
 	{
 		return Cardinality::OneToInf;
 	}
@@ -105,7 +105,7 @@ CardinalityFromElementDefinition(ElementDefinition *elem_def)
 local_function void
 ResourceAddMemberOrSubresourceMember(Arena *arena, Resource *res, FhirPath path, ResourceMember *member)
 {
-	Resource *to_modify = res; 
+	Resource *to_modify = res;
 	Resource *subresource = GetSubResource(arena, res, path, false);
 	if (subresource) {
 		to_modify = subresource;
@@ -156,7 +156,7 @@ GetSubResource(Arena *arena, Resource *res, FhirPath resource_path, bool use_end
 		ptr = ptr->next)
 	{
 		Resource resource = ptr->resource;
-		if (resource.sub_resources->count > 0) 
+		if (resource.sub_resources->count > 0)
 		{
 			Resource *possible_sub = GetSubResource(arena, &resource, path_to_check, true);
 			if (possible_sub)
@@ -205,7 +205,7 @@ GetSubResource(Arena *arena, Resource *res, FhirPath resource_path, bool use_end
 local_function void
 ResourceAddSubResource(Arena *arena, Resource *res, FhirPath path, ElementDefinition *elem_def)
 {
-	Resource *to_modify = res; 
+	Resource *to_modify = res;
 	Resource *subresource = GetSubResource(arena, res, path, false);
 	if (subresource) {
 		to_modify = subresource;
@@ -245,8 +245,8 @@ ResourceHasInherited(Resource *res, String8 resource_name)
 local_function void
 ResourceAddInherited(Arena *arena, Resource *res, FhirPath path, String8 resource_name)
 {
-	Resource *to_modify = res; 
-	Resource *subresource = GetSubResource(arena, res, path, false);
+	Resource *to_modify = res;
+	//Resource *subresource = GetSubResource(arena, res, path, false);
 	if (ResourceHasInherited(res, resource_name)) {
 		// NOTE(alex): we have already indicated that a resource depends on another, continue;
 		return;
@@ -283,7 +283,7 @@ ResourceFromStructureDefinition(Arena *arena, StructureDefinition* def)
 		if (Str8Match(elem.id, def->type, 0)) continue;
 		if (elem.base_path.parts.node_count == 0) continue;
         
-#if 0
+		#if 0
 		String8 base_path = elem.base_path.parts.first->string;
 		String8 def_id_base = def->id.parts.first->string;
 		bool is_interited_element = !Str8Match(base_path, def_id_base, 0);
@@ -293,7 +293,7 @@ ResourceFromStructureDefinition(Arena *arena, StructureDefinition* def)
 			ResourceAddInherited(arena, result, elem.path, base_path);
 			continue;
 		}
-#endif
+		#endif
         
 		if (ElementDefinitionIsResource(&elem)) {
 			ResourceAddSubResource(arena, result, elem.path, &elem);

@@ -11,36 +11,36 @@ std::ostream& operator<<(std::ostream& ss, String8 str)
 }
 
 String8
-String8FromValueType(Arena *arena, CodeGenerationOptions *options, ValueTypeAndName tan)
+String8FromValueType(CodeGenerationOptions *options, ValueTypeAndName tan)
 {
-    if (tan.type == ValueType::ClassReference)
-    {
-        return tan.name;
-    }
+	if (tan.type == ValueType::ClassReference)
+	{
+		return tan.name;
+	}
 
-    return options->value_type_meta[(int)tan.type].string;
+	return options->value_type_meta[(int)tan.type].string;
 }
 
 String8
 CS_String8FromValueType(Arena *arena, CodeGenerationOptions *options, ValueTypeAndName tan)
 {
-    if (tan.type == ValueType::ClassReference)
-    {
-        return tan.name;
-    }
+	if (tan.type == ValueType::ClassReference)
+	{
+		return tan.name;
+	}
 
-    return options->value_type_meta[(int)tan.type].cs_name;
+	return options->value_type_meta[(int)tan.type].cs_name;
 }
 
 String8
 CPP_String8FromValueType(Arena *arena, CodeGenerationOptions *options, ValueTypeAndName tan)
 {
-    if (tan.type == ValueType::ClassReference)
-    {
-        return tan.name;
-    }
+	if (tan.type == ValueType::ClassReference)
+	{
+		return tan.name;
+	}
 
-    return options->value_type_meta[(int)tan.type].cpp_name;
+	return options->value_type_meta[(int)tan.type].cpp_name;
 }
 
 ////////////////////////////
@@ -55,7 +55,7 @@ EnumMemberNameFromMemberName(Arena *arena, String8 member_name)
 String8
 MemberNameFromEnumMemberName(Arena *arena, String8 enum_member_name)
 {
-	return Prefix8(enum_member_name, enum_member_name.size-5);
+	return Prefix8(enum_member_name, enum_member_name.size - 5);
 }
 
 String8
@@ -77,11 +77,11 @@ String8
 GetEnumInternalName(Arena *arena, CodeGenerationOptions *options, ValueTypeAndName tan)
 {
 	Temp scratch = ScratchBegin(&arena, 1);
-    String8 str = PushStr8Copy(scratch.arena, options->value_type_meta[(int)tan.type].string);
-    if (tan.type == ValueType::ClassReference)
-    {
-	    str = PushStr8Copy(scratch.arena, tan.name);
-    }
+	String8 str = PushStr8Copy(scratch.arena, options->value_type_meta[(int)tan.type].string);
+	if (tan.type == ValueType::ClassReference)
+	{
+		str = PushStr8Copy(scratch.arena, tan.name);
+	}
 	str.str[0] = CharToUpper(str.str[0]);
 	ScratchEnd(scratch);
 	return str;
@@ -94,17 +94,17 @@ String8
 GetUnionInternalTypeName(Arena *arena, CodeGenerationOptions *options, ValueTypeAndName tan, String8 member_name)
 {
 	Temp scratch = ScratchBegin(&arena, 1);
-    String8 str = PushStr8Copy(scratch.arena, options->value_type_meta[(int)tan.type].string);
-    if (tan.type == ValueType::ClassReference)
-    {
-	    str = PushStr8Copy(scratch.arena, tan.name);
-    }
+	String8 str = PushStr8Copy(scratch.arena, options->value_type_meta[(int)tan.type].string);
+	if (tan.type == ValueType::ClassReference)
+	{
+		str = PushStr8Copy(scratch.arena, tan.name);
+	}
 
 	str.str[0] = CharToUpper(str.str[0]);
-	String8 result = PushStr8F(arena, 
-                               "%S%S",
-                               member_name,
-                               str);
+	String8 result = PushStr8F(arena,
+	                           "%S%S",
+	                           member_name,
+	                           str);
 	ScratchEnd(scratch);
 	return result;
 }
@@ -113,7 +113,7 @@ String8
 GetClassNameFromUnionName(Arena* arena, String8 union_name, String8 member_name)
 {
 	String8 str = PushStr8Copy(arena, union_name);
-	String8 result = Str8Skip(str, member_name.size-1);
+	String8 result = Str8Skip(str, member_name.size - 1);
 	result.str[0] = CharToUpper(result.str[0]);
 	return result;
 }
@@ -144,7 +144,7 @@ AppendCSEnum(std::ostream &ss, CodeGenerationOptions *options, ClassMember *mem,
 	ss << "\t};" << std::endl;
 
 	ss << "[FieldOffset(" << meta->offset << ")] ";
-	ss << "public " << enum_name << " " << mem->clean_name << ";"<< std::endl;
+	ss << "public " << enum_name << " " << mem->clean_name << ";" << std::endl;
 	ScratchEnd(scratch);
 }
 
@@ -160,7 +160,7 @@ AppendCSUnion(std::ostream& ss, CodeGenerationOptions *options, ClassMember *mem
 	mem_name_copy.str[0] = CharToUpper(mem_name_copy.str[0]);
 	String8 union_name = PushStr8F(scratch.arena, "%SUnion", mem_name_copy);
 
-	ss << "\tpublic unsafe struct " << union_name << " {" <<  std::endl;
+	ss << "\tpublic unsafe struct " << union_name << " {" << std::endl;
 
 	for (int i = 0; i < mem->types_count; i++)
 	{
@@ -227,7 +227,7 @@ AppendCPPEnum(std::ostream &ss, CodeGenerationOptions *options, ClassMember *mem
     
 	ss << "\t};" << std::endl;
 
-	ss << enum_name << " " << mem->clean_name << ";"<< std::endl;
+	ss << enum_name << " " << mem->clean_name << ";" << std::endl;
 	ScratchEnd(scratch);
 }
 
@@ -263,7 +263,7 @@ AppendCPPUnion(std::ostream& ss, CodeGenerationOptions *options, ClassMember *me
 void
 AppendClassMember(std::ostream& ss, CodeGenerationOptions *options, ClassMember *mem, ClassMemberMetadata *meta)
 {
-	switch(mem->type)
+	switch (mem->type)
 	{
 		case ClassMemberType::Single:
 		{
@@ -287,15 +287,15 @@ AppendClassMember(std::ostream& ss, CodeGenerationOptions *options, ClassMember 
 			);
 			bool is_class_ref = mem->types[0].type == ValueType::ClassReference;
 
-            String8 value_type;
-            if (options->type == CodeGenerationType::CSharp)
-            {
-                value_type = CS_String8FromValueType(0, options, mem->types[0]);
-            }
-            else if (options->type == CodeGenerationType::Cpp)
-            {
-                value_type = CPP_String8FromValueType(0, options, mem->types[0]);
-            }
+			String8 value_type;
+			if (options->type == CodeGenerationType::CSharp)
+			{
+				value_type = CS_String8FromValueType(0, options, mem->types[0]);
+			}
+			else if (options->type == CodeGenerationType::Cpp)
+			{
+				value_type = CPP_String8FromValueType(0, options, mem->types[0]);
+			}
 
 			ss << "\t";
 
@@ -381,13 +381,13 @@ OutputClassDefinition(std::ostream& ss, CodeGenerationOptions *options, ClassDef
 	ss << (options->use_classes ? "class" : "struct");
 	ss << " " << def->name;
 
-#if 0
+	#if 0
 	if (def->inherits.node_count > 0)
 	{
 		String8 inherit = def->inherits.first->string;
 		ss << " : " << inherit;
 	}
-#endif
+	#endif
 
 	Temp scratch = ScratchBegin(0, 0);
 	ClassMetadata *meta = ClassMetadataFromClassDefinition(scratch.arena, options, def);

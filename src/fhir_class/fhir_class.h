@@ -146,8 +146,6 @@ struct ClassDefinitionList
 	ClassDefinitionNode *first;
 	ClassDefinitionNode *last;
 	U64 count;
-
-	bool PushCopies(ClassDefinitionList *list);
 };
 
 void

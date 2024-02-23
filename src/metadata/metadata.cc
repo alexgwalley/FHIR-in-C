@@ -55,11 +55,11 @@ SerializeMemberTypes(Arena *arena, CodeGenerationOptions *options, ClassMemberMe
 		if (type.type == ValueType::Unknown) break;
 
 		Str8ListPush(scratch.arena, &result_list,
-		              Str8Lit("\t\t\t\t{ "));
+		             Str8Lit("\t\t\t\t{ "));
 		String8 type_name = value_type_meta[(int)type.type].string;
 		Str8ListPushF(scratch.arena, &result_list,
-					"ValueType::%S, ", 
-					type_name);
+		              "ValueType::%S, ",
+		              type_name);
 		if (mem->type == ClassMemberType::Union)
 		{
 			Str8ListPushF(scratch.arena, &result_list,
@@ -74,10 +74,10 @@ SerializeMemberTypes(Arena *arena, CodeGenerationOptions *options, ClassMemberMe
 			              mem->types[i].name);
 		}
 		Str8ListPush(scratch.arena, &result_list,
-		              Str8Lit(" }"));
+		             Str8Lit(" }"));
 		if (i != ArrayCount(mem->types) - 1) {
 			Str8ListPush(scratch.arena, &result_list,
-						Str8Lit(",\n"));
+			             Str8Lit(",\n"));
 		}
 	}
 
@@ -146,7 +146,7 @@ SerializeClassMetadata(Arena *arena, CodeGenerationOptions *options, ClassMetada
 
 		Str8ListPushF(scratch.arena, &result_list,
 		              "\t\t\tStr8LitComp(\"%S\"),\n",
-						mem.name);
+		              mem.name);
 
 		String8 cardinality = cardinality_str[(int)mem.cardinality];
 		Str8ListPushF(scratch.arena, &result_list,
@@ -169,7 +169,7 @@ SerializeClassMetadata(Arena *arena, CodeGenerationOptions *options, ClassMetada
 		String8 member_types = SerializeMemberTypes(scratch.arena, options, &mem);
 		Str8ListPushF(scratch.arena, &result_list,
 		              "%S\n",
-					member_types);
+		              member_types);
 
 
 		Str8ListPushF(scratch.arena, &result_list, "\t\t}");
@@ -215,7 +215,7 @@ MemberSize(ClassMember *mem, CodeGenerationOptions *options)
 ClassMetadata*
 ClassMetadataFromClassDefinition(Arena *arena,
                                  CodeGenerationOptions *options,
-                                ClassDefinition *def)
+                                 ClassDefinition *def)
 {
 	ClassMetadata *meta = PushStruct(arena, ClassMetadata);
 	meta->name = def->name;
@@ -254,7 +254,7 @@ ClassMetadataFromClassDefinition(Arena *arena,
 			mem.types[0].type != ValueType::ArrayCount &&
 			mem.types[0].type != ValueType::ResourceType &&
 			(mem_meta->cardinality == Cardinality::OneToOne ||
-			mem_meta->cardinality == Cardinality::OneToInf))
+				mem_meta->cardinality == Cardinality::OneToInf))
 		{
 			BitField_SetIndex(&meta->required_members, index);
 		}

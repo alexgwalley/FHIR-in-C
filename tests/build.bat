@@ -8,5 +8,5 @@ mkdir build
 pushd build
 echo %cd%
 @rem wd5033 is to remove "register" warning from gperf
-cl /std:c++17 /Zi /DDEBUG /wd5033 /EHsc /MDd /DEBUG /Fe:test.exe ../../src/third_party/simdjson.cpp ../tests.cc /I../../src /I../../ /link /DEBUG:FULL
+cl /std:c++17 /Zi /DDEBUG /wd5033 /wd4505 /EHsc /MDd /DEBUG /Fe:test.exe ../../src/third_party/simdjson.cpp ../tests.cc /I../../src /I../../ /link /DEBUG:FULL
 popd

@@ -1,48 +1,7 @@
-// NOTE(agw): could get around this by just capitalizing the first letter of all 
-// members. Similar approach is pre-prending an '_'
-
-// TODO(agw): need to add this to final package
-String8 illegal_member_names[] = {
-	Str8Lit("class"),
-	Str8Lit("operator"),
-	Str8Lit("template"),
-	Str8Lit("for"),
-	Str8Lit("while"),
-	Str8Lit("function"),
-	Str8Lit("global"),
-	Str8Lit("resourceType"),
-	Str8Lit("short"),
-	Str8Lit("base"),
-	Str8Lit("event"),
-	Str8Lit("ref"),
-	Str8Lit("params"),
-	Str8Lit("abstract"),
-	Str8Lit("fixed"),
-};
-
-
-String8 illegal_member_names_replacement[] = {
-	Str8Lit("class_"),
-	Str8Lit("operator_"),
-	Str8Lit("template_"),
-	Str8Lit("for_"),
-	Str8Lit("while_"),
-	Str8Lit("function_"),
-	Str8Lit("global_"),
-	Str8Lit("resourceType_"),
-	Str8Lit("short_"),
-	Str8Lit("base_"),
-	Str8Lit("event_"),
-	Str8Lit("ref_"),
-	Str8Lit("params_"),
-	Str8Lit("abstract_"),
-	Str8Lit("fixed_"),
-};
-
 ////////////////////////////
 // Class Definition Helpers
 void
-CDListPush(Arena *arena, ClassDefinitionList *list, ClassDefinition def) 
+CDListPush(Arena *arena, ClassDefinitionList *list, ClassDefinition def)
 {
 	ClassDefinitionNode *node = PushArray(arena, ClassDefinitionNode, 1);
 	node->def = def;
@@ -62,8 +21,8 @@ CDListMerge(ClassDefinitionList a, ClassDefinitionList b)
 		b.last->next = nullptr;
 		result.count = a.count + b.count;
 		return result;
-	} 
-	else if(a.first)
+	}
+	else if (a.first)
 	{
 		return a;
 	}
@@ -72,13 +31,15 @@ CDListMerge(ClassDefinitionList a, ClassDefinitionList b)
 		return b;
 	}
  
+
 	Assert(false);
+	return a;
 }
 
 ////////////////////////////
 // Class Member Helpers
 void
-CMListPush(Arena *arena, ClassMemberList *list, ClassMember mem) 
+CMListPush(Arena *arena, ClassMemberList *list, ClassMember mem)
 {
 	ClassMemberNode *node = PushArray(arena, ClassMemberNode, 1);
 	node->mem = mem;
@@ -111,13 +72,13 @@ ClassNameFromResourceName(Arena *arena, String8 res_name)
 		} else if (c == '-')
 		{
 			result.str[i] = '_';
-		} 
+		}
 		else if (c == ':')
 		{
 			result.size = i;
 			break;
 		}
-		else 
+		else
 		{
 			result.str[i] = res_name.str[i];
 		}
@@ -173,13 +134,13 @@ ValueTypeFromString8(String8 str)
 {
 	for (int i = 0; i < ArrayCount(value_type_meta); i++)
 	{
-        for (int j = 0; j < ArrayCount(value_type_meta[i].fhir_names); j++)
-        {
-            if (Str8Match(str, value_type_meta[i].fhir_names[j], 0))
-            {
-                return value_type_meta[i].type;
-            }
-        }
+		for (int j = 0; j < ArrayCount(value_type_meta[i].fhir_names); j++)
+		{
+			if (Str8Match(str, value_type_meta[i].fhir_names[j], 0))
+			{
+				return value_type_meta[i].type;
+			}
+		}
 	}
 	// TODO(agw): should probably check if a valid class
 	return ValueType::ClassReference;
@@ -304,7 +265,7 @@ ClassMembersFromResourceMember(Arena *arena, ResourceMember *mem)
 // Exported
 
 ClassDefinitionList
-GetClassDefinitionsFromResource(Arena *arena, Resource *res) 
+GetClassDefinitionsFromResource(Arena *arena, Resource *res)
 {
 	ClassDefinitionList result = {};
 
@@ -313,8 +274,8 @@ GetClassDefinitionsFromResource(Arena *arena, Resource *res)
 	class_def.inherits = res->inherits;
 
 	ClassMember resource_type_member = ResourceTypeClassMember(arena, class_def.name);
-	CMListPush(arena, 
-	           &class_def.members, 
+	CMListPush(arena,
+	           &class_def.members,
 	           resource_type_member);
 
 	HashTable members = HashTable_Create(arena, 4096);
@@ -329,7 +290,7 @@ GetClassDefinitionsFromResource(Arena *arena, Resource *res)
 			mem_node = mem_node->next)
 		{
 			if (HashTable_Has(&members, mem_node->mem.clean_name))
-				continue;
+			continue;
 
 			if (mem_node->mem.IsArray())
 			{

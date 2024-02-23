@@ -3,11 +3,19 @@
 @rem read compile mode, can be either "debug" or "release" (without quotes)
 set compile_mode=%1
 
+@rem wd5033 is to remove "register" warning from gperf
+@rem wd4505 is to remove unreferenced function link
+set FLAGS= /std:c++17 /wd5033 /wd4505 /EHsc /Fe:simple_use.exe
+set DEBUG_FLAGS=/MDd /DEBUG /DDEBUG
+set DEBUG_LINK=/link /DEBUG:FULL
+set FILES= ../../src/third_party/simdjson.cpp ../simple_use.cc
+set INCLUDE=/I../../src /I../../
+
 mkdir build
 
 pushd build
 echo %cd%
-@rem wd5033 is to remove "register" warning from gperf
-if %compile_mode%==release cl /std:c++17 /O2 /Zi /EHsc /wd5033 /Fe:simple_use.exe ../../src/third_party/simdjson.cpp ../simple_use.cc /Zi /I../../src /I../../
-if %compile_mode%==debug cl /std:c++17 /Zi /DDEBUG /wd5033 /EHsc /MDd /DEBUG /Fe:simple_use.exe ../../src/third_party/simdjson.cpp ../simple_use.cc /I../../src /I../../ /link /DEBUG:FULL
+
+if %compile_mode%==release cl /O2 /Zi %FLAGS%  %FILES% /Zi %INCLUDE%
+if %compile_mode%==debug cl /Zi %FLAGS% %DEBUG_FLAGS%  %FILES% %INCLUDE% %DEBUG_LINK%
 popd

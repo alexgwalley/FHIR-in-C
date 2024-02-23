@@ -31,12 +31,6 @@ struct MetadataHeader
     U16 version;
 };
 
-struct MetadataFile
-{
-    MetadataHeader header;
-    ClassMetadata class_metadata[];
-};
-
 typedef enum class ResourceType {
 	Unknown,
 	Resource,

@@ -25,6 +25,7 @@ bundles/
 *.lo
 *.o
 *.obj
+*.dll
 
 # Precompiled Headers
 *.gch

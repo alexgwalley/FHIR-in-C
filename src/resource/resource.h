@@ -1,6 +1,5 @@
 #ifndef RESOURCE_H
 #define RESOURCE_H
-#include "fhir_structure.h"
 
 
 enum class Cardinality

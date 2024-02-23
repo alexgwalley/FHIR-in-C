@@ -743,7 +743,7 @@ Utf16FromCodepoint(U16 *out, U32 codepoint)
 	else
 	{
 		U64 v = codepoint - 0x10000;
-		out[0] = 0xD800 + (v >> 10);
+		out[0] = (U16)(0xD800 + (v >> 10));
 		out[1] = 0xDC00 + (v & bitmask10);
 		advance = 2;
 	}
