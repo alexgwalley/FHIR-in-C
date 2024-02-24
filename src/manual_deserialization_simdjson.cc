@@ -24,6 +24,10 @@ Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
                                    ResourceType type,
                                    simdjson::ondemand::object simdjson_object);
 
+
+/////////////////////////////////////
+// NOTE (agw): Resource Type and String Conversion ===============================
+
 static ResourceType
 ResourceTypeFromString8(String8 str)
 {
@@ -31,37 +35,12 @@ ResourceTypeFromString8(String8 str)
 	return (ResourceType)pair->type;
 }
 
-String8
+inline String8
 String8FromResourceType(ResourceType type)
 {
 	return resource_type_pairs[(int)type].str;
 }
 
-// NOTE (agw): Deserialization ========================================================
-
-inline const MemberNameAndOffset*
-GetMemberMetadata(ND_Context *context,
-                  ClassMetadata *in_class_metadata,
-                  ResourceType type,
-                  String8 unvalidated_key)
-{
-	const MemberNameAndOffset *mem_and_offset = ClassMemberLookup(type, unvalidated_key);
-    
-	if (mem_and_offset == NULL)
-	{
-		AddError(&context->log, LogType::Error, "Could not find key \"%S\" on resource type \"%S\"",
-		         unvalidated_key, String8FromResourceType(type));
-		return NULL;
-	}
-
-	return mem_and_offset;
-}
-
-inline void*
-PushResource(Arena *arena, ResourceType type)
-{
-	return ArenaPush(arena, class_metadata[(int)type].size);
-}
 
 
 inline NullableInt32
@@ -107,6 +86,9 @@ Deserialize_NullableInt32(ND_Context *context,
 	return ret;
 }
 
+/////////////////////////////////////
+// NOTE (agw): ISO8601 Time ========================================================
+
 ISO8601_Time
 Deserialize_ISO8601(String8 str,
                     ValueType type)
@@ -145,7 +127,8 @@ Deserialize_ISO8601(String8 str,
 	                                exclude);
 }
 
-
+/////////////////////////////////////
+// NOTE (agw): ArrayValues ========================================================
 
 #define ArrayValueLit(ptr, type) { (void*)(ptr), sizeof(type) }
 
@@ -155,7 +138,6 @@ struct ArrayValue
 	void *data;
 	U64 size;
 };
-
 
 typedef struct ArrayValueNode ArrayValueNode;
 struct ArrayValueNode
@@ -173,7 +155,6 @@ struct ArrayValueList
 	U64 total_size;
 };
 
-
 void
 ArrayValueListPush(Arena *arena, ArrayValueList *list, ArrayValue array_value)
 {
@@ -183,6 +164,9 @@ ArrayValueListPush(Arena *arena, ArrayValueList *list, ArrayValue array_value)
 	list->node_count += 1;
 	list->total_size += array_value.size;
 }
+
+/////////////////////////////////////
+// NOTE (agw): String View Conversion ========================================================
 
 inline String8
 Str8FromStringView(std::string_view view)
@@ -203,6 +187,9 @@ PushStr8FromStringView(Arena *arena,
 	MemoryCopy(str.str, view.data(), str.size);
 	return str;
 }
+
+/////////////////////////////////////
+// NOTE (agw): Deserialization ========================================================
 
 void*
 Deserialize_Array(ND_Context *context,
@@ -355,6 +342,30 @@ Deserialize_Array(ND_Context *context,
 	return output_array;
 }
 
+inline const MemberNameAndOffset*
+GetMemberMetadata(ND_Context *context,
+                  ClassMetadata *in_class_metadata,
+                  ResourceType type,
+                  String8 unvalidated_key)
+{
+	const MemberNameAndOffset *mem_and_offset = ClassMemberLookup(type, unvalidated_key);
+    
+	if (mem_and_offset == NULL)
+	{
+		AddError(&context->log, LogType::Error, "Could not find key \"%S\" on resource type \"%S\"",
+		         unvalidated_key, String8FromResourceType(type));
+		return NULL;
+	}
+
+	return mem_and_offset;
+}
+
+inline void*
+PushResource(Arena *arena, ResourceType type)
+{
+	return ArenaPush(arena, class_metadata[(int)type].size);
+}
+
 fhir_r4::Resource*
 Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
                                    Arena *arena,
@@ -366,31 +377,31 @@ Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
     
 	fhir_r4::Resource* out;
 	
-	// TODO(alex): this may be a little hack-y...idk
-	if (resource_type == ResourceType::Unknown ||
-		resource_type == ResourceType::Resource)
+	/////////////////////
+	// ~ Get resource type if unknown
 	{
-		std::string_view resource_type_value;
-		simdjson::error_code error = simdjson_object["resourceType"].get(resource_type_value);
-		if (error != simdjson::error_code::SUCCESS)
+		if (resource_type == ResourceType::Unknown ||
+			resource_type == ResourceType::Resource)
 		{
-			return nullptr;
+			std::string_view resource_type_value;
+			simdjson::error_code error = simdjson_object["resourceType"].get(resource_type_value);
+			if (error != simdjson::error_code::SUCCESS)
+			{
+				return nullptr;
+			}
+
+			String8 res_type_str = Str8FromStringView(resource_type_value);
+			resource_type = ResourceTypeFromString8(res_type_str);
+
+			simdjson_object.reset();
 		}
-
-		String8 res_type_str = {};
-		res_type_str.str = (U8*)resource_type_value.data();
-		res_type_str.size = resource_type_value.size();
-		resource_type = ResourceTypeFromString8(res_type_str);
-
-		simdjson_object.reset();
 	}
 
-	out = (fhir_r4::Resource*)PushResource(arena, resource_type);
+	out = (fhir_r4::Resource*)ArenaPush(arena, class_metadata[(int)resource_type].size);
 	out->resourceType = (fhir_r4::ResourceType)resource_type;
 
 	ClassMetadata *meta = &class_metadata[(int)resource_type];
 
-	// TODO(agw) handle the case where we don't know the type ahead of time
 	BitField required_members = meta->required_members;
     
 	int index = -1;
@@ -406,22 +417,24 @@ Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
 		                                                        key);
 
 		// NOTE(agw): the first index is resourceType, let's skip that
-		if (mem_info == NULL || mem_info->member_index == 0)
-			continue;
+		B32 is_first_member = mem_info == NULL || mem_info->member_index == 0;
+		if (is_first_member) continue;
 
-		void *dest = (char*)out + mem_info->offset;
+		void *member_field_ptr = (char*)out + mem_info->offset;
         
-		if ((ValueType)mem_info->union_type_type != ValueType::Unknown)
+		/////////////////////
+		// ~ Set enum type if member is union 
 		{
-			// NOTE(agw): get union_type offset in struct
-			ClassMemberMetadata *enum_type_meta = &meta->members[mem_info->member_index + 1];
-			U32 *enum_type = (U32*)((char*)out + enum_type_meta->offset);
-			*enum_type = (U32)mem_info->type_index;
+			if ((ValueType)mem_info->union_type_type != ValueType::Unknown)
+			{
+				// NOTE(agw): get union_type offset in struct
+				ClassMemberMetadata *enum_type_meta = &meta->members[mem_info->member_index + 1];
+				U32 *enum_type = (U32*)((char*)out + enum_type_meta->offset);
+				*enum_type = (U32)mem_info->type_index;
+			}
 		}
         
-
 		simdjson::ondemand::value value = field.value();
-
 		switch (value.type())
 		{
 			case simdjson::ondemand::json_type::string: // copy into dest
@@ -442,13 +455,13 @@ Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
 				{
 
 					String8 str = Str8FromStringView(str_view);
-					*(ISO8601_Time*)dest = Deserialize_ISO8601(str, mem_meta->types[mem_info->type_index].type);
+					*(ISO8601_Time*)member_field_ptr = Deserialize_ISO8601(str, mem_meta->types[mem_info->type_index].type);
 				}
 				else
 				{
 					// NOTE(agw): this is most common case...way to remove some branch misses?
 					String8 str = PushStr8FromStringView(arena, str_view);
-					*(String8*)dest = str;
+					*(String8*)member_field_ptr = str;
 				}
 
 			} break;
@@ -464,7 +477,7 @@ Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
 					double _double;
 					auto res = value.get(_double);
 					Assert(res == simdjson::error_code::SUCCESS);
-					*(NullableInt32*)dest = Deserialize_NullableInt32(context,
+					*(NullableInt32*)member_field_ptr = Deserialize_NullableInt32(context,
 					                                                  _double,
 					                                                  value_type,
 					                                                  options->file_name,
@@ -479,7 +492,7 @@ Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
 					std::string_view view = raw_value.value_unsafe();
 
 					String8 str = PushStr8FromStringView(arena, view);
-					*(String8*)dest = str;
+					*(String8*)member_field_ptr = str;
 				}
 
 			} break;
@@ -489,7 +502,7 @@ Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
 				auto res = value.get(_boolean);
 				Assert(res == simdjson::error_code::SUCCESS);
 
-				*(NullableBoolean*)dest = { true, (B32)_boolean };
+				*(NullableBoolean*)member_field_ptr = { true, (B32)_boolean };
 			} break;
 			case simdjson::ondemand::json_type::object: // copy into dest
 			{
@@ -508,7 +521,7 @@ Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
 				                                                    options,
 				                                                    type,
 				                                                    child);
-				*(size_t*)dest = (size_t)resource;
+				*(size_t*)member_field_ptr = (size_t)resource;
 			} break;
 			case simdjson::ondemand::json_type::array:
 			{
@@ -523,7 +536,7 @@ Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
 				                                       meta,
 				                                       arr,
 				                                       &count);
-				*(size_t*)dest = (size_t)array_result;
+				*(size_t*)member_field_ptr = (size_t)array_result;
                 
 				ClassMemberMetadata *prev_mem = &meta->members[mem_info->member_index - 1];
 				void *count_dest = (char*)out + prev_mem->offset;
@@ -538,29 +551,33 @@ Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
 		BitField_ResetIndex(&required_members, mem_info->member_index);
 	}
 
-	// TODO(agw): simd compare? 
-	for (int i = 0; i < ArrayCount(required_members.values); i++)
+	/////////////////////
+	// ~ Error checking for missing member fields
 	{
-		if (required_members.values[i] != 0)
+		for (int i = 0; i < ArrayCount(required_members.values); i++)
 		{
-			size_t copy = required_members.values[i];
-			int index = 0;
-			while (copy > 0)
+			if (required_members.values[i] == 0)
 			{
-				if (copy & 1)
-				{
-					String8 field_name = meta->members[index].name;
-					AddError(&context->log,
-					         LogType::Error,
-					         "File: %S Class \"%S\" is missing field: \"%S\"",
-					         options->file_name,
-					         meta->name,
-					         field_name);
-				}
-
-				copy >>= 1;
-				index++;
+				continue;
 			}
+				size_t required = required_members.values[i];
+				int index = 0;
+				while (required > 0)
+				{
+					if (required & 1)
+					{
+						String8 field_name = meta->members[index].name;
+						AddError(&context->log,
+						         LogType::Error,
+						         "File: %S Class \"%S\" is missing field: \"%S\"",
+						         options->file_name,
+						         meta->name,
+						         field_name);
+					}
+
+					required >>= 1;
+					index++;
+				}
 		}
 	}
     

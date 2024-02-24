@@ -55,7 +55,6 @@ ReadEntireFile(Arena *arena, String8 file_name)
 	return result;
 }
 
-
 void*
 Deserialize_File(Arena *arena, 
                  fhir_deserialize::DeserializationOptions *options,

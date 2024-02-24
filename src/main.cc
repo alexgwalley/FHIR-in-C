@@ -529,7 +529,7 @@ CppOptions(Arena *arena)
 		//{ Str8Lit("string"), true },
 		//{ Str8Lit("vector"), true },
 		//{ Str8Lit("memory"), true },
-		{ Str8Lit("iso8601_time.h"), false, IncludeType::Cpp },
+		{ Str8Lit("iso8601_time/iso8601_time.h"), false, IncludeType::Cpp },
 	};
 
 	options->include_files_count = ArrayCount(include_files);
@@ -752,7 +752,7 @@ int main()
 		Temp scratch = ScratchBegin(&arena, 1);
 		OutputClassDefinitions(
 		                       CSOptions(scratch.arena),
-		                       Str8Lit("generated/cs_generated_classes.cs"),
+		                       Str8Lit("generated/CSGeneratedClasses.cs"),
 		                       &class_defs);
 		ScratchEnd(scratch);
 	}

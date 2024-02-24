@@ -8,5 +8,6 @@
 #include "base/bitfield.h"
 #include "base/os.h"
 #include "base/threading.h"
+#include "base/logging.h"
 
 #endif

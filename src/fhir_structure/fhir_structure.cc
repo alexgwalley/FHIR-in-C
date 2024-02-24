@@ -68,6 +68,7 @@ const String8 element_types[] = {
 	Str8Lit("BackboneElement"),
 	Str8Lit("Element")
 };
+
 B32
 StringInElementTypes(String8 str) {
 	for (int i = 0; i < sizeof(element_types) / sizeof(element_types[0]); i++) {

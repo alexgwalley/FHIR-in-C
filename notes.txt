@@ -61,6 +61,7 @@ struct Identifier
 	Reference ref;
 };
 
+
 Therefore, we _have_ to use a pointer when there are members with a class reference
 
 Must be something along the lines of (or using unique_ptr)
