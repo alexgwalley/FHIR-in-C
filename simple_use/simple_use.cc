@@ -199,12 +199,14 @@ main(int arg_count, char** args)
 		TimeBlock("Deserialize_DLL")
 		{
 			void* ptr = deserialize_file_ptr((char*)bundle_file_name.str, (fhir_r4::Resource**) & resource);
+
+			printf("resource->_id %.*s\n", (int)resource->_id.size, resource->_id.str);
+
+			fhir_r4::StructureDefinition* ext = (fhir_r4::StructureDefinition*)(*resource->_entry)->_resource;
+			total_bytes_processed += entries.v[i].file_size_low;
+
 			free_context_ptr(ptr);
 		}
-		printf("resource->_id %.*s\n", (int)resource->_id.size, resource->_id.str);
-
-		fhir_r4::StructureDefinition* ext = (fhir_r4::StructureDefinition*)(*resource->_entry)->_resource;
-		total_bytes_processed += entries.v[i].file_size_low;
 
 		ArenaPopTo(arena, pos);
 

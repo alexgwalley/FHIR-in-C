@@ -110,7 +110,7 @@ Deserialize_ISO8601_Impl(String8 str,
 		ptr++;
 		time.hour += CharToInt(*ptr);
 		ptr++;
-		Assert(time.hour >= 0 && time.hour < 23);
+		Assert(time.hour >= 0 && time.hour <= 23);
         
 		time.precision = Precision::Hour;
         

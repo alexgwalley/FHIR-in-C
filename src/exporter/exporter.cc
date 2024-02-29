@@ -292,7 +292,7 @@ AppendClassMember(std::ostream& ss, CodeGenerationOptions *options, ClassMember 
 			{
 				value_type = CS_String8FromValueType(0, options, mem->types[0]);
 			}
-			else if (options->type == CodeGenerationType::Cpp)
+			else
 			{
 				value_type = CPP_String8FromValueType(0, options, mem->types[0]);
 			}

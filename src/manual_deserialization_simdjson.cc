@@ -177,13 +177,35 @@ Str8FromStringView(std::string_view view)
 	return str;
 }
 
-inline String8
+inline NullableString8
+NullableStr8FromStringView(std::string_view view)
+{
+	NullableString8 str = {};
+	str.size = view.size();
+	str.str = (U8*)view.data();
+	str.has_value = TRUE;
+	return str;
+}
+
+inline NullableString8
 PushStr8FromStringView(Arena *arena,
                        std::string_view view)
 {
-	String8 str = {};
+	NullableString8 str = {};
 	str.size = view.size();
 	str.str = (U8*)ArenaPushNoZero(arena, str.size);
+	MemoryCopy(str.str, view.data(), str.size);
+	return str;
+}
+
+inline NullableString8
+PushNullableStr8FromStringView(Arena *arena,
+                       std::string_view view)
+{
+	NullableString8 str = {};
+	str.size = view.size();
+	str.str = (U8*)ArenaPushNoZero(arena, str.size);
+	str.has_value = TRUE;
 	MemoryCopy(str.str, view.data(), str.size);
 	return str;
 }
@@ -237,12 +259,12 @@ Deserialize_Array(ND_Context *context,
 				}
 				else
 				{
-					String8 str = PushStr8FromStringView(arena, str_view);
+					NullableString8 str = PushNullableStr8FromStringView(arena, str_view);
 
-					String8 *str_ptr = PushStructNoZero(arena, String8);
+					NullableString8 *str_ptr = PushStructNoZero(arena, NullableString8);
 					*str_ptr = str;
 
-					ArrayValue value = ArrayValueLit(str_ptr, String8);
+					ArrayValue value = ArrayValueLit(str_ptr, NullableString8);
 					ArrayValueListPush(temp.arena, &list, value);
 				}
 			} break;
@@ -277,12 +299,12 @@ Deserialize_Array(ND_Context *context,
 
 					std::string_view view = raw_value.value_unsafe();
 
-					String8 str = PushStr8FromStringView(arena, view);
+					NullableString8 str = PushNullableStr8FromStringView(arena, view);
 
-					String8 *str_ptr = PushStructNoZero(arena, String8);
+					NullableString8 *str_ptr = PushStructNoZero(arena, NullableString8);
 					*str_ptr = str;
                     
-					ArrayValue value = ArrayValueLit(str_ptr, String8);
+					ArrayValue value = ArrayValueLit(str_ptr, NullableString8);
 					ArrayValueListPush(temp.arena, &list, value);
 				}
 			} break;
@@ -460,8 +482,8 @@ Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
 				else
 				{
 					// NOTE(agw): this is most common case...way to remove some branch misses?
-					String8 str = PushStr8FromStringView(arena, str_view);
-					*(String8*)member_field_ptr = str;
+					NullableString8 str = PushNullableStr8FromStringView(arena, str_view);
+					*(NullableString8*)member_field_ptr = str;
 				}
 
 			} break;
@@ -491,8 +513,8 @@ Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
 
 					std::string_view view = raw_value.value_unsafe();
 
-					String8 str = PushStr8FromStringView(arena, view);
-					*(String8*)member_field_ptr = str;
+					NullableString8 str = PushNullableStr8FromStringView(arena, view);
+					*(NullableString8*)member_field_ptr = str;
 				}
 
 			} break;
