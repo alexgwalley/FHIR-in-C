@@ -1,5 +1,12 @@
 #ifndef NULLABLE_H
 #define NULLABLE_H
+
+struct NullableString8 {
+	U8* str;
+	U64 size;
+	B32 has_value;
+};
+
 struct NullableInt32 {
     B32 has_value;
     int32_t value;

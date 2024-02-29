@@ -542,8 +542,8 @@ CppOptions(Arena *arena)
 
 	options->value_type_meta = value_type_meta;
 
-	#define STRING_TYPE String8
-	String8 string_type_name = Str8Lit("String8");
+	#define STRING_TYPE NullableString8
+	String8 string_type_name = Str8Lit("NullableString8");
 	TypeNameSize typedef_pairs[] = {
 		{ ValueType::Unknown, Str8Lit(""), 0 },
 		{ ValueType::Base64Binary, string_type_name, sizeof(STRING_TYPE) },
