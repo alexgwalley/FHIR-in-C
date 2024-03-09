@@ -1,3 +1,9 @@
 #!/bin/sh
-g++ simple_use.cc src/third_party/simdjson.cpp -fdeclspec -std=c++17 -o simple_use
 
+mkdir build
+pushd build
+pwd
+
+g++ -o main ../src/main.cc -std=c++17 -I../src 
+
+popd

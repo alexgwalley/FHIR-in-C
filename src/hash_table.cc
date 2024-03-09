@@ -1,4 +1,3 @@
-#include "third_party/meow_hash_x64_aesni.h"
 struct HashTableEntry
 {
 	String8 value;
@@ -12,20 +11,23 @@ struct HashTable
 	U64 mod;
 };
 
-U128
+U64
 HashFromString(String8 string)
 {
-	U128 hash = { 0 };
-	meow_u128 meow_hash = MeowHash(MeowDefaultSeed, string.size, string.str);
-	MemoryCopy(&hash, &meow_hash, Min(sizeof(meow_hash), sizeof(hash)));
-	return hash;
+	U64 result = 87019979;
+	for(U64 i = 0; i < string.size; i += 1)
+	{
+		result = ((result << 5) + result) + string.str[i];
+	}
+
+	return result;
 }
 
 void
 HashTable_Add(HashTable *table, String8 key, String8 data)
 {
-	U128 hash = HashFromString(key);
-	U64 entry_index = hash.u64[1] % table->mod;
+	U64 hash = HashFromString(key);
+	U64 entry_index = hash % table->mod;
 	if (table->entries[entry_index].key.size != 0)
 	{
 		U64 start_index = entry_index;
@@ -48,9 +50,9 @@ HashTable_Add(HashTable *table, String8 key, String8 data)
 bool
 HashTable_Has(HashTable *table, String8 key)
 {
-	U128 hash = HashFromString(key);
+	U64 hash = HashFromString(key);
     
-	U64 entry_index = hash.u64[1] % table->mod;
+	U64 entry_index = hash % table->mod;
 
 	if (table->entries[entry_index].key.size == 0)
 		return false;
@@ -80,9 +82,9 @@ HashTable_Has(HashTable *table, String8 key)
 String8
 HashTable_Get(HashTable *table, String8 key)
 {
-	U128 hash = HashFromString(key);
+	U64 hash = HashFromString(key);
     
-	U64 entry_index = hash.u64[1] % table->mod;
+	U64 entry_index = hash % table->mod;
 #if 0
 	if (table->entries[entry_index].key.size == 0)
 		Assert(false);

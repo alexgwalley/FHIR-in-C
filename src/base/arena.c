@@ -1,14 +1,16 @@
 #include "arena.h"
 
 U64 _page_size = 0;
-#if defined(_MSC_VER)
-#include <windows.h>
 
 void
 OS_Init()
 {
 	_page_size = OS_PageSize();
 }
+
+#if defined(_MSC_VER)
+#include <windows.h>
+
 
 void *
 OS_Reserve(U64 size)
@@ -112,7 +114,7 @@ OS_PageSize(void)
 	{
 		_page_size = getpagesize();
 	}
-	return _pagw_size;
+	return _page_size;
 }
 #endif
 

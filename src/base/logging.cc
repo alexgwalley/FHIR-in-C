@@ -2,7 +2,7 @@ void
 AddError(Log *log, LogType type, char* format, ...)
 {
     return;
-	va_list args = 0;
+	va_list args;
 	va_start(args, format);
 	String8 log_message = PushStr8FV(log->arena, format, args);
 	va_end(args);
