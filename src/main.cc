@@ -171,7 +171,8 @@ OutputClassDefinitions(
 		for (ClassDefinitionNode *node = list->first; node; node = node->next)
 		{
 			// TODO(agw): should take whether class or struct
-			fs << "class " << node->def.name << ";" << std::endl;
+			String8 type_name = options->use_classes ? Str8Lit("class") : Str8Lit("struct");
+			fs << type_name << " " << node->def.name << ";" << std::endl;
 		}
 	}
 
@@ -239,7 +240,7 @@ GperfFunctionLookup(Arena *arena, ClassDefinition *def)
 String8
 GPerfRow(Arena *arena, String8 name, size_t offset, size_t member_index, size_t type_index,
          String8 member_name, String8 member_first_type_name, ValueType union_type_type,
-         String8 union_type_name)
+         String8 union_type_name, Cardinality cardinality)
 {
 
 
@@ -265,14 +266,15 @@ GPerfRow(Arena *arena, String8 name, size_t offset, size_t member_index, size_t 
 
 	// TODO(agw): make namespace non-constant
 	return PushStr8F(arena,
-	                 "%S, 0x%x, %d, %d, (uint16_t)fhir_deserialize::ResourceType::%S, (uint16_t)fhir_deserialize::ResourceType::%S, (uint8_t)fhir_deserialize::ValueType::%S\n",
+	                 "%S, 0x%x, %d, %d, (uint16_t)fhir_deserialize::ResourceType::%S, (uint16_t)fhir_deserialize::ResourceType::%S, (uint8_t)fhir_deserialize::ValueType::%S, Cardinality::%S\n",
 	                 name,
 	                 (uint16_t)offset,
 	                 (uint8_t)member_index,
 	                 (uint8_t)type_index,
 	                 mem_type_name,
 	                 class_name,
-	                 union_type_as_string);
+	                 union_type_as_string,
+	                 cardinality_str[(int)cardinality]);
 }
 
 
@@ -331,7 +333,8 @@ SingleClassGperf(Arena *arena, CodeGenerationOptions *options, ClassDefinition *
 				                             mem.clean_name,
 				                             mem.types[0].name,
 				                             tan.type,
-				                             union_name);
+				                             union_name,
+				                             mem.cardinality);
 
 				Str8ListPush(scratch.arena, &result_list, gperf_row);
 			}
@@ -352,7 +355,8 @@ SingleClassGperf(Arena *arena, CodeGenerationOptions *options, ClassDefinition *
 			                             mem.clean_name,
 			                             class_value_name,
 			                             ValueType::Unknown,
-			                             Str8Lit(""));
+			                             Str8Lit(""),
+			                             mem.cardinality);
 
 			Str8ListPush(scratch.arena, &result_list, gperf_row);
 		}

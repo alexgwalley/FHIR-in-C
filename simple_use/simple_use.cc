@@ -122,8 +122,8 @@ main(int arg_count, char** args)
 	RunOptions run_options = RunOptionsFromArgs(arena, arg_count, args);
     
 	fhir_deserialize::DeserializationOptions options = {};
-	options.class_metadata = (ClassMetadata*) & fhir_deserialize::class_metadata[0];
-	options.class_metadata_count = ArrayCount(fhir_deserialize::class_metadata);
+	options.class_metadata = (ClassMetadata*) & fhir_deserialize::g_class_metadata[0];
+	options.class_metadata_count = ArrayCount(fhir_deserialize::g_class_metadata);
 	String8 dir_name = Str8Lit("./FHIR-Struct-Generator/bundles/");
 	if (run_options.directory_name.size != 0)
 	{

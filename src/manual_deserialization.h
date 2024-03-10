@@ -14,8 +14,7 @@
 namespace fhir_deserialize
 {
     
-
-	enum class Cardinality
+	enum class Cardinality : U8
 	{
 		Unknown,
 		ZeroToZero,
@@ -1544,32 +1543,33 @@ namespace fhir_deserialize
 	struct MemberNameAndOffset {
 		char *name; // 8
 		uint16_t offset; // 2
-        uint8_t member_index; // 1
-        uint8_t type_index; // 1
+		uint8_t member_index; // 1
+		uint8_t type_index; // 1
 
 		/*ResourceType*/
-        uint16_t member_first_type_class_type; // 2
+		uint16_t member_first_type_class_type; // 2
 		/*ResourceType*/
 		uint16_t union_resource_type; // 2
 
 		/*ValueType*/
 		uint8_t union_type_type; // 1
-        uint8_t reserved[3];
+		Cardinality cardinality;
+		uint8_t reserved[2];
 	};
 
 
-    struct ND_Context
-    {
-        Arena *main_arena;
-        Arena *scratch_arenas[2];
-        Log log;
-        fhir_deserialize::DeserializationOptions options;
-    };
+	struct ND_Context
+	{
+					Arena *main_arena;
+					Arena *scratch_arenas[2];
+					Log log;
+					fhir_deserialize::DeserializationOptions options;
+	};
 
-    struct ND_ContextNode {
-        ND_ContextNode *next;
-        ND_Context value;
-    };
+	struct ND_ContextNode {
+					ND_ContextNode *next;
+					ND_Context value;
+	};
 
 };
 #endif

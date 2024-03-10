@@ -385,7 +385,7 @@ GetMemberMetadata(ND_Context *context,
 inline void*
 PushResource(Arena *arena, ResourceType type)
 {
-	return ArenaPush(arena, class_metadata[(int)type].size);
+	return ArenaPush(arena, g_class_metadata[(int)type].size);
 }
 
 fhir_r4::Resource*
@@ -419,10 +419,10 @@ Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
 		}
 	}
 
-	out = (fhir_r4::Resource*)ArenaPush(arena, class_metadata[(int)resource_type].size);
+	out = (fhir_r4::Resource*)ArenaPush(arena, g_class_metadata[(int)resource_type].size);
 	out->resourceType = (fhir_r4::ResourceType)resource_type;
 
-	ClassMetadata *meta = &class_metadata[(int)resource_type];
+	ClassMetadata *meta = &g_class_metadata[(int)resource_type];
 
 	BitField required_members = meta->required_members;
     

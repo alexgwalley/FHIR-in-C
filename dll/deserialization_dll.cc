@@ -133,8 +133,8 @@ extern "C"
 		ND_Context *context = &node->value;
 
 		context->options = {};
-		context->options.class_metadata = (ClassMetadata*) & fhir_deserialize::class_metadata[0];
-		context->options.class_metadata_count = ArrayCount(fhir_deserialize::class_metadata);
+		context->options.class_metadata = (ClassMetadata*) & fhir_deserialize::g_class_metadata[0];
+		context->options.class_metadata_count = ArrayCount(fhir_deserialize::g_class_metadata);
 		context->main_arena = ArenaAlloc(Gigabytes(8));
 
 		for (U64 arena_idx = 0; arena_idx < ArrayCount(context->scratch_arenas); arena_idx += 1)
