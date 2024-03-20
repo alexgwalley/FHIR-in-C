@@ -2,6 +2,7 @@ build/
 src/generated/**/*
 src/gperf_hash_tables/**/*
 src/code/**/*
+fhir_path/
 generated/
 bundles/
 
