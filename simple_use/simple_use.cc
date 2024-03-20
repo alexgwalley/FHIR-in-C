@@ -1,4 +1,4 @@
-#if 0
+#if 1
 #include <windows.h>
 #endif
 
@@ -12,21 +12,29 @@
 
 #include "base/base_inc.h"
 
-#include "iso8601_time/iso8601_time.h"
-#include "manual_deserialization.h"
+#include "generated/fhir_r4_types.h"
 #include "generated/fhir_class_definitions.h"
+#include "metadata/metadata.h"
+#include "manual_deserialization.h"
+#include "generated/fhir_class_metadata.h"
+
+#include "native_deserializer.h"
 
 #include "base/base_inc.cc"
 #include "iso8601_time/iso8601_time.cc"
+#include "native_deserializer.cc"
 
 #define USE_SIMDJSON
 #define USE_PROFILER
 
 #include "generated/fhir_class_metadata.h"
 
+using namespace native_fhir;
+using namespace nf_fhir_r4;
+
 void*
 Deserialize_File(Arena *arena,
-                 fhir_deserialize::DeserializationOptions *options,
+                 native_fhir::DeserializationOptions *options,
                  String8 file_name,
                  ResourceType assumed_type,
                  ResourceType *out_type)
@@ -46,7 +54,7 @@ Deserialize_File(Arena *arena,
 	}
 	options->file_name = file_name;
     
-	fhir_r4::Resource* result;
+	Resource* result;
 	TimeBlock("Deserialize")
 	{
         
@@ -103,11 +111,6 @@ RunOptionsFromArgs(Arena *arena, int args_count, char** args)
 	return options;
 }
 
-typedef void* (WINAPI *DLL_Deserialize_File)(char*, fhir_r4::Resource**);
-typedef void* (WINAPI *DLL_Deserialize_String)(char*, size_t len, fhir_r4::Resource**);
-typedef void (WINAPI *DLL_Init)(int);
-typedef void (WINAPI *DLL_End)();
-typedef void (WINAPI *DLL_FreeContext)(void*);
 
 int
 main(int arg_count, char** args)
@@ -116,15 +119,17 @@ main(int arg_count, char** args)
 	ThreadCtx tctx = ThreadCtxAlloc();
 	tctx.is_main_thread = 1;
 	SetThreadCtx(&tctx);
+
+	ND_Init();
     
 	Arena *arena = ArenaAlloc(Gigabytes(16));
     
 	RunOptions run_options = RunOptionsFromArgs(arena, arg_count, args);
     
-	fhir_deserialize::DeserializationOptions options = {};
-	options.class_metadata = (ClassMetadata*) & fhir_deserialize::g_class_metadata[0];
-	options.class_metadata_count = ArrayCount(fhir_deserialize::g_class_metadata);
-	String8 dir_name = Str8Lit("./FHIR-Struct-Generator/bundles/");
+	native_fhir::DeserializationOptions options = {};
+	options.class_metadata = (ClassMetadataPtr) & g_class_metadata[0];
+	options.class_metadata_count = ArrayCount(g_class_metadata);
+	String8 dir_name = Str8Lit("./bundles/");
 	if (run_options.directory_name.size != 0)
 	{
 		dir_name = run_options.directory_name;
@@ -148,35 +153,13 @@ main(int arg_count, char** args)
 	Temp scratch = ScratchBegin(&arena, 1);
 	String8 path = PushStr8F(scratch.arena, "%S\\*", dir_name);
 	String16 path16 = Str16From8(scratch.arena, path);
-
-	HMODULE dllHandle = LoadLibrary("deserialization_dll");
-	if (dllHandle == NULL) printf("could not find dll\n");
-	DLL_Init dll_init = (DLL_Init)GetProcAddress(dllHandle, "ND_Init");
-
-	DLL_End dll_end = (DLL_End)GetProcAddress(dllHandle, "ND_Cleanup");
-
-	if (dll_init == NULL) printf("could not find dll_init\n");
-	dll_init(1);
-	DLL_Deserialize_File deserialize_file_ptr = (DLL_Deserialize_File)GetProcAddress(dllHandle, "ND_DeserializeFile");
-	if (deserialize_file_ptr == NULL) printf("could not find deserialize_file_ptr\n");
-
-	DLL_Deserialize_String deserialize_string_ptr = (DLL_Deserialize_String)GetProcAddress(dllHandle, "ND_DeserializeString");
-	if (deserialize_string_ptr == NULL) printf("could not find deserialize_file_ptr\n");
-
-
-	DLL_FreeContext free_context_ptr = (DLL_FreeContext)GetProcAddress(dllHandle, "ND_FreeContext");
-	if (free_context_ptr == NULL) printf("could not find free_context_ptr\n");
-    
     
 	FileEntries entries = OS_EnumerateDirectory(arena, dir_name);
 	ScratchEnd(scratch);
     
 	size_t total_bytes_processed = 0;
 	int count = 0;
-	if (should_profile)
-	{
-		BeginProfile();
-	}
+	BeginProfile();
     
 	for (int i = 0; i < entries.count; i++)
 	{
@@ -190,22 +173,19 @@ main(int arg_count, char** args)
 		String8 bundle_file_name = PushStr8F(scratch.arena, "%S\\%S",
 		                                     dir_name,
 		                                     entries.v[i].file_name);
+		printf("%.*s\n", bundle_file_name.size, bundle_file_name.str);
 		ResourceType type = ResourceType::Bundle;
+
+		total_bytes_processed += entries.v[i].file_size_low;
         
 		count++;
 		size_t pos = arena->pos;
 
-		fhir_r4::Bundle *resource;
+		Bundle *resource;
 		TimeBlock("Deserialize_DLL")
 		{
-			void* ptr = deserialize_file_ptr((char*)bundle_file_name.str, (fhir_r4::Resource**) & resource);
-
-			printf("resource->_id %.*s\n", (int)resource->_id.size, resource->_id.str);
-
-			fhir_r4::StructureDefinition* ext = (fhir_r4::StructureDefinition*)(*resource->_entry)->_resource;
-			total_bytes_processed += entries.v[i].file_size_low;
-
-			free_context_ptr(ptr);
+			void* ptr = nd_state.DeserializeFile((char*)bundle_file_name.str, (nf_fhir_r4::Resource**) & resource);
+			nd_state.FreeContext(ptr);
 		}
 
 		ArenaPopTo(arena, pos);
@@ -217,50 +197,47 @@ main(int arg_count, char** args)
     
 	printf("DONE, count: %d\n", count);
     
-	if (should_profile)
+	EndAndPrintProfile();
+	u64 CPUFreq = EstimateCPUTimerFreq();
+        
+        
+	u64 deserialization_elapsed = 0;
+	for (int i = 0; i < ArrayCount(GlobalProfiler.Anchors); i++)
 	{
-		EndAndPrintProfile();
-		u64 CPUFreq = EstimateCPUTimerFreq();
-        
-        
-		u64 deserialization_elapsed = 0;
-		for (int i = 0; i < ArrayCount(GlobalProfiler.Anchors); i++)
+		if (GlobalProfiler.Anchors[i].TSCElapsed > 0 && GlobalProfiler.Anchors[i].Label != NULL &&
+			strcmp(GlobalProfiler.Anchors[i].Label, "Deserialize_DLL") == 0)
 		{
-			if (GlobalProfiler.Anchors[i].TSCElapsed > 0 && GlobalProfiler.Anchors[i].Label != NULL &&
-				strcmp(GlobalProfiler.Anchors[i].Label, "Deserialize_File") == 0)
-			{
-				deserialization_elapsed = GlobalProfiler.Anchors[i].TSCElapsed;
-				break;
-			}
+			deserialization_elapsed = GlobalProfiler.Anchors[i].TSCElapsed;
+			break;
 		}
-        
-        
-		printf("Deserialized %d bundles, %0.4f GB\n", count, (f64)total_bytes_processed / (1024 * 1024 * 1024));
-		f64 milliseconds = 1000.0 * (f64)deserialization_elapsed / (f64)CPUFreq;
-		printf("Deserialization Time: %0.4fms (%llu)\n", milliseconds, deserialization_elapsed);
-		printf("Total Bytes Processed: %llu \n", total_bytes_processed);
-        
-		// TODO(agw): this doesn't really mean much...
-		printf("\nTime per bundle: %0.4fms (CPU freq %llu)\n", milliseconds / count, CPUFreq);
-        
-		f64 gigabytes = (f64)total_bytes_processed / Gigabytes(1);
-		f64 seconds = milliseconds / 1000.0;
-        
-		printf("Gigabytes: %0.4fGB \n", gigabytes);
-		printf("Seconds: %0.4fs \n", seconds);
-		printf("Deserialization GB/s: %0.4f(GB/s) \n", gigabytes / seconds);
-        
-		String8 test_str = PushStr8F(arena,
-		                             "Benchmark Name: %S, Deserialization GB/s: %0.4f(GB/s) \n",
-		                             run_options.benchmark_name,
-		                             gigabytes / seconds);
-        
-		FILE *f = fopen("tests.txt", "a+");
-		fwrite(test_str.str, test_str.size, 1, f);
-		fclose(f);
 	}
+        
+        
+	printf("Deserialized %d bundles, %0.4f GB\n", count, (f64)total_bytes_processed / (1024 * 1024 * 1024));
+	f64 milliseconds = 1000.0 * (f64)deserialization_elapsed / (f64)CPUFreq;
+	printf("Deserialization Time: %0.4fms (%llu)\n", milliseconds, deserialization_elapsed);
+	printf("Total Bytes Processed: %llu \n", total_bytes_processed);
+        
+	// TODO(agw): this doesn't really mean much...
+	printf("\nTime per bundle: %0.4fms (CPU freq %llu)\n", milliseconds / count, CPUFreq);
+        
+	f64 gigabytes = (f64)total_bytes_processed / Gigabytes(1);
+	f64 seconds = milliseconds / 1000.0;
+        
+	printf("Gigabytes: %0.4fGB \n", gigabytes);
+	printf("Seconds: %0.4fs \n", seconds);
+	printf("Deserialization GB/s: %0.4f(GB/s) \n", gigabytes / seconds);
+        
+	String8 test_str = PushStr8F(arena,
+	                             "Benchmark Name: %S, Deserialization GB/s: %0.4f(GB/s) \n",
+	                             run_options.benchmark_name,
+	                             gigabytes / seconds);
+        
+	FILE *f = fopen("tests.txt", "a+");
+	fwrite(test_str.str, test_str.size, 1, f);
+	fclose(f);
 
-	dll_end();
+	nd_state.Cleanup();
     
 	return 0;
 }

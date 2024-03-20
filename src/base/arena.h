@@ -6,7 +6,7 @@
 //~ rjf: Constants
 
 #if !defined(ARENA_COMMIT_GRANULARITY)
-#define ARENA_COMMIT_GRANULARITY Kilobytes(64)
+#define ARENA_COMMIT_GRANULARITY Kilobytes(4)
 #endif
 
 #if !defined(ARENA_DECOMMIT_THRESHOLD)

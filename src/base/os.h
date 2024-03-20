@@ -10,16 +10,16 @@ typedef uint8_t FileAttributes;
 
 struct FileEntry
 {
-    String8 file_name;
-    FileAttributes attr;
+	String8 file_name;
+	FileAttributes attr;
 	size_t file_size_low;
 	size_t file_size_high;
 };
 
 struct FileEntries
 {
-    int count;
-    FileEntry *v;
+	int count;
+	FileEntry *v;
 };
 
 

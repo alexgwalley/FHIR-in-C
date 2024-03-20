@@ -1,16 +1,3 @@
-struct HashTableEntry
-{
-	String8 value;
-	String8 key;
-};
-
-struct HashTable
-{
-	U64 count;
-	HashTableEntry *entries;
-	U64 mod;
-};
-
 U64
 HashFromString(String8 string)
 {

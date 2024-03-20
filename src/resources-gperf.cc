@@ -30,7 +30,6 @@
 #endif
 
 #line 3 ".\resources.txt"
-struct ResourceNameTypePair { char* name; int type; };
 
 #define TOTAL_KEYWORDS 711
 #define MIN_WORD_LENGTH 2

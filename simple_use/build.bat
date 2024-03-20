@@ -7,7 +7,7 @@ set compile_mode=%1
 @rem wd4505 is to remove unreferenced function link
 set FLAGS= /std:c++17 /wd5033 /wd4505 /EHsc /Fe:simple_use.exe
 set DEBUG_FLAGS=/MDd /DEBUG /DDEBUG
-set DEBUG_LINK=/link /DEBUG:FULL
+set DEBUG_LINK=/link /DEBUG:FULL deserialization_dll.lib
 set FILES= ../../src/third_party/simdjson.cpp ../simple_use.cc
 set INCLUDES=/I../../src /I../../
 

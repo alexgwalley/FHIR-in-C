@@ -287,6 +287,12 @@ ArenaPos(Arena *arena)
     return arena->pos;
 }
 
+U8*
+ArenaPosPtr(Arena *arena)
+{
+	return (U8*)arena + arena->pos;
+}
+
 ////////////////////////////////
 //~ rjf: Arena Temp Functions
 

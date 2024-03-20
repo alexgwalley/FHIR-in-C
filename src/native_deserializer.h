@@ -6,27 +6,14 @@ namespace native_fhir
 	namespace nf_fhir_r4
 	{
 
-		struct ND_Context
-		{
-			Arena *main_arena;
-			Arena *scratch_arenas[2];
-			Log log;
-			DeserializationOptions options;
-		};
-
-		struct ND_ContextNode {
-			ND_ContextNode *next;
-			ND_Context value;
-		};
-
 		#if _WIN32
 		#include <windows.h>
 
 		typedef const native_fhir::MemberNameAndOffset* (WINAPI *_ND_ClassMemberLookup)(ResourceType, String8);
 		typedef const ResourceNameTypePair* (WINAPI *_ND_NF_ResourceNameTypePairFromString8)(String8);
 
-		typedef ND_ContextNode* (WINAPI *_ND_Deserialize_File)(char* fn, nf_fhir_r4::Resource** resource);
-		typedef void* (WINAPI *_ND_Deserialize_String)(char* str, size_t len, nf_fhir_r4::Resource**);
+		typedef void* (WINAPI *_ND_Deserialize_File)(char*, Resource**);
+		typedef void* (WINAPI *_ND_Deserialize_String)(char*, size_t len, Resource**);
 		typedef void (WINAPI *_ND_Init)(int);
 		typedef void (WINAPI *_ND_End)();
 		typedef void (WINAPI *_ND_FreeContext)(void*);
@@ -46,6 +33,18 @@ namespace native_fhir
 			_ND_FreeContext FreeContext;
 		};
 
+		struct ND_Context
+		{
+			Arena *main_arena;
+			Arena *scratch_arenas[2];
+			Log log;
+			DeserializationOptions options;
+		};
+
+		struct ND_ContextNode {
+			ND_ContextNode *next;
+			ND_Context value;
+		};
 
 	};
 };

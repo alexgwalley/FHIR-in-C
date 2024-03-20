@@ -1,5 +1,5 @@
-
-using namespace fhir_deserialize;
+namespace native_fhir
+{
 
 /* REGEX for FHIR version
 ([0-9]([0-9]([0-9][1-9]|[1-9]0)|[1-9]00)|[1-9]000)(-(0[1-9]|1[0-2])(-(0[1-9]|[1-2][0-9]|3[0-1])
@@ -28,18 +28,18 @@ Deserialize_ISO8601_Impl(String8 str,
 
 		////////////////////////
 		// YEAR
-		time.year += CharToInt(*ptr) * 1000;
+		time.year += (U8)CharToInt(*ptr) * 1000;
 		ptr++;
-		time.year += CharToInt(*ptr) * 100;
+		time.year += (U8)CharToInt(*ptr) * 100;
 		ptr++;
-		time.year += CharToInt(*ptr) * 10;
+		time.year += (U8)CharToInt(*ptr) * 10;
 		ptr++;
-		time.year += CharToInt(*ptr);
+		time.year += (U8)CharToInt(*ptr);
 		ptr++;
 
 		time.precision = Precision::Year;
     
-		if (ptr - (char*)str.str >= str.size)
+		if ((U8*)ptr - (U8*)str.str >= (ptrdiff_t)str.size)
 		{
 			if (required & ISO_MONTH || required & ISO_DAY)
 			{
@@ -53,13 +53,13 @@ Deserialize_ISO8601_Impl(String8 str,
     
 		////////////////////////
 		// MONTH 
-		time.month += CharToInt(*ptr) * 10;
+		time.month += (U8)CharToInt(*ptr) * 10;
 		ptr++;
-		time.month += CharToInt(*ptr);
+		time.month += (U8)CharToInt(*ptr);
 		ptr++;
 		time.precision = Precision::Month;
     
-		if (ptr - (char*)str.str >= str.size)
+		if (ptr - (char*)str.str >= (ptrdiff_t)str.size)
 		{
 			if (required & ISO_DAY)
 			{
@@ -74,13 +74,13 @@ Deserialize_ISO8601_Impl(String8 str,
     
 		////////////////////////
 		// DAY 
-		time.day += CharToInt(*ptr) * 10;
+		time.day += (U8)CharToInt(*ptr) * 10;
 		ptr++;
-		time.day += CharToInt(*ptr);
+		time.day += (U8)CharToInt(*ptr);
 		ptr++;
 		time.precision = Precision::Day;
 
-		if (ptr - (char*)str.str >= str.size)
+		if (ptr - (char*)str.str >= (ptrdiff_t)str.size)
 		{
 			if (required & ISO_TIME)
 			{
@@ -97,7 +97,7 @@ Deserialize_ISO8601_Impl(String8 str,
 	{
 		if (optional & ISO_TIME)
 		{
-			if (ptr - (char*)str.str == str.size)
+			if (ptr - (char*)str.str == (ptrdiff_t)str.size)
 				return time;
 		}
 
@@ -106,9 +106,9 @@ Deserialize_ISO8601_Impl(String8 str,
 
 		////////////////////////
 		// HOUR 
-		time.hour += CharToInt(*ptr) * 10;
+		time.hour += (U8)CharToInt(*ptr) * 10;
 		ptr++;
-		time.hour += CharToInt(*ptr);
+		time.hour += (U8)CharToInt(*ptr);
 		ptr++;
 		Assert(time.hour >= 0 && time.hour <= 23);
         
@@ -119,9 +119,9 @@ Deserialize_ISO8601_Impl(String8 str,
 
 		////////////////////////
 		// MINUTE 
-		time.minute += CharToInt(*ptr) * 10;
+		time.minute += (U8)CharToInt(*ptr) * 10;
 		ptr++;
-		time.minute += CharToInt(*ptr);
+		time.minute += (U8)CharToInt(*ptr);
 		ptr++;
 		Assert(time.minute >= 0 && time.minute < 60);
 
@@ -132,9 +132,9 @@ Deserialize_ISO8601_Impl(String8 str,
     
 		////////////////////////
 		// SECOND
-		time.second += CharToInt(*ptr) * 10;
+		time.second += (U8)CharToInt(*ptr) * 10;
 		ptr++;
-		time.second += CharToInt(*ptr);
+		time.second += (U8)CharToInt(*ptr);
 		ptr++;
 		Assert(time.second >= 0 && time.second < 60);
 
@@ -152,11 +152,11 @@ Deserialize_ISO8601_Impl(String8 str,
 
 			////////////////////////
 			// SECOND
-			time.millisecond += CharToInt(*ptr) * 100;
+			time.millisecond += (U8)CharToInt(*ptr) * 100;
 			ptr++;
-			time.millisecond += CharToInt(*ptr) * 10;
+			time.millisecond += (U8)CharToInt(*ptr) * 10;
 			ptr++;
-			time.millisecond += CharToInt(*ptr);
+			time.millisecond += (U8)CharToInt(*ptr);
 			ptr++;
 
 			time.precision = Precision::Millisecond;
@@ -165,7 +165,7 @@ Deserialize_ISO8601_Impl(String8 str,
 
 		if (exclude & ISO_TIME_OFFSET)
 		{
-			Assert(ptr - (char*)str.str >= str.size);
+			Assert(ptr - (char*)str.str >= (ptrdiff_t)str.size);
 		}
 
 		if (!(required & ISO_TIME_OFFSET) && !(optional & ISO_TIME_OFFSET))
@@ -180,7 +180,7 @@ Deserialize_ISO8601_Impl(String8 str,
 
 		if (offset_char == 'Z')
 		{
-			Assert(ptr - (char*)str.str >= str.size);
+			Assert(ptr - (char*)str.str >= (ptrdiff_t)str.size);
 			return time;
 		}
 
@@ -189,9 +189,9 @@ Deserialize_ISO8601_Impl(String8 str,
 
 		////////////////////////
 		// TIMEZONE_MINUTE 
-		time.timezone_hour += CharToInt(*ptr) * 10;
+		time.timezone_hour += (U8)CharToInt(*ptr) * 10;
 		ptr++;
-		time.timezone_hour += CharToInt(*ptr);
+		time.timezone_hour += (U8)CharToInt(*ptr);
 		ptr++;
 		Assert(time.timezone_hour >= 0 && time.timezone_hour < 60);
 
@@ -202,15 +202,17 @@ Deserialize_ISO8601_Impl(String8 str,
 
 		////////////////////////
 		// TIMEZONE_SECOND
-		time.timezone_minute += CharToInt(*ptr) * 10;
+		time.timezone_minute += (U8)CharToInt(*ptr) * 10;
 		ptr++;
-		time.timezone_minute += CharToInt(*ptr);
+		time.timezone_minute += (U8)CharToInt(*ptr);
 		ptr++;
 		Assert(time.timezone_minute >= 0 && time.timezone_minute < 60);
 		time.precision = Precision::TimezoneSecond;
 
-		Assert(ptr - (char*)str.str >= str.size);
+		Assert(ptr - (char*)str.str >= (ptrdiff_t)str.size);
 	}
 
 	return time;
 }
+
+};

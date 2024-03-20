@@ -3,35 +3,31 @@
 #include <sstream>
 #include <fstream>
 
-#include "base/base_inc.h"
 #include "third_party/cJSON.h"
-
-#include "iso8601_time/iso8601_time.h"
+#include "native_fhir_inc.h"
 #include "fhir_structure/fhir_structure.h"
 #include "resource/resource.h"
-#include "fhir_class/fhir_class.h"
-#include "exporter/exporter.h"
-#include "metadata/metadata.h"
 
-#include "base/base_inc.cc"
+#include "manual_deserialization.h"
+
+
 #include "third_party/cJSON.c"
-
-#include "hash_table.cc"
+#include "native_fhir_inc.cc"
 #include "fhir_structure/fhir_structure.cc"
 #include "resource/resource.cc"
-#include "fhir_class/fhir_class.cc"
-#include "metadata/metadata.cc"
-#include "exporter/exporter.cc"
+
+using namespace native_fhir;
 
 
 void
 GetStructureDefinitionsForFile(Arena *arena, StructureDefinitionList* list, String8 file_path)
 {
+	// TODO(agw): this needs to be chained
 	Temp scratch = ScratchBegin(&arena, 1);
-	void *json_string = ReadEntireFile(scratch.arena, file_path);
+	void *json_string = ReadEntireFile(scratch.arena, file_path, 0);
 	if (json_string == NULL)
 	{
-		printf("Could not find file %*.s\n", file_path.size, file_path.str);
+		printf("Could not find file %*.s\n", PRINT_STR8(file_path));
 		exit(-1);
 	}
 
@@ -72,7 +68,7 @@ ClassDefinition*
 GetClassDefinitionFromList(ClassDefinitionList *list, String8 name)
 {
 	ClassDefinitionNode *node = list->first;
-	for (int i = 0; i < list->count; i++)
+	for (U32 i = 0; i < list->count; i++)
 	{
 		if (Str8Match(node->def.name, name, 0))
 		{
@@ -85,7 +81,7 @@ GetClassDefinitionFromList(ClassDefinitionList *list, String8 name)
 }
 
 ClassDefinitionList
-GetAllClassDefinitions(Arena *arena, ResourceList *res_list)
+GetAllClassDefinitions(Arena *arena, FhirResourceList *res_list)
 {
 	Temp scratch = ScratchBegin(&arena, 1);
 	ClassDefinitionList result = { 0 };
@@ -121,7 +117,7 @@ OutputClassDefinitions(
 
 	if (options->namespace_name.size == 0)
 	{
-		options->namespace_name = Str8Lit("fhir_r4");
+		options->namespace_name = Str8Lit("nf_fhir_r4");
 	}
 
 	for (int i = 0; i < options->include_files_count; i++)
@@ -147,6 +143,7 @@ OutputClassDefinitions(
 		}
 	}
     
+	fs << "namespace native_fhir { " << std::endl;
 	fs << "namespace " << options->namespace_name << " {" << std::endl;
 
 	// TODO(agw): add using's for primative types
@@ -176,25 +173,25 @@ OutputClassDefinitions(
 		}
 	}
 
-
-	if (options->use_enum_class)
+	if(options->include_resource_type)
 	{
-		fs << "enum class ResourceType {" << std::endl;
-	}
-	else
-	{
-		if (options->type == CodeGenerationType::CSharp) {
-			fs << "public enum ResourceType {" << std::endl;
+		if (options->use_enum_class)
+		{
+			fs << "enum class ResourceType {" << std::endl;
 		}
-		else {
-			fs << "enum ResourceType {" << std::endl;
+		else
+		{
+			if (options->type == CodeGenerationType::CSharp) {
+				fs << "public enum ResourceType {" << std::endl;
+			}
+			else {
+				fs << "enum ResourceType {" << std::endl;
+			}
 		}
-	}
 
-	// TODO(agw): this should be implicit somehow??
-	fs << "\tUnknown," << std::endl;
+		// TODO(agw): this should be implicit somehow??
+		fs << "\tUnknown," << std::endl;
 
-	{
 		for (ClassDefinitionNode *node = list->first; node; node = node->next)
 		{
 			fs << "\t" << node->def.name;
@@ -204,9 +201,9 @@ OutputClassDefinitions(
 			}
 			fs << std::endl;
 		}
-	}
 
-	fs << "};" << std::endl;
+		fs << "};" << std::endl;
+	}
     
 	{
 		for (ClassDefinitionNode *node = list->first; node; node = node->next)
@@ -216,7 +213,8 @@ OutputClassDefinitions(
 	}
     
     
-	fs << "}" << std::endl;
+	fs << "};" << std::endl;
+	fs << "};" << std::endl;
 	
 	fs.close();
 }
@@ -266,7 +264,7 @@ GPerfRow(Arena *arena, String8 name, size_t offset, size_t member_index, size_t 
 
 	// TODO(agw): make namespace non-constant
 	return PushStr8F(arena,
-	                 "%S, 0x%x, %d, %d, (uint16_t)fhir_deserialize::ResourceType::%S, (uint16_t)fhir_deserialize::ResourceType::%S, (uint8_t)fhir_deserialize::ValueType::%S, Cardinality::%S\n",
+	                 "%S, 0x%x, %d, %d, (uint16_t)nf_fhir_r4::ResourceType::%S, (uint16_t)nf_fhir_r4::ResourceType::%S, (uint8_t)native_fhir::ValueType::%S, Cardinality::%S\n",
 	                 name,
 	                 (uint16_t)offset,
 	                 (uint8_t)member_index,
@@ -303,7 +301,7 @@ SingleClassGperf(Arena *arena, CodeGenerationOptions *options, ClassDefinition *
 	              &result_list,
 	              "%%define class-name %S\n",
 	              GperfClassName(arena, def));
-	Str8ListPush(scratch.arena, &result_list, Str8Lit("struct fhir_deserialize::MemberNameAndOffset;\n"));
+	Str8ListPush(scratch.arena, &result_list, Str8Lit("struct native_fhir::MemberNameAndOffset;\n"));
 	Str8ListPush(scratch.arena, &result_list, Str8Lit("%%\n"));
     
     
@@ -429,8 +427,10 @@ OutputGperfFiles(Arena *arena, CodeGenerationOptions *options, String8 in_dir_na
 	Temp scratch = ScratchBegin(&arena, 1);
 	String8List result_list = { 0 };
     
-	Str8ListPush(scratch.arena, &result_list, Str8Lit("const fhir_deserialize::MemberNameAndOffset *\n"));
-	Str8ListPush(scratch.arena, &result_list, Str8Lit("ClassMemberLookup(fhir_deserialize::ResourceType type, String8 member_key)\n"));
+	Str8ListPush(scratch.arena, &result_list, Str8Lit("const native_fhir::MemberNameAndOffset *\n"));
+	String8 function_name = PushStr8F(scratch.arena, "ClassMemberLookup(native_fhir::%S::ResourceType type, String8 member_key)\n", options->namespace_name);
+	Str8ListPush(scratch.arena, &result_list, function_name);
+	Str8ListPush(scratch.arena, &result_list, Str8Lit(""));
 	Str8ListPush(scratch.arena, &result_list, Str8Lit("{\n"));
 	Str8ListPush(scratch.arena, &result_list, Str8Lit("\tswitch (type)"));
 	Str8ListPush(scratch.arena, &result_list, Str8Lit("\t{\n"));
@@ -441,7 +441,7 @@ OutputGperfFiles(Arena *arena, CodeGenerationOptions *options, String8 in_dir_na
 		node = node->next)
 	{
         
-		Str8ListPushF(scratch.arena, &result_list, "\t\tcase fhir_deserialize::ResourceType::%S:\n", node->def.name);
+		Str8ListPushF(scratch.arena, &result_list, "\t\tcase native_fhir::%S::ResourceType::%S:\n", options->namespace_name, node->def.name);
 		Str8ListPushF(scratch.arena,
 		              &result_list,
 		              "\t\t\treturn %S_gperf::%S_Gperf::%S_MemberLookup((char*)member_key.str, member_key.size);\n",
@@ -474,8 +474,9 @@ OutputClassMetadata(Arena *arena,
     
 	String8List result_list = { 0 };
     
-	Str8ListPushF(scratch.arena, &result_list, "namespace fhir_deserialize {\n");
-	Str8ListPushF(scratch.arena, &result_list, "ClassMetadata class_metadata[] =\n");
+	Str8ListPushF(scratch.arena, &result_list, "namespace native_fhir {\n");
+	Str8ListPushF(scratch.arena, &result_list, "namespace nf_fhir_r4 {\n");
+	Str8ListPushF(scratch.arena, &result_list, "ClassMetadata g_class_metadata[] =\n");
 	Str8ListPushF(scratch.arena, &result_list, "{\n");
     
 	ClassDefinition zeroed = { 0 };
@@ -500,6 +501,7 @@ OutputClassMetadata(Arena *arena,
 	}
     
     
+	Str8ListPushF(scratch.arena, &result_list, "};\n");
 	Str8ListPushF(scratch.arena, &result_list, "};");
 	Str8ListPushF(scratch.arena, &result_list, "};");
 	String8 result = Str8ListJoin(scratch.arena, result_list, 0);
@@ -510,132 +512,6 @@ OutputClassMetadata(Arena *arena,
 	ScratchEnd(scratch);
 }
 
-////////////////////////////
-// Export Options 
-CodeGenerationOptions*
-CppOptions(Arena *arena)
-{
-	CodeGenerationOptions *options = PushStruct(arena, CodeGenerationOptions);
-	options->namespace_name = Str8Lit("fhir_r4");
-	options->pre_declare_classes = true;
-	options->use_enum_class = true;
-	options->include_array_count = true;
-	options->array_pre_and_post = {
-		Str8Lit(""),
-		Str8Lit("*")
-	};
-	options->reference_pre_and_post = {
-		Str8Lit(""),
-		Str8Lit("*")
-	};
-
-	IncludeFile include_files[] = {
-		//{ Str8Lit("string"), true },
-		//{ Str8Lit("vector"), true },
-		//{ Str8Lit("memory"), true },
-		{ Str8Lit("iso8601_time/iso8601_time.h"), false, IncludeType::Cpp },
-	};
-
-	options->include_files_count = ArrayCount(include_files);
-	options->include_files = PushArray(arena, IncludeFile, ArrayCount(include_files));
-	for (int i = 0; i < ArrayCount(include_files); i++)
-	{
-		options->include_files[i].name = include_files[i].name;
-		options->include_files[i].wrap_in_angle_brackets = include_files[i].wrap_in_angle_brackets;
-	}
-
-	options->value_type_meta = value_type_meta;
-
-	#define STRING_TYPE NullableString8
-	String8 string_type_name = Str8Lit("NullableString8");
-	TypeNameSize typedef_pairs[] = {
-		{ ValueType::Unknown, Str8Lit(""), 0 },
-		{ ValueType::Base64Binary, string_type_name, sizeof(STRING_TYPE) },
-		{ ValueType::Canonical, string_type_name, sizeof(STRING_TYPE) },
-		{ ValueType::Code, string_type_name, sizeof(STRING_TYPE) },
-		{ ValueType::Id, string_type_name, sizeof(STRING_TYPE) },
-		{ ValueType::Markdown, string_type_name, sizeof(STRING_TYPE) },
-		{ ValueType::Oid, string_type_name, sizeof(STRING_TYPE) },
-		{ ValueType::String, string_type_name, sizeof(STRING_TYPE) },
-		{ ValueType::Xhtml, string_type_name, sizeof(STRING_TYPE) },
-		{ ValueType::Uri, string_type_name, sizeof(STRING_TYPE) },
-		{ ValueType::Url, string_type_name, sizeof(STRING_TYPE) },
-		{ ValueType::Uuid, string_type_name, sizeof(STRING_TYPE) },
-		{ ValueType::Boolean, Str8Lit("B32"), sizeof(B32) },
-		{ ValueType::Integer, Str8Lit("unsigned long int"), sizeof(unsigned int long) },
-		{ ValueType::PositiveInt, Str8Lit("unsigned long int"), sizeof(unsigned int long) },
-		{ ValueType::UnsignedInt, Str8Lit("unsigned long int"), sizeof(unsigned int long) },
-		{ ValueType::Decimal, Str8Lit("double"), sizeof(double) },
-		{ ValueType::Date, Str8Lit("ISO8601_Time"), sizeof(ISO8601_Time) },
-		{ ValueType::DateTime, Str8Lit("ISO8601_Time"), sizeof(ISO8601_Time) },
-		{ ValueType::Time, Str8Lit("ISO8601_Time"), sizeof(ISO8601_Time) },
-		{ ValueType::Instant, Str8Lit("ISO8601_Time"), sizeof(ISO8601_Time) },
-		{ ValueType::ClassReference, Str8Lit(""), sizeof(void*) },
-		{ ValueType::ResourceType, Str8Lit("ResourceType"), ENUM_SIZE },
-		{ ValueType::ArrayCount, Str8Lit("size_t"), sizeof(size_t) }
-	};
-
-	return options;
-}
-
-CodeGenerationOptions*
-CSOptions(Arena *arena)
-{
-	CodeGenerationOptions *cs_options = PushStruct(arena, CodeGenerationOptions);
-	cs_options->namespace_name = Str8Lit("FHIR_Marshalling");
-	cs_options->include_array_count = true;
-	cs_options->class_pre_and_post.pre = Str8Lit("public unsafe");
-	cs_options->type = CodeGenerationType::CSharp;
-	cs_options->use_classes = true;
-	cs_options->array_pre_and_post = {
-		Str8Lit(""),
-		Str8Lit("*")
-	};
-	cs_options->reference_pre_and_post = {
-		Str8Lit(""),
-		Str8Lit("*")
-	};
-
-
-	/////////////////////
-	// Primative Typedefs
-	String8 integer_name = Str8Lit("FhirInteger");
-	String8 positive_integer_name = Str8Lit("FhirPositiveInteger");
-	String8 unsigned_integer_name = Str8Lit("FhirUnsignedInteger");
-	PreAndPostFix cs_primative_typedefs[] = {
-		{ Str8Lit("Int32"), integer_name },
-		{ Str8Lit("Int32"), positive_integer_name },
-		{ Str8Lit("Int32"), unsigned_integer_name },
-	};
-
-	cs_options->primative_typedefs_count = ArrayCount(cs_primative_typedefs);
-	cs_options->primative_typedefs = PushArray(arena, PreAndPostFix, ArrayCount(cs_primative_typedefs));
-	for (int i = 0; i < ArrayCount(cs_primative_typedefs); i++)
-	{
-		cs_options->primative_typedefs[i].pre = cs_primative_typedefs[i].pre;
-		cs_options->primative_typedefs[i].post = cs_primative_typedefs[i].post;
-	}
-
-	cs_options->value_type_meta = value_type_meta;
-
-	IncludeFile cs_include_files[] = {
-		{ Str8Lit("System"), false, IncludeType::Using },
-		{ Str8Lit("System.Runtime.InteropServices"), false, IncludeType::Using },
-		{ Str8Lit("Hl7.Fhir.Model"), false, IncludeType::Using },
-	};
-
-	cs_options->include_files_count = ArrayCount(cs_include_files);
-	cs_options->include_files = PushArray(arena, IncludeFile, ArrayCount(cs_include_files));
-	for (int i = 0; i < ArrayCount(cs_include_files); i++)
-	{
-		cs_options->include_files[i].name = cs_include_files[i].name;
-		cs_options->include_files[i].wrap_in_angle_brackets = cs_include_files[i].wrap_in_angle_brackets;
-		cs_options->include_files[i].type = cs_include_files[i].type;
-	}
-
-	cs_options->type_pre_and_post.pre = Str8Lit("public readonly");
-	return cs_options;
-}
 
 // NOTE(agw): this is not exact, it was temporary to remove a lot of manual work
 void
@@ -676,7 +552,7 @@ int main()
 	SetThreadCtx(&tctx);
 	Arena *arena = ArenaAlloc(Gigabytes(16));
 
-	ResourceList *resource_list = PushStruct(arena, ResourceList);
+	FhirResourceList *resource_list = PushStruct(arena, FhirResourceList);
 	// ~ Get StructureDefinitions
 	{
 		StructureDefinitionList list = { 0 };
@@ -692,7 +568,7 @@ int main()
 			node;
 			node = node->next)
 		{
-			Resource *res = ResourceFromStructureDefinition(arena, &node->def);
+			FhirResource *res = ResourceFromStructureDefinition(arena, &node->def);
 			if (res && res->members.count > 0)
 			{
 				ResourceListPush(arena, resource_list, res);
@@ -724,6 +600,8 @@ int main()
 		                    CppOptions(scratch.arena),
 		                    Str8Lit("generated/fhir_class_metadata.h"),
 		                    &class_defs);
+
+		M_Serialize(class_defs, Str8Lit("generated/fhir_class_metadata.bin"));
 		ScratchEnd(scratch);
 	}
 

@@ -244,7 +244,7 @@ PushStr8Copy(Arena *arena, String8 string)
 }
 
 root_function String8
-PushStr8FV(Arena *arena, char *fmt, va_list args)
+PushStr8FV(Arena *arena, const char *fmt, va_list args)
 {
 	String8 result = {0};
 	va_list args2;
@@ -252,12 +252,12 @@ PushStr8FV(Arena *arena, char *fmt, va_list args)
 	U64 needed_bytes = ts_stbsp_vsnprintf(0, 0, fmt, args)+1;
 	result.str = PushArrayNoZero(arena, U8, needed_bytes);
 	result.size = needed_bytes - 1;
-	ts_stbsp_vsnprintf((char*)result.str, needed_bytes, fmt, args2);
+	ts_stbsp_vsnprintf((char*)result.str, (int)needed_bytes, fmt, args2);
 	return result;
 }
 
 root_function String8
-PushStr8F(Arena *arena, char *fmt, ...)
+PushStr8F(Arena *arena, const char *fmt, ...)
 {
 	String8 result = {0};
 	va_list args;
@@ -314,7 +314,7 @@ Str8ListPush(Arena *arena, String8List *list, String8 str)
 }
 
 root_function void
-Str8ListPushF(Arena *arena, String8List *list, char *fmt, ...)
+Str8ListPushF(Arena *arena, String8List *list, const char *fmt, ...)
 {
 	va_list args;
 	va_start(args, fmt);
@@ -799,7 +799,7 @@ Str8From32(Arena *arena, String32 in)
 	U32 *ptr = in.str;
 	U32 *opl = ptr + in.size;
 	U64 size = 0;
-	DecodedCodepoint consume;
+//	DecodedCodepoint consume;
 	for(;ptr < opl; ptr += 1)
 	{
 		size += Utf8FromCodepoint(str + size, *ptr);
@@ -990,7 +990,7 @@ CStyleIntFromStr8(String8 string)
  
 	// consume integer "digits"
 	String8 digits_substr = Str8Skip(string, p);
-	U64 n = U64FromStr8(digits_substr, radix);
+	U64 n = U64FromStr8(digits_substr, (U32)radix);
  
 	// combine result
 	S64 result = sign*n;

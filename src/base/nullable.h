@@ -2,8 +2,15 @@
 #define NULLABLE_H
 
 struct NullableString8 {
-	U8* str;
-	U64 size;
+	union
+	{
+		struct
+		{
+			U8* str;
+			U64 size;
+		};
+		String8 str8;
+	};
 	B32 has_value;
 };
 

@@ -18,7 +18,7 @@ OS_EnumerateDirectory(Arena *arena, String8 file_path)
 {
 	FileEntries ent = {};
 	Temp scratch = ScratchBegin(&arena, 1);
-	String8 file_search_path = PushStr8F(scratch.arena, "%S*", file_path);
+	String8 file_search_path = PushStr8F(scratch.arena, (char*)"%S*", file_path);
 	String8List str_list = {};
 
 	WIN32_FIND_DATAA data;
@@ -64,7 +64,7 @@ OS_GetFileAttributes(String8 file_path)
 {
 	FileAttributes result = 0;
 	DWORD attr = GetFileAttributesA((char*)file_path.str);
-	if(attr == INVALID_FILE_ATTRIBUTES)
+	if (attr == INVALID_FILE_ATTRIBUTES)
 	{
 		result |= FileAttributes_DoesNotExist;
 		return result;
@@ -87,43 +87,43 @@ OS_GetFileAttributes(String8 file_path)
 bool
 OS_CreateDirectory(String8 path)
 {
-    mkdir((char*)path.str, S_IFREG | S_IFDIR);
+	mkdir((char*)path.str, S_IFREG | S_IFDIR);
 }
 
 
 FileAttributes
 OS_GetFileAttributes(String8 file_path)
 {
-    FileAttributes attrib = 0;
-    struct stat file_stat;
-    stat((char*)file_path.str, &file_stat);
+	FileAttributes attrib = 0;
+	struct stat file_stat;
+	stat((char*)file_path.str, &file_stat);
     
-    if(S_ISDIR(file_stat.st_mode))
-    {
-        attrib |= FileAttributes_Directory;
-    }
+	if (S_ISDIR(file_stat.st_mode))
+	{
+		attrib |= FileAttributes_Directory;
+	}
     
-    return attrib;
+	return attrib;
 }
 
 
 FileEntries
 OS_EnumerateDirectory(Arena *arena, String8 file_path)
 {
-    FileEntries ent = {};
-    struct dirent **entries = NULL;
-    ent.count = scandir((char*)file_path.str, &entries, NULL, NULL);
+	FileEntries ent = {};
+	struct dirent **entries = NULL;
+	ent.count = scandir((char*)file_path.str, &entries, NULL, NULL);
     
-    ent.v = PushArray(arena, FileEntry, ent.count);
+	ent.v = PushArray(arena, FileEntry, ent.count);
     
-    for(int i = 0; i < ent.count; i++)
-    {
-        ent.v[i].file_name = Str8C(entries[i]->d_name);
-        ent.v[i].attr = OS_GetFileAttributes(Str8C(entries[i]->d_name));
-        free(entries[i]);
-    }
+	for (int i = 0; i < ent.count; i++)
+	{
+		ent.v[i].file_name = Str8C(entries[i]->d_name);
+		ent.v[i].attr = OS_GetFileAttributes(Str8C(entries[i]->d_name));
+		free(entries[i]);
+	}
     
-    free(entries);
+	free(entries);
 }
 
 

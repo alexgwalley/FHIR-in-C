@@ -146,8 +146,8 @@ root_function U64 FindSubstr8(String8 haystack, String8 needle, U64 start_pos, M
 
 //- rjf: Allocation
 root_function String8 PushStr8Copy(Arena *arena, String8 string);
-root_function String8 PushStr8FV(Arena *arena, char *fmt, va_list args);
-root_function String8 PushStr8F(Arena *arena, char *fmt, ...);
+root_function String8 PushStr8FV(Arena *arena, const char *fmt, va_list args);
+root_function String8 PushStr8F(Arena *arena, const char *fmt, ...);
 root_function String8 PushStr8FillByte(Arena *arena, U64 size, U8 byte);
 
 //- rjf: Use In Format Strings

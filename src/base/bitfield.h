@@ -4,7 +4,7 @@
 #define BIT_FIELD_COUNT 3
 struct BitField 
 {
-	size_t values[BIT_FIELD_COUNT];
+	U64 values[BIT_FIELD_COUNT];
 };
 
 inline bool BitField_GetIndex(BitField *bf, size_t index);

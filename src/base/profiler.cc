@@ -163,11 +163,13 @@ struct profile_block
 #define TimeBlock(Name) profile_block NameConcat(Block, __LINE__)(Name, __COUNTER__ + 1);
 #define TimeFunction TimeBlock(__func__)
 
-static void PrintTimeElapsed(u64 TotalTSCElapsed, profile_anchor *Anchor)
+static void PrintTimeElapsed(u64 TotalTSCElapsed, profile_anchor *Anchor, u64 CPUFreq)
 {
 	u64 TSCElapsedSelf = Anchor->TSCElapsed - Anchor->TSCElapsedChildren;
 	f64 Percent = 100.0 * ((f64)TSCElapsedSelf / (f64)TotalTSCElapsed);
-	printf("  %s[%llu]: %llu (%.2f%%", Anchor->Label, Anchor->HitCount, TSCElapsedSelf, Percent);
+
+	f64 MsSelf = 1000.0 * (f64)TSCElapsedSelf / (f64)CPUFreq;
+	printf("  %s[%llu]: %llu (%.2f%%, %0.4fms", Anchor->Label, Anchor->HitCount, TSCElapsedSelf, Percent, MsSelf);
 	if(Anchor->TSCElapsedAtRoot != TSCElapsedSelf)
 	{
 		f64 PercentWithChildren = 100.0 * ((f64)Anchor->TSCElapsedAtRoot / (f64)TotalTSCElapsed);
@@ -178,6 +180,8 @@ static void PrintTimeElapsed(u64 TotalTSCElapsed, profile_anchor *Anchor)
 
 static void BeginProfile(void)
 {
+	MemorySet(&GlobalProfiler, 0, sizeof(GlobalProfiler));
+	GlobalProfilerParent = 0;
 	GlobalProfiler.StartTSC = ReadCPUTimer();
 }
 
@@ -198,7 +202,7 @@ static void EndAndPrintProfile()
 		profile_anchor *Anchor = GlobalProfiler.Anchors + AnchorIndex;
 		if(Anchor->TSCElapsed)
 		{
-			PrintTimeElapsed(TotalCPUElapsed, Anchor);
+			PrintTimeElapsed(TotalCPUElapsed, Anchor, CPUFreq);
 		}
 	}
 }

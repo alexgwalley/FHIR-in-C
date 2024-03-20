@@ -26,13 +26,18 @@ GetThreadCtx(void)
 }
 
 void*
-ReadEntireFile(Arena *arena, String8 file_name)
+ReadEntireFile(Arena *arena, String8 file_name, size_t *len)
 {
-	FILE *f = fopen((const char*)file_name.str, "r");
+	FILE *f;
+	errno_t error = fopen_s(&f, (const char*)file_name.str, "r");
 	if (!f) return NULL;
 
 	fseek(f,  0, SEEK_END);
-	long length = ftell(f);
+	size_t length = ftell(f);
+	if (len)
+	{
+		*len = length;
+	}
 	void *result = ArenaPush(arena, length);
 	fseek(f, 0, SEEK_SET);
     

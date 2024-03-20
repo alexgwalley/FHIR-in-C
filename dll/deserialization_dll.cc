@@ -3,29 +3,31 @@
 
 #include "third_party/cJSON.h"
 #include "third_party/simdjson.h"
-
-#include "base/base_inc.h"
 #include <mutex>
 
-#include "iso8601_time/iso8601_time.h"
+#include "native_fhir_inc.h"
 
-#include "manual_deserialization.h"
+#include "generated/fhir_r4_types.h"
 #include "generated/fhir_class_definitions.h"
 
-#include "base/base_inc.cc"
+#include "manual_deserialization.h"
 
-#include "iso8601_time/iso8601_time.cc"
+#include "generated/fhir_class_metadata.h"
+#include "native_deserializer.h"
 
+#include "native_fhir_inc.cc"
+
+
+using namespace native_fhir;
+using namespace nf_fhir_r4;
 extern "C" Temp
 DLL_Scratch_Begin(ND_Context* context, Arena **conflicts, U64 conflict_count);
 
 #define USE_SIMDJSON
 #define USE_PROFILER
 #include "third_party/simdjson.cpp"
-#include "generated/fhir_class_metadata.h"
 #include "manual_deserialization_simdjson.cc"
 
-using namespace fhir_deserialize;
 
 extern "C"
 {
@@ -43,7 +45,10 @@ extern "C"
 
 	std::mutex mutex;
 	static Arena *contexts_arena;
+	static Arena *meta_arena;
 	static ND_GlobalContext contexts;
+
+	MetadataFile *meta_file;
 
 	Temp DLL_Scratch_Begin(ND_Context *context, Arena **conflicts, U64 conflict_count)
 	{
@@ -92,11 +97,35 @@ extern "C"
 		return TRUE;
 	}
 
+	// ~ General Helpers
+	__declspec(dllexport)
+ const native_fhir::MemberNameAndOffset*
+ __cdecl NF_ClassMemberLookup(native_fhir::nf_fhir_r4::ResourceType resourceType, String8 member_name);
+
+	const native_fhir::MemberNameAndOffset*
+	NF_ClassMemberLookup(ResourceType resourceType, String8 member_name)
+	{
+		return ClassMemberLookup(resourceType, member_name);
+	}
+
+	__declspec(dllexport)
+	const ResourceNameTypePair *
+	__cdecl NF_ResourceNameTypePairFromString8(String8 str);
+
+	const ResourceNameTypePair *
+	NF_ResourceNameTypePairFromString8(String8 str)
+	{
+		return  Perfect_Hash::in_word_set((char*)str.str, str.size);
+	}
+
+
+	// ~ Deserializer
 	__declspec(dllexport) void __cdecl ND_Init(int num_contexts);
 	__declspec(dllexport) void __cdecl ND_Cleanup(void);
-	__declspec(dllexport) ND_ContextNode* __cdecl ND_DeserializeFile(char* file_name, fhir_r4::Resource **out);
-	__declspec(dllexport) ND_ContextNode* __cdecl ND_DeserializeString(char* bytes, size_t length, fhir_r4::Resource **out);
+	__declspec(dllexport) ND_ContextNode* __cdecl ND_DeserializeFile(char* file_name, nf_fhir_r4::Resource **out);
+	__declspec(dllexport) ND_ContextNode* __cdecl ND_DeserializeString(char* bytes, size_t length, nf_fhir_r4::Resource **out);
 	__declspec(dllexport) void __cdecl ND_FreeContext(ND_ContextNode *node);
+
 
 	void
 	ND_Cleanup(void)
@@ -133,8 +162,7 @@ extern "C"
 		ND_Context *context = &node->value;
 
 		context->options = {};
-		context->options.class_metadata = (ClassMetadata*) & fhir_deserialize::g_class_metadata[0];
-		context->options.class_metadata_count = ArrayCount(fhir_deserialize::g_class_metadata);
+		context->options.meta_file = meta_file;
 		context->main_arena = ArenaAlloc(Gigabytes(8));
 
 		for (U64 arena_idx = 0; arena_idx < ArrayCount(context->scratch_arenas); arena_idx += 1)
@@ -194,6 +222,11 @@ extern "C"
 	ND_Init(int num_contexts)
 	{
 		contexts_arena = ArenaAlloc(Megabytes(4));
+		meta_arena = ArenaAlloc(Megabytes(64));
+
+		meta_file = PushStruct(meta_arena, MetadataFile);
+		MetadataFile file = M_Deserialize(meta_arena, &g_metadata, sizeof(g_metadata));
+		MemoryCopy(meta_file, &file, sizeof(MetadataFile));
 
 		for (int i = 0; i < num_contexts; i++)
 		{
@@ -205,7 +238,7 @@ extern "C"
 	}
 
 	ND_ContextNode*
-	ND_DeserializeString(char* bytes, size_t length, fhir_r4::Resource **out)
+	ND_DeserializeString(char* bytes, size_t length, nf_fhir_r4::Resource **out)
 	{
 		ND_ContextNode *node = ND_GetFreeContext(contexts_arena);
 		if (node->value.main_arena)
@@ -257,18 +290,18 @@ extern "C"
 		simdjson::ondemand::object obj = obj_res.value_unsafe();
 
 		
-		fhir_r4::Resource* result = Resource_Deserialize_SIMDJSON(&node->value,
+		nf_fhir_r4::Resource* result = Resource_Deserialize_SIMDJSON(&node->value,
 		                                                          node->value.main_arena,
 		                                                          &node->value.options,
 		                                                          ResourceType::Unknown,
 		                                                          obj);
-		fhir_r4::Bundle* bundle = (fhir_r4::Bundle*)result;
+		Bundle* bundle = (Bundle*)result;
 		*out = result;
 		return node;
 	}
 
 	ND_ContextNode*
-	ND_DeserializeFile(char* file_name, fhir_r4::Resource **out)
+	ND_DeserializeFile(const char* file_name, nf_fhir_r4::Resource **out)
 	{
 		ND_ContextNode *node = ND_GetFreeContext(contexts_arena);
 
@@ -285,12 +318,12 @@ extern "C"
 		simdjson::ondemand::document simd_doc = parser.iterate(simd_json);
 		node->value.options.file_name = Str8C(file_name);
 		
-		fhir_r4::Resource* result = Resource_Deserialize_SIMDJSON(&node->value,
+		nf_fhir_r4::Resource* result = Resource_Deserialize_SIMDJSON(&node->value,
 		                                                          node->value.main_arena,
 		                                                          &node->value.options,
 		                                                          ResourceType::Unknown,
 		                                                          simd_doc.get_object());
-		fhir_r4::Bundle* bundle = (fhir_r4::Bundle*)result;
+		Bundle* bundle = (Bundle*)result;
 		*out = result;
 		return node;
 	}
