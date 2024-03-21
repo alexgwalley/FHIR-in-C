@@ -1,7 +1,6 @@
 #ifndef NATIVE_FHIR_H
 #define NATIVE_FHIR_H
 
-
 // NOTE(agw): include high-precision lib
 #define R128_IMPLEMENTATION
 #include "third_party/r128.h"

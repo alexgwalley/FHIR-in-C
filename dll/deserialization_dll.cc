@@ -1,11 +1,12 @@
+#include "native_fhir_inc.h"
+
 #include <windows.h>
 #include "stdio.h"
 
 #include "third_party/cJSON.h"
 #include "third_party/simdjson.h"
-#include <mutex>
 
-#include "native_fhir_inc.h"
+#include <mutex>
 
 #include "generated/fhir_r4_types.h"
 #include "generated/fhir_class_definitions.h"
@@ -122,7 +123,7 @@ extern "C"
 	// ~ Deserializer
 	__declspec(dllexport) void __cdecl ND_Init(int num_contexts);
 	__declspec(dllexport) void __cdecl ND_Cleanup(void);
-	__declspec(dllexport) ND_ContextNode* __cdecl ND_DeserializeFile(char* file_name, nf_fhir_r4::Resource **out);
+	__declspec(dllexport) ND_ContextNode* __cdecl ND_DeserializeFile(const char* file_name, nf_fhir_r4::Resource **out);
 	__declspec(dllexport) ND_ContextNode* __cdecl ND_DeserializeString(char* bytes, size_t length, nf_fhir_r4::Resource **out);
 	__declspec(dllexport) void __cdecl ND_FreeContext(ND_ContextNode *node);
 
@@ -316,7 +317,7 @@ extern "C"
 
 		simdjson::ondemand::parser parser;
 		simdjson::ondemand::document simd_doc = parser.iterate(simd_json);
-		node->value.options.file_name = Str8C(file_name);
+		node->value.options.file_name = Str8C((char*)file_name);
 		
 		nf_fhir_r4::Resource* result = Resource_Deserialize_SIMDJSON(&node->value,
 		                                                          node->value.main_arena,
