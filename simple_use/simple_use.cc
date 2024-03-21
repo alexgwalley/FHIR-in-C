@@ -127,8 +127,6 @@ main(int arg_count, char** args)
 	RunOptions run_options = RunOptionsFromArgs(arena, arg_count, args);
     
 	native_fhir::DeserializationOptions options = {};
-	options.class_metadata = (ClassMetadataPtr) & g_class_metadata[0];
-	options.class_metadata_count = ArrayCount(g_class_metadata);
 	String8 dir_name = Str8Lit("./bundles/");
 	if (run_options.directory_name.size != 0)
 	{

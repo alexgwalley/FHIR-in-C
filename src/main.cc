@@ -462,56 +462,6 @@ OutputGperfFiles(Arena *arena, CodeGenerationOptions *options, String8 in_dir_na
 
 ////////////////////////////
 // Metadata 
-void
-OutputClassMetadata(Arena *arena,
-                    CodeGenerationOptions *options,
-                    String8 file_name,
-                    ClassDefinitionList *list)
-{
-	Temp scratch = ScratchBegin(&arena, 1);
-	FILE *f = fopen((char*)file_name.str, "w");
-	Assert(f);
-    
-	String8List result_list = { 0 };
-    
-	Str8ListPushF(scratch.arena, &result_list, "namespace native_fhir {\n");
-	Str8ListPushF(scratch.arena, &result_list, "namespace nf_fhir_r4 {\n");
-	Str8ListPushF(scratch.arena, &result_list, "ClassMetadata g_class_metadata[] =\n");
-	Str8ListPushF(scratch.arena, &result_list, "{\n");
-    
-	ClassDefinition zeroed = { 0 };
-	zeroed.name = Str8Lit("Unknown");
-	ClassMetadata *meta = ClassMetadataFromClassDefinition(scratch.arena,
-	                                                       options,
-	                                                       &zeroed);
-	String8 str = SerializeClassMetadata(scratch.arena, options, meta);
-	Str8ListPushF(scratch.arena, &result_list, "%.*s,",
-	              str.size, str.str);
-    
-	for (ClassDefinitionNode *node = list->first;
-		node;
-		node = node->next)
-	{
-		ClassMetadata *curr_meta = ClassMetadataFromClassDefinition(scratch.arena,
-		                                                            options,
-		                                                            &node->def);
-		String8 str = SerializeClassMetadata(scratch.arena, options, curr_meta);
-		Str8ListPushF(scratch.arena, &result_list, "%.*s,",
-		              str.size, str.str);
-	}
-    
-    
-	Str8ListPushF(scratch.arena, &result_list, "};\n");
-	Str8ListPushF(scratch.arena, &result_list, "};");
-	Str8ListPushF(scratch.arena, &result_list, "};");
-	String8 result = Str8ListJoin(scratch.arena, result_list, 0);
-	fwrite(result.str, result.size, 1, f);
-    
-	fflush(f);
-	fclose(f);
-	ScratchEnd(scratch);
-}
-
 
 // NOTE(agw): this is not exact, it was temporary to remove a lot of manual work
 void
@@ -595,14 +545,7 @@ int main()
 	////////////////////////////
 	// ~ Output class metadata
 	{
-		Temp scratch = ScratchBegin(&arena, 1);
-		OutputClassMetadata(scratch.arena,
-		                    CppOptions(scratch.arena),
-		                    Str8Lit("generated/fhir_class_metadata.h"),
-		                    &class_defs);
-
 		M_Serialize(class_defs, Str8Lit("generated/fhir_class_metadata.bin"));
-		ScratchEnd(scratch);
 	}
 
 	{

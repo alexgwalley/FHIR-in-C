@@ -6,7 +6,7 @@
 
 #include "native_fhir_inc.h"
 
-#include "generated/fhir_r4_types.h"
+#include "fhir_r4_types.h"
 #include "generated/fhir_class_definitions.h"
 #include "generated/fhir_class_metadata.h"
 
@@ -15,7 +15,6 @@
 #include "native_deserializer.h"
 #include "execution/path_execution.h"
 #include "fhir_class/fhir_class.h"
-
 
 #include "native_fhir_inc.cc"
 
@@ -245,7 +244,7 @@ main(void)
 	ND_Init(1);
 
 	Bundle *res = 0;
-	ND_ContextNode* deserializer_context = DeserializeFile("D:/Programming/FHIR-in-C/bundles/bundle1.json", (Resource**) & res);
+	ND_ContextNode* deserializer_context = DeserializeFile("C:/Users/awalley/Code/FHIR-in-C/bundles/bundle1.json", (Resource**) & res);
 
 	FP_ExecutionContext context = { 0 };
 	context.arena = ArenaAlloc(Gigabytes(1));
@@ -275,6 +274,7 @@ main(void)
 			fgets(&line[0], ArrayCount(line), stdin);
 		}
 
+		// ~ Set Default Tokenizer
 		String8 line_str = Str8C(line);
 		tokenizer.pos = line_str.str;
 		tokenizer.max_pos = line_str.str + line_str.size;

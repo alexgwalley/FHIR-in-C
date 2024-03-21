@@ -17,9 +17,6 @@ namespace native_fhir
 		U64 size;
 	};
 
-	typedef ClassMetadata (*ClassMetadataPtr)[NF_NUM_RESOURCES];
-
-
 	struct DeserializationOptions
 	{
 		String8 file_name;

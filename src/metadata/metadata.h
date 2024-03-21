@@ -37,10 +37,10 @@ case ValueType::Uuid:\
 case ValueType::Url:\
 case ValueType::Code\
 
-	#define VALUE_TYPE_TIME_CASES ValueType::Date:\
-	case ValueType::DateTime:\
-	case ValueType::Time:\
-	case ValueType::Instant\
+#define VALUE_TYPE_TIME_CASES ValueType::Date:\
+case ValueType::DateTime:\
+case ValueType::Time:\
+case ValueType::Instant\
 
 	enum class Cardinality : U8
 	{

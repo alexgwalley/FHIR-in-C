@@ -2,7 +2,7 @@
 #include <stdarg.h>
 #include <unordered_map>
 
-#include "generated/fhir_r4_types.h"
+#include "fhir_r4_types.h"
 #include "manual_deserialization.h"
 // NOTE(agw): if we can assume every key is unique, then
 // we don't need to do a string compare...
