@@ -4,6 +4,7 @@ src/gperf_hash_tables/**/*
 src/code/**/*
 generated/
 bundles/
+CMakeFiles/
 
 *.4ed
 *.exp
