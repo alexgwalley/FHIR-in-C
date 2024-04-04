@@ -45,6 +45,9 @@ namespace native_fhir
 		Piece_Date,
 		Piece_Number,
 
+  Piece_Divide,
+  Piece_Mod,
+
 		Piece_FunctionInvoke,
 		Piece_FunctionParameter,
 	};

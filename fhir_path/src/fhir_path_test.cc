@@ -3,6 +3,17 @@
 #include <string.h>
 #include <csetjmp>
 
+//////////////////
+// ANTLR
+#define ANTLR4CPP_STATIC
+#include "antlr/antlr4-runtime.h"
+#include "generated/fhirpathLexer.h"
+#include "generated/fhirpathParser.h"
+#include "generated/fhirpathBaseVisitor.h"
+
+#include "generated/fhirpathLexer.cpp"
+#include "generated/fhirpathParser.cpp"
+#include "generated/fhirpathBaseVisitor.cpp"
 
 #include "native_fhir_inc.h"
 
@@ -17,6 +28,9 @@
 #include "fhir_class/fhir_class.h"
 
 #include "native_fhir_inc.cc"
+
+#include "fhir_path_visitor.h"
+#include "fhir_path_visitor.cc"
 
 extern "C"
 {
@@ -34,6 +48,7 @@ extern "C"
 
 using namespace native_fhir;
 using namespace nf_fhir_r4;
+using namespace antlr4;
 
 MetadataFile *g_meta_file;
 
@@ -221,15 +236,13 @@ DeserializeFile(const char* fn, nf_fhir_r4::Resource** res)
 int 
 main(void)
 {
+ printf("TEsting\n");
+ /////////////////// 
+ // Setup
 	OS_Init();
-//	if (!ND_Init()) return -1;
-
-	#if 1
-
 	ThreadCtx tctx = ThreadCtxAlloc();
 	tctx.is_main_thread = 1;
 	SetThreadCtx(&tctx);
-
 
 	// TODO(agw): this needs to be a chained arena...
 	Arena *meta_arena = ArenaAlloc(Megabytes(64));
@@ -237,14 +250,24 @@ main(void)
 	g_meta_file = PushStruct(meta_arena, MetadataFile);
 	MemoryCopy(g_meta_file, &file, sizeof(MetadataFile));
 
-	String8 expr = Str8Lit("Bundle.entry.take(-1)");
+ 
+ /////////////////// 
+ // Parse Expression
+
+	String8 expr = Str8Lit("(1 + 2)");
 	Tokenizer tokenizer = { 0 };
 	tokenizer.arena = ArenaAlloc(Megabytes(64));
 
-	ND_Init(1);
+ ND_Init(1);
+
+ /////////////////// 
+ // Temp ANTLR Parsing
 
 	Bundle *res = 0;
-	ND_ContextNode* deserializer_context = DeserializeFile("C:/Users/awalley/Code/FHIR-in-C/bundles/bundle1.json", (Resource**) & res);
+	ND_ContextNode* deserializer_context = DeserializeFile("C:/Users/awalley/Code/FHIR-in-C/bundles/0d364907-59cd-0c67-dd9a-5f28fd1a8b81.json", (Resource**) & res);
+
+ /////////////////// 
+ // Execute Expression
 
 	FP_ExecutionContext context = { 0 };
 	context.arena = ArenaAlloc(Gigabytes(1));
@@ -285,7 +308,7 @@ main(void)
 
 		BeginProfile();
 
-		Piece *tok = ParseExpression(&tokenizer);
+		Piece *tok = Antlr_ParseExpression(line_str);
 		context.root_node = tok;
 
 		Collection collection = ExecutePieces(context.arena, &context);
@@ -307,5 +330,4 @@ main(void)
 	ND_Cleanup();
 
 	return 0;
-	#endif
 }

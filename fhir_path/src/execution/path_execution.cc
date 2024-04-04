@@ -671,10 +671,12 @@ ExecuteFunction(Arena *arena, FP_ExecutionContext *context, Piece* node)
 local_function Collection
 ExecuteExpression(Arena *arena, FP_ExecutionContext *context, Piece* node)
 {
+ /*
 	if (IsNilPiece(node->prev))
 	{
 		FP_Assert(node->type == Piece_Literal, context, Str8Lit("First fhir_path piece must be a literal, (empty string?)"));
 	}
+ */
 
 	// TODO(agw): eventually we want to make this a loop and manage the stack on our own...
 
@@ -791,13 +793,52 @@ ExecuteExpression(Arena *arena, FP_ExecutionContext *context, Piece* node)
 			FP_Assert(right.count == 1, context, Str8Lit("Quantity Compare (>, <, >=, <=) must have cardinality of 1 on right side"));
 			B32 result = QuantityCompareCollectionEntries(context, &left.first->v, &right.first->v, node->meta.quantity_compare_data);
 			ScratchEnd(temp);
+
 			Collection ret = {};
 			CollectionEntry ent = { 0 };
 			ent.type = FP_Entry_Boolean;
 			ent.b = result;
 			CollectionPushEntry(arena, &ret, ent);
+
 			return ret;
 		} break;
+
+  case Piece_Minus:
+  case Piece_Plus:
+  {
+			Temp temp = ScratchBegin(&arena, 1);
+   Collection left = ExecuteExpression(temp.arena, context, node->child[0]);
+   Collection right = ExecuteExpression(temp.arena, context, node->child[1]);
+
+			FP_Assert(left.count == 1, context, Str8Lit("Addition must have cardinality of 1 on left side"));
+			FP_Assert(right.count == 1, context, Str8Lit("Addition must have cardinality of 1 on right side"));
+
+   FP_Assert(left.first->v.type == FP_Entry_Number, context, Str8Lit("Addition can only occur between two numbers"));
+   FP_Assert(right.first->v.type == FP_Entry_Number, context, Str8Lit("Addition can only occur between two numbers"));
+
+   // TODO(agw): implement decimal and implicit conversion
+   FP_Assert(left.first->v.number.type == Number_Integer, context, Str8Lit("Addition only implemented for integers"));
+   FP_Assert(right.first->v.number.type == Number_Integer, context, Str8Lit("Addition only implemented for integers"));
+
+   if (node->type == Piece_Minus)
+   {
+    right.first->v.number.s64 *= -1;
+   }
+
+   S64 value = left.first->v.number.s64 + right.first->v.number.s64;
+
+   ScratchEnd(temp);
+
+			Collection ret = {};
+			CollectionEntry ent = { 0 };
+			ent.type = FP_Entry_Number;
+   ent.number.type = Number_Integer;
+   ent.number.s64 = value;
+			CollectionPushEntry(arena, &ret, ent);
+
+   return ret;
+
+  } break;
 		case Piece_Number:
 		{
 			Collection ret = { 0 };
