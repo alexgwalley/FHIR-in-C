@@ -14,10 +14,13 @@ namespace native_fhir
 		Tail,
 		Single,
 		Count,
+		Empty,
+		Exists,
 		Skip,
 		Take,
 		Select,
 		Where,
+		OfType,
 		Function_Count,
 	};
 
@@ -30,15 +33,18 @@ namespace native_fhir
 	FunctionAndName pe_functions[] = 
 	{
 		{ Str8LitComp("Unknown"), Function::Unknown },
-		{ Str8LitComp("first"), Function::First },
-		{ Str8LitComp("last"), Function::Last },
-		{ Str8LitComp("tail"), Function::Tail },
-		{ Str8LitComp("single"), Function::Single },
-		{ Str8LitComp("count"), Function::Count },
-		{ Str8LitComp("skip"), Function::Skip },
-		{ Str8LitComp("take"), Function::Take },
-		{ Str8LitComp("select"), Function::Select },
-		{ Str8LitComp("where"), Function::Where }
+		{ Str8LitComp("first"),   Function::First },
+		{ Str8LitComp("last"),    Function::Last },
+		{ Str8LitComp("tail"),    Function::Tail },
+		{ Str8LitComp("single"),  Function::Single },
+		{ Str8LitComp("count"),   Function::Count },
+		{ Str8LitComp("empty"),   Function::Empty },
+		{ Str8LitComp("exists"),  Function::Exists },
+		{ Str8LitComp("skip"),    Function::Skip },
+		{ Str8LitComp("take"),    Function::Take },
+		{ Str8LitComp("select"),  Function::Select },
+		{ Str8LitComp("where"),   Function::Where },
+		{ Str8LitComp("ofType"),   Function::OfType }
 	};
 
 // ~ Execution

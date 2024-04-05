@@ -22,9 +22,16 @@ namespace native_fhir
 	Decimal DecimalFromString(String8 str);
 	String8 Str8FromDecimal(Arena *arena, Decimal str);
 
+ Decimal DecimalFromInt(S64 v);
+
 	// NOTE(agw): returns sign of a-b
 	int DecimalCompare(Decimal a, Decimal b);
 	B32 DecimalEqual(Decimal a, Decimal b);
+ Decimal DecimalAdd(Decimal a, Decimal b);
+ Decimal DecimalSub(Decimal a, Decimal b);
+ Decimal DecimalMul(Decimal a, Decimal b);
+ Decimal DecimalDiv(Decimal a, Decimal b);
+ Decimal DecimalMod(Decimal a, Decimal b);
 
 	#endif
 

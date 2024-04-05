@@ -53,6 +53,14 @@ namespace native_fhir
 		return str;
 	}
 
+ Decimal
+ DecimalFromInt(S64 v)
+ {
+  Decimal ret;
+  r128FromInt(&ret.v, v);
+  return ret;
+ }
+
 
 	int
 	DecimalCompare(Decimal a, Decimal b)
@@ -66,6 +74,45 @@ namespace native_fhir
    return a.v.lo == b.v.lo && a.v.hi == b.v.hi;
 	}
 
+ Decimal
+ DecimalAdd(Decimal a, Decimal b)
+ {
+  Decimal ret;
+  r128Add(&ret.v, &a.v, &b.v);
+  return ret;
+ }
+
+ Decimal
+ DecimalSub(Decimal a, Decimal b)
+ {
+  Decimal ret;
+  r128Sub(&ret.v, &a.v, &b.v);
+  return ret;
+ }
+
+ Decimal
+ DecimalMul(Decimal a, Decimal b)
+ {
+  Decimal ret;
+  r128Mul(&ret.v, &a.v, &b.v);
+  return ret;
+ }
+
+ Decimal
+ DecimalDiv(Decimal a, Decimal b)
+ {
+  Decimal ret;
+  r128Div(&ret.v, &a.v, &b.v);
+  return ret;
+ }
+
+ Decimal
+ DecimalMod(Decimal a, Decimal b)
+ {
+  Decimal ret;
+  r128Mod(&ret.v, &a.v, &b.v);
+  return ret;
+ }
 
 };
 #endif

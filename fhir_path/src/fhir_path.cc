@@ -10,7 +10,7 @@ namespace native_fhir
    { Str8Lit("-"), P_Plus_Minus_Ampersand, Piece_Minus },
    { Str8Lit("&"), P_Plus_Minus_Ampersand, Piece_Ampersand },
 
-   { Str8Lit("*"), P_Mul_Divide, Piece_Asterisk },
+   { Str8Lit("*"), P_Mul_Divide, Piece_Multiply },
    { Str8Lit("/"), P_Mul_Divide, Piece_ForwardSlash },
    { Str8Lit("%"), P_Mul_Divide, Piece_Percent },
 
@@ -597,9 +597,8 @@ namespace native_fhir
       {
        size_t offset = 0;
        PieceList list = ParseParamList(tokenizer, &offset);
-       node->type = Piece_FunctionInvoke;
+       node->type = Piece_FunctionInvocation;
        node->params = list;
-       node->name = node->slice;
 
        // NOTE(agw): +1 for the open param
        node->slice.size += offset + 1;
@@ -632,7 +631,7 @@ namespace native_fhir
   Piece*
   Antlr_ParseExpression(String8 str)
   {
-   ANTLRInputStream input("(1 + 2)");
+   ANTLRInputStream input((const char*)str.str, str.size);
    fhirpathLexer lexer(&input);
    CommonTokenStream tokens(&lexer);
    fhirpathParser parser(&tokens);

@@ -13,7 +13,7 @@ namespace native_fhir
 		Piece_Unknown,
 		Piece_Plus,
 		Piece_Minus,
-		Piece_Asterisk,
+		Piece_Multiply,
 		Piece_ForwardSlash,
 		Piece_Percent,
 		Piece_Union,
@@ -28,6 +28,10 @@ namespace native_fhir
 		Piece_OpenBracket,
 		Piece_CloseBracket,
 
+  Piece_And,
+  Piece_Or,
+  Piece_Not,
+
 		Piece_EqualCompare,
 		Piece_Is,
 		Piece_As,
@@ -38,7 +42,6 @@ namespace native_fhir
 		Piece_Greater,
 		Piece_GreaterEqual,
 
-
 		// NOTE(agw): not sure if we just want to clump all of this together?
 		Piece_Literal,
 		Piece_String,
@@ -48,7 +51,16 @@ namespace native_fhir
   Piece_Divide,
   Piece_Mod,
 
-		Piece_FunctionInvoke,
+  Piece_Polarity_Negative,
+  Piece_Polarity_Positive,
+
+  // Invocations
+  Piece_MemberInvocation,
+		Piece_FunctionInvocation,
+  Piece_ThisInvocation,
+
+  Piece_Identifier,
+
 		Piece_FunctionParameter,
 	};
 
@@ -72,26 +84,6 @@ namespace native_fhir
 		P_Max
 	} FP_Precedence;
 
-	enum NumberType
-	{
-		Number_Unknown,
-		Number_Integer,
-		Number_Decimal,
-	};
-
-	typedef struct Number Number;
-	struct Number
-	{
-		NumberType type;
-		String8 quantity;
-		String8 unit;
-
-		union
-		{
-			S64 s64;
-			Decimal decimal;
-		};
-	};
 
 	// ~ Piece
 
@@ -153,9 +145,6 @@ namespace native_fhir
 
 		String8 slice; // Full string contents
 
-		// TODO(agw): should describe function names
-		// should describe parameter name
-		String8 name;
 		// TODO(agw): Should describe parameter value
 		//	String8 value; // Set for function param
 

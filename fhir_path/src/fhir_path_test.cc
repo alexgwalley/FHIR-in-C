@@ -16,6 +16,7 @@
 #include "generated/fhirpathBaseVisitor.cpp"
 
 #include "native_fhir_inc.h"
+#include "execution/number.h"
 
 #include "fhir_r4_types.h"
 #include "generated/fhir_class_definitions.h"
@@ -57,7 +58,7 @@ PrintIndent(int indent)
 {
 	for (int i = 0; i < indent; i++)
 	{
-		printf("\t");
+		printf(" ");
 	}
 }
 
@@ -120,10 +121,10 @@ PrintSingleResourceMember(nf_fhir_r4::Resource *resource, int indent)
 							nf_fhir_r4::Resource* child = DEREF_STRUCT(resource, mem->offset, nf_fhir_r4::Resource);
 							if (child)
 							{
-								PrintIndent(indent);
+								PrintIndent(indent + 1);
 								printf("%.*s\n", PRINT_STR8(mem_name));
 							}
-							PrintSingleResourceMember(child, indent+1);
+							PrintSingleResourceMember(child, indent+2);
 						} break;
 						case VALUE_TYPE_STRING_CASES:
 						case ValueType::Decimal:
@@ -132,7 +133,7 @@ PrintSingleResourceMember(nf_fhir_r4::Resource *resource, int indent)
 								if (str.has_value)
 								{
 									PrintIndent(indent);
-									printf("\t- %.*s: %.*s\n", PRINT_STR8(mem_name), PRINT_STR8(str));
+									printf(" - %.*s: %.*s\n", PRINT_STR8(mem_name), PRINT_STR8(str));
 								}
 							} break;
 						case ValueType::Boolean:
@@ -151,14 +152,9 @@ PrintSingleResourceMember(nf_fhir_r4::Resource *resource, int indent)
 							ISO8601_Time time = DEREF_VALUE(resource, mem->offset, ISO8601_Time);
 							if (time.precision != Precision::Unknown)
 							{
-								printf("\t- %.*s: ", PRINT_STR8(mem_name));
-							}
-
-							PrintIndent(indent);
-							PrintISO8601_Time(time);
-
-							if (time.precision != Precision::Unknown)
-							{
+								printf(" - %.*s: ", PRINT_STR8(mem_name));
+        PrintIndent(indent);
+        PrintISO8601_Time(time);
 								printf("\n");
 							}
 						} break;
@@ -215,6 +211,8 @@ PrintCollection(Collection col)
 				printf("\n");
 			} break;
 		}
+
+  printf("\n\n");
 	}
 
 	printf("\n--------------------------------\n");
@@ -254,7 +252,7 @@ main(void)
  /////////////////// 
  // Parse Expression
 
-	String8 expr = Str8Lit("(1 + 2)");
+	String8 expr = Str8Lit("Bundle.entry.exists() and Bundle.entry.empty()");
 	Tokenizer tokenizer = { 0 };
 	tokenizer.arena = ArenaAlloc(Megabytes(64));
 
@@ -271,10 +269,6 @@ main(void)
 
 	FP_ExecutionContext context = { 0 };
 	context.arena = ArenaAlloc(Gigabytes(1));
-	context.base_res = (nf_fhir_r4::Resource*)res;
-	context.entry_stack_first = &nil_entry_node;
-	context.entry_stack_last = &nil_entry_node;
-	context.meta_file = g_meta_file;
 
 	char line[4096];
 	Assert(expr.size < sizeof(line));
@@ -304,7 +298,12 @@ main(void)
 		if (line_str.str[line_str.size-1] == '\0') tokenizer.max_pos--;
 		context.error_message = { 0 };
 		ArenaPopTo(tokenizer.arena, 0);
+
 		ArenaPopTo(context.arena, 0);
+  context.base_res = (nf_fhir_r4::Resource*)res;
+  context.entry_stack_first = &nil_entry_node;
+  context.entry_stack_last = &nil_entry_node;
+  context.meta_file = g_meta_file;
 
 		BeginProfile();
 

@@ -1,35 +1,11 @@
 using namespace native_fhir;
 using namespace nf_fhir_r4;
-
 CollectionEntryNode nil_entry_node = { 0 };
 
 Collection ExecuteExpression(Arena *arena, FP_ExecutionContext *context, Piece* node);
 
-#if 0
-SerializedClassMetadata*
-GetClassMetadata(ResourceType type)
-{
-	U8* ptr = (U8*)&metadata_file->class_metadata[0];
-	for (int i = 0; i < (int)type; i++)
-	{
-		SerializedClassMetadata* m_ptr = (SerializedClassMetadata*)ptr;
-		ptr += m_ptr->header.offset_to_next;
-	}
-
-	return (SerializedClassMetadata*)ptr;
-}
-
-ClassMemberMetadata*
-GetClassMemberMetadata(SerializedClassMetadata* meta, int index)
-{
-	Assert(index < meta->members_count);
-	return &meta->members[index];
-}
-
-#else
-#endif
-
-// ~ Collection Helpers
+///////////////////
+// Collection Helpers
 
 local_function CollectionEntry*
 PushCollectionEntry(Arena *arena)
@@ -41,6 +17,69 @@ PushCollectionEntry(Arena *arena)
 
 B32 IsNilCollectionEntry(CollectionEntry *entry) { return entry == NULL; }
 B32 IsNilCollectionEntryNode(CollectionEntryNode *node) { return node == NULL || node == &nil_entry_node; }
+
+local_function void
+CollectionPushEntry(Arena *arena, Collection *collection, CollectionEntry entry)
+{
+	CollectionEntryNode *node = PushStruct(arena, CollectionEntryNode);
+	node->v = entry;
+	DLLPushBack(collection->first, collection->last, node);
+	collection->count++;
+}
+
+Collection
+CollectionFromEntry(Arena *arena, CollectionEntry entry)
+{
+ Collection ret = {};
+ CollectionPushEntry(arena, &ret, entry);
+ return ret;
+}
+
+Collection
+CollectionFromString(Arena *arena, NullableString8 str)
+{
+ CollectionEntry entry = {};
+ entry.type = FP_Entry_String;
+ entry.str = str;
+ return CollectionFromEntry(arena, entry);
+}
+
+Collection
+CollectionFromNumber(Arena *arena, Number num)
+{
+ CollectionEntry entry = {};
+ entry.type = FP_Entry_Number;
+ entry.number = num;
+ return CollectionFromEntry(arena, entry);
+}
+
+Collection
+CollectionFromInteger(Arena *arena, S64 num)
+{
+ CollectionEntry entry = {};
+ entry.type = FP_Entry_Number;
+ entry.number.type = Number_Integer;
+ entry.number.s64 = num;
+ return CollectionFromEntry(arena, entry);
+}
+
+Collection
+CollectionFromDate(Arena *arena, ISO8601_Time time)
+{
+ CollectionEntry entry = {};
+ entry.type = FP_Entry_Iso8601;
+ entry.time = time;
+ return CollectionFromEntry(arena, entry);
+}
+
+Collection
+CollectionFromBoolean(Arena *arena, B32 b)
+{
+ CollectionEntry entry = {};
+ entry.type = FP_Entry_Boolean;
+ entry.b = b;
+ return CollectionFromEntry(arena, entry);
+}
 
 local_function void
 MergeCollections(Collection *dst, Collection *src)
@@ -57,74 +96,6 @@ MergeCollections(Collection *dst, Collection *src)
 	}
 
 	dst->count += src->count;
-}
-
-local_function void
-CollectionPushEntry(Arena *arena, Collection *collection, CollectionEntry entry)
-{
-	CollectionEntryNode *node = PushStruct(arena, CollectionEntryNode);
-	node->v = entry;
-	DLLPushBack(collection->first, collection->last, node);
-	collection->count++;
-}
-
-// NOTE(agw): make the tree easily iterable
-local_function void
-UpdateNextPieces(Piece* piece, Piece *parent, Piece *stack_first)
-{
-	if (IsNilPiece(piece)) return;
-	piece->parent = parent;
-
-	UpdateNextPieces(piece->child[0], piece, stack_first);
-
-	// NOTE(agw): if we have a child left, we will be coming from there
-	if (!IsNilPiece(piece->child[0]))
-	{
-		piece->prev = piece->child[0];
-	}
-
-	// NOTE(agw): if we are the root, go right
-	if (IsNilPiece(piece->parent))
-	{
-		piece->next = piece->child[1];
-	}
-
-	B32 is_left = parent->child[0] == piece;
-	B32 is_leaf = IsNilPiece(piece->child[0]) && IsNilPiece(piece->child[1]);
-	if (is_left)
-	{
-		// NOTE(agw): if we are on the left, we will be going to our parent next
-		piece->next = parent;
-		if (is_leaf)
-		{
-			piece->prev = stack_first;
-			stack_first = piece;
-		}
- }
-	else 
-	{
-		// Right Leaf
-		if (is_leaf)
-		{
-			piece->next = parent->parent;
-			piece->prev = parent;
-		}
-		else if(!IsNilPiece(piece->child[1]))
-		{
-			piece->next = piece->child[1];
-		}
-	}
-
-
-	// ~ Update any function param expressions if any
-	for (PieceNode *param_piece = piece->params.first;
-		param_piece;
-		param_piece = param_piece->next)
-	{
-		UpdateNextPieces(param_piece->v, &nil_piece, &nil_piece);
-	}
-
-	UpdateNextPieces(piece->child[1], piece, stack_first);
 }
 
 
@@ -302,20 +273,8 @@ EqualCompareCollectionEntries(FP_ExecutionContext *context, CollectionEntry *ent
 
 		case FP_Entry_Number:
 		{
-			switch (ent->number.type)
-			{
-				case Number_Decimal:
-				{
-					result = DecimalEqual(ent->number.decimal, ent2->number.decimal);
-				} break;
-				case Number_Integer:
-				{
-					result = ent->number.s64 == ent2->number.s64;
-				} break;
-				default: NotImplemented;
-			} 
+   result = ent->number == ent2->number;
 		} break;
-
 		default: NotImplemented;
 	}
 
@@ -340,32 +299,15 @@ QuantityCompareCollectionEntries(FP_ExecutionContext *context, CollectionEntry *
 	{
 		case FP_Entry_String:
 		{
-
-			if (ent->str.size != ent->str.size) result = FALSE;
+			if      (ent->str.size != ent->str.size)            result = FALSE;
 			else if (ent->str.has_value != ent2->str.has_value) result = FALSE;
-			else
-			{
-				NotImplemented;
-			}
-
+			else { NotImplemented; }
 		} break;
 
 		case FP_Entry_Number:
 		{
 			FP_Assert(ent->number.type == ent2->number.type, context, Str8Lit("Number types must match"));
-			switch (ent->number.type)
-			{
-				case Number_Integer:
-				{
-					ent_greater = ent->number.s64 > ent2->number.s64;
-				} break;
-				default: NotImplemented;
-				case Number_Decimal:
-				{
-					ent_greater = DecimalCompare(ent->number.decimal, ent2->number.decimal) > 0;
-				} break;
-			} break;
-
+   ent_greater = ent->number > ent2->number;
 		} break;
 
 		case FP_Entry_Iso8601:
@@ -385,14 +327,8 @@ QuantityCompareCollectionEntries(FP_ExecutionContext *context, CollectionEntry *
 
 	B32 equal = EqualCompareCollectionEntries(context, ent, ent2, CompareType_Equal);
 
-	if (flags & QuantityCompare_Less)
-	{
-		result = !ent_greater && !equal;
-	}
-	else if (flags & QuantityCompare_Greater)
-	{
-		result = ent_greater && !equal;
-	}
+	if      (flags & QuantityCompare_Less)    { result = !ent_greater && !equal; }
+	else if (flags & QuantityCompare_Greater) { result =  ent_greater && !equal; }
 
 	if (flags & QuantityCompare_Equal)
 	{
@@ -409,13 +345,6 @@ CollectionFromLiteralPiece(Arena *arena, FP_ExecutionContext *context,  Piece* e
 	Collection ret = { 0 };
 	switch (expr->type)
 	{
-		case Piece_String:
-		{
-			CollectionEntry entry = { 0 };
-			entry.type = FP_Entry_String;
-			entry.str = expr->value.str;
-			CollectionPushEntry(arena, &ret, entry);
-		} break;
 		case Piece_Literal:
 		{
 			CollectionEntry entry { 0 };
@@ -428,6 +357,7 @@ CollectionFromLiteralPiece(Arena *arena, FP_ExecutionContext *context,  Piece* e
 	}
 	return ret;
 }
+
 
 local_function Collection
 CollectionFromResourceMember(Arena *arena, FP_ExecutionContext* context,  CollectionEntry *ent, String8 member_name)
@@ -454,8 +384,7 @@ ExecuteBooleanExpressionOnCollectionEntry(Arena* arena, FP_ExecutionContext* con
 	Assert(left_col.count == 1);
 	Assert(right_col.count == 1);
 
-	switch (expr->type)
-	{
+	switch (expr->type) {
 		case Piece_EqualCompare:
 		{
 			result = EqualCompareCollectionEntries(context, &left_col.first->v,  &right_col.first->v, expr->meta.equal_compare_data);
@@ -506,6 +435,8 @@ ExecuteSubsetting(Arena *arena, FP_ExecutionContext *context, Piece *node, S64 m
 		min = Min(min, max);
 		max = Max(min, max);
 
+  max = Min(max, left_col.count - 1);
+
 		Assert(min >= 0);
 		Assert(max >= 0);
 
@@ -533,17 +464,6 @@ ExecuteSubsetting(Arena *arena, FP_ExecutionContext *context, Piece *node, S64 m
 		return ret;
 }
 
-local_function B32
-IsBinaryExpression(Piece *piece)
-{
-	for (int i = 0; i < ArrayCount(g_binary_ops); i++)
-	{
-		if (piece->type == g_binary_ops[i].type) return true;
-	}
-
-	return false;
-}
-
 local_function Collection
 ExecuteFunction(Arena *arena, FP_ExecutionContext *context, Piece* node)
 {
@@ -555,7 +475,7 @@ ExecuteFunction(Arena *arena, FP_ExecutionContext *context, Piece* node)
 	Function function_type = Function::Unknown;
 	for (int i = 0; i < ArrayCount(pe_functions); i++)
 	{
-		if (Str8Match(pe_functions[i].name, node->child[1]->name, 0))
+		if (Str8Match(pe_functions[i].name, node->child[1]->slice, 0))
 		{
 			function_type = pe_functions[i].func;
 		}
@@ -566,17 +486,27 @@ ExecuteFunction(Arena *arena, FP_ExecutionContext *context, Piece* node)
 	switch (function_type)
 	{
 		case Function::Count:
-		{
+  case Function::Exists:
+  case Function::Empty:
+  {
 			Temp temp = ScratchBegin(&arena, 1);
+
 			Collection left_col = ExecuteExpression(temp.arena, context, node->child[0]);
+   if (function_type == Function::Empty)
+   {
+    ret = CollectionFromBoolean(arena, left_col.count == 0);
+   }
+   else if (function_type == Function::Exists)
+   {
+    ret = CollectionFromBoolean(arena, left_col.count > 0);
+   }
+   else if (function_type == Function::Count)
+   {
+    ret = CollectionFromInteger(arena, left_col.count);
+   }
 
-			CollectionEntry ent = { 0 };
-			ent.number.type = Number_Integer;
-			ent.number.s64 = left_col.count;
-			ent.type = FP_Entry_Number;
-
-			CollectionPushEntry(arena, &ret, ent);
-		} break;
+   ScratchEnd(temp);
+  } break;
 		case Function::Where:
 		{
 			Collection left_col = ExecuteExpression(arena, context, node->child[0]);
@@ -629,18 +559,39 @@ ExecuteFunction(Arena *arena, FP_ExecutionContext *context, Piece* node)
 			}
 			ScratchEnd(temp);
 		} break;
+  case Function::OfType:
+  {
+			Temp temp = ScratchBegin(&arena, 1);
+
+   Piece* type_piece = func_node->params.first->v;
+   FP_Assert(type_piece->type == Piece_MemberInvocation, context, Str8Lit("Function \"OfType\" expects a parameter of type Identifier"));
+
+   const ResourceNameTypePair* pair = NF_ResourceNameTypePairFromString8(type_piece->slice);
+   FP_Assert(pair, context, PushStr8F(context->arena, "Could not find resource type \"%S\"", node->slice));
+
+			Collection left_col = ExecuteExpression(temp.arena, context, node->child[0]);
+   for (CollectionEntryNode *n = left_col.first; !IsNilCollectionEntryNode(n); n = n->next)
+   {
+    FP_Assert(n->v.type == FP_Entry_Resource, context, Str8Lit("Collection Entry must be of type \"Resource\" to be acted upon in OfType function"));
+    B32 correct_type = (int)n->v.resource->resourceType == pair->type;
+
+    if (correct_type) { CollectionPushEntry(arena, &ret, n->v); }
+   }
+			ScratchEnd(temp);
+
+  } break;
 		case Function::First:  { ret = ExecuteSubsetting(arena, context, node, 0, 0, 0); } break;
 		case Function::Last:   { ret = ExecuteSubsetting(arena, context, node, -1, -1, 0); } break;
 		case Function::Tail:   { ret = ExecuteSubsetting(arena, context, node, 1, -1, 0); } break;
 		case Function::Single: { ret = ExecuteSubsetting(arena, context, node, 0, -1, NF_Subsetting_FailOnMultiple); } break;
-		// TODO(agw): these two can be merged
+
 		case Function::Skip:
 		case Function::Take:
 		{
-			FP_Assert(func_node->params.count > 0, context, Str8Lit("Skip function requires a parameter of type integer"));
-			FP_Assert(func_node->params.first, context, Str8Lit("Skip function first parameter is null"));
-			FP_Assert(func_node->params.first->v->type == Piece_Number, context, Str8Lit("Skip function parameter must be an integer"));
-			FP_Assert(func_node->params.first->v->value.num.type == Number_Integer, context, Str8Lit("Skip function parameter must be an integer"));
+			FP_Assert(func_node->params.count > 0, context, Str8Lit("Skip/Take function requires a parameter of type integer"));
+			FP_Assert(func_node->params.first, context, Str8Lit("Skip/Take function first parameter is null"));
+			FP_Assert(func_node->params.first->v->type == Piece_Number, context, Str8Lit("Skip/Take function parameter must be an integer"));
+			FP_Assert(func_node->params.first->v->value.num.type == Number_Integer, context, Str8Lit("Skip/Take function parameter must be an integer"));
 
 			S64 num = func_node->params.first->v->value.num.s64;
 
@@ -656,7 +607,7 @@ ExecuteFunction(Arena *arena, FP_ExecutionContext *context, Piece* node)
 		} break;
 		default:
 		{
-			FP_Assert(false, context, PushStr8F(context->arena, "No known function with name: \"%S\"", func_node->name))
+			FP_Assert(false, context, PushStr8F(context->arena, "No known function with name: \"%S\"", func_node->slice))
 		} break;
 	}
 
@@ -664,21 +615,10 @@ ExecuteFunction(Arena *arena, FP_ExecutionContext *context, Piece* node)
 	return ret;
 }
 
-// TODO
-// NOTE(agw): what if we can pass _in_ a collection,
-// Thinking for statements like Patient.where(name.family = 'Walley')
-// We could pass a collection (with one element) to set 'ret' as 
 local_function Collection
 ExecuteExpression(Arena *arena, FP_ExecutionContext *context, Piece* node)
 {
- /*
-	if (IsNilPiece(node->prev))
-	{
-		FP_Assert(node->type == Piece_Literal, context, Str8Lit("First fhir_path piece must be a literal, (empty string?)"));
-	}
- */
-
-	// TODO(agw): eventually we want to make this a loop and manage the stack on our own...
+	// TODO(agw): eventually we may want to make this a loop and manage the stack on our own...
 
 	Collection next_ret = { 0 };
 	switch (node->type)
@@ -713,22 +653,43 @@ ExecuteExpression(Arena *arena, FP_ExecutionContext *context, Piece* node)
 					resource = context->entry_stack_first->v.resource;
 
 					Temp temp = ScratchBegin(&arena, 1);
+
 					Collection col = { 0 };
 					CollectionPushEntry(temp.arena, &col, context->entry_stack_first->v);
 					Collection ret = GetMembersFromCollection(arena, context,  col, member_or_res_name);
-					ScratchEnd(temp);
 
+					ScratchEnd(temp);
 					return ret;
 				}
 			}
 			else
 			{
 				// See if we are a resource Literal
-				const ResourceNameTypePair *pair = NF_ResourceNameTypePairFromString8(node->slice);
-				FP_Assert(pair, context, PushStr8F(context->arena, "Could not find resource type \"%S\"", node->slice))
-				return CollectionFromLiteralPiece(arena, context, node);
+    const ResourceNameTypePair* pair = NF_ResourceNameTypePairFromString8(node->slice);
+    FP_Assert(pair, context, PushStr8F(context->arena, "Could not find resource type \"%S\"", node->slice));
+
+    CollectionEntry entry = { 0 };
+    entry.type = FP_Entry_ResourceType;
+    entry.resource_type = (ResourceType)pair->type;
+    return CollectionFromEntry(arena, entry);
 			}
 		} break;
+  case Piece_Identifier:
+  {
+    const ResourceNameTypePair* pair = NF_ResourceNameTypePairFromString8(node->slice);
+    FP_Assert(pair, context, PushStr8F(context->arena, "Could not find resource type \"%S\"", node->slice));
+
+    CollectionEntry entry = { 0 };
+    entry.type = FP_Entry_ResourceType;
+    entry.resource_type = (ResourceType)pair->type;
+    return CollectionFromEntry(arena, entry);
+  } break;
+  case Piece_ThisInvocation:
+  {
+   Collection col = { 0 };
+   CollectionPushEntry(arena, &col, context->entry_stack_first->v);
+   return col;
+  } break;
 		case Piece_As:
 		case Piece_Is:
 		{
@@ -760,11 +721,38 @@ ExecuteExpression(Arena *arena, FP_ExecutionContext *context, Piece* node)
 
 			return col;
 		} break;
+  case Piece_MemberInvocation:
+  {
+   // NOTE(agw): we are in some function like "select"
+   if (!IsNilCollectionEntryNode(context->entry_stack_first))
+   {
+					String8 member_name = node->slice;
+					Assert(context->entry_stack_first->v.type == FP_Entry_Resource);
+					nf_fhir_r4::Resource* resource = context->entry_stack_first->v.resource;
+
+					Temp temp = ScratchBegin(&arena, 1);
+
+     Collection col = CollectionFromEntry(temp.arena, context->entry_stack_first->v);
+					Collection ret = GetMembersFromCollection(arena, context, col, member_name);
+
+					ScratchEnd(temp);
+
+					return ret;
+   }
+   // NOTE(agw): we are at the beginning of the first expression, collect resources
+   else
+   {
+    const ResourceNameTypePair *pair = NF_ResourceNameTypePairFromString8(node->slice);
+    FP_Assert(pair != NULL, context, PushStr8F(context->arena, "Could not find resource type \"%S\"", node->slice));
+    return GetResourcesOfType(arena, context->base_res, (ResourceType)pair->type);
+   }
+  } break;
+
 		case Piece_Dot:
 		{
 			FP_Assert(!IsNilPiece(node->child[1]) && node->child[1]->type != Piece_Unknown, context, Str8Lit("Must have right hand side"));
 			// ~ NOTE(agw): Parse Invokation
-			if (node->child[1]->type != Piece_FunctionInvoke)
+			if (node->child[1]->type != Piece_FunctionInvocation)
 			{
 				Temp temp = ScratchBegin(&arena, 1);
 				Collection left_col = ExecuteExpression(temp.arena, context, node->child[0]);
@@ -780,7 +768,7 @@ ExecuteExpression(Arena *arena, FP_ExecutionContext *context, Piece* node)
 			}
 
 		} break;
-		case Piece_String: { return CollectionFromLiteralPiece(arena, context, node); } break;
+		case Piece_EqualCompare:
 		case Piece_QuantityCompare:
 		{
 			Temp temp = ScratchBegin(&arena, 1);
@@ -789,20 +777,23 @@ ExecuteExpression(Arena *arena, FP_ExecutionContext *context, Piece* node)
 			Collection right = ExecuteExpression(temp.arena, context, node->child[1]);
 			if (left.count == 0 || right.count == 0) return { 0 };
 
-			FP_Assert(left.count == 1, context, Str8Lit("Quantity Compare (>, <, >=, <=) must have cardinality of 1 on left side"));
-			FP_Assert(right.count == 1, context, Str8Lit("Quantity Compare (>, <, >=, <=) must have cardinality of 1 on right side"));
-			B32 result = QuantityCompareCollectionEntries(context, &left.first->v, &right.first->v, node->meta.quantity_compare_data);
+			FP_Assert(left.count == 1, context, Str8Lit("Comparisons (=, !=, ~, !~, >, <, >=, <=) must have cardinality of 1 on left side"));
+			FP_Assert(right.count == 1, context, Str8Lit("Comparisons (=, !=, ~, !~, >, <, >=, <=) must have cardinality of 1 on right side"));
+
+   B32 result = (node->type == Piece_EqualCompare) 
+    ?
+     EqualCompareCollectionEntries(context, &left.first->v,  &right.first->v, node->meta.equal_compare_data)
+    :
+     QuantityCompareCollectionEntries(context, &left.first->v, &right.first->v, node->meta.quantity_compare_data);
+
 			ScratchEnd(temp);
 
-			Collection ret = {};
-			CollectionEntry ent = { 0 };
-			ent.type = FP_Entry_Boolean;
-			ent.b = result;
-			CollectionPushEntry(arena, &ret, ent);
-
-			return ret;
+   return CollectionFromBoolean(arena, result);
 		} break;
 
+  case Piece_Multiply:
+  case Piece_Divide:
+  case Piece_Mod:
   case Piece_Minus:
   case Piece_Plus:
   {
@@ -810,53 +801,94 @@ ExecuteExpression(Arena *arena, FP_ExecutionContext *context, Piece* node)
    Collection left = ExecuteExpression(temp.arena, context, node->child[0]);
    Collection right = ExecuteExpression(temp.arena, context, node->child[1]);
 
-			FP_Assert(left.count == 1, context, Str8Lit("Addition must have cardinality of 1 on left side"));
+			FP_Assert(left.count == 1,  context, Str8Lit("Addition must have cardinality of 1 on left side"));
 			FP_Assert(right.count == 1, context, Str8Lit("Addition must have cardinality of 1 on right side"));
 
-   FP_Assert(left.first->v.type == FP_Entry_Number, context, Str8Lit("Addition can only occur between two numbers"));
+   FP_Assert(left.first->v.type == FP_Entry_Number,  context, Str8Lit("Addition can only occur between two numbers"));
    FP_Assert(right.first->v.type == FP_Entry_Number, context, Str8Lit("Addition can only occur between two numbers"));
 
-   // TODO(agw): implement decimal and implicit conversion
-   FP_Assert(left.first->v.number.type == Number_Integer, context, Str8Lit("Addition only implemented for integers"));
-   FP_Assert(right.first->v.number.type == Number_Integer, context, Str8Lit("Addition only implemented for integers"));
+   Number value = {};
+   Number l_val = left.first->v.number;
+   Number r_val = right.first->v.number;
 
-   if (node->type == Piece_Minus)
-   {
-    right.first->v.number.s64 *= -1;
-   }
+   if      (node->type == Piece_Minus)    { value = l_val - r_val; }
+   else if (node->type == Piece_Plus)     { value = l_val + r_val; }
+   else if (node->type == Piece_Multiply) { value = l_val * r_val; }
+   else if (node->type == Piece_Divide)   { value = l_val / r_val; }
+   else if (node->type == Piece_Mod)      { value = l_val % r_val; }
 
-   S64 value = left.first->v.number.s64 + right.first->v.number.s64;
 
    ScratchEnd(temp);
 
 			Collection ret = {};
 			CollectionEntry ent = { 0 };
 			ent.type = FP_Entry_Number;
-   ent.number.type = Number_Integer;
-   ent.number.s64 = value;
+   ent.number = value;
 			CollectionPushEntry(arena, &ret, ent);
 
    return ret;
-
   } break;
-		case Piece_Number:
-		{
-			Collection ret = { 0 };
-			CollectionEntry entry = { 0 };
-			entry.number = node->value.num;
-			entry.type = FP_Entry_Number;
-			CollectionPushEntry(arena, &ret, entry);
-			return ret;
-		} break;
-		case Piece_Date:
-		{
-			Collection ret = { 0 };
-			CollectionEntry entry = { 0 };
-			entry.time = node->value.time;
-			entry.type = FP_Entry_Iso8601;
-			CollectionPushEntry(arena, &ret, entry);
-			return ret;
-		} break;
+//  case Piece_Polarity_Positive:
+  case Piece_Polarity_Negative:
+  {
+   Collection col = ExecuteExpression(arena, context, node->child[0]);
+   FP_Assert(col.count == 1, context, Str8Lit("Negate Polarity Expression works on collection of cardinality 1"));
+   FP_Assert(col.first->v.type == FP_Entry_Number, context, Str8Lit("Negate Polarity Expression works on a number"));
+
+   CollectionEntry entry = col.first->v;
+   if (entry.number.type == Number_Integer)
+   {
+    entry.number.s64 *= -1;
+   }
+   else if(entry.number.type == Number_Decimal)
+   {
+    entry.number.decimal = DecimalMul(entry.number.decimal, DecimalFromString(Str8Lit("-1")));
+   }
+   else
+   {
+    FP_Assert(false, context, Str8Lit("Unknown number type"));
+   }
+
+   col.first->v = entry;
+   return col;
+  } break;
+
+  case Piece_Or:
+  case Piece_And:
+  {
+			Temp temp = ScratchBegin(&arena, 1);
+
+   Collection left = ExecuteExpression(temp.arena, context, node->child[0]);
+   Collection right = ExecuteExpression(temp.arena, context, node->child[1]);
+
+			FP_Assert(left.count == 1,  context, Str8Lit("and operator must have left collection with cardinality of 1"));
+			FP_Assert(right.count == 1, context, Str8Lit("and operator must have right collection with cardinality of 1"));
+
+   FP_Assert(left.first->v.type == FP_Entry_Boolean,  context, Str8Lit("and operator can only occur between two booleans"));
+   FP_Assert(right.first->v.type == FP_Entry_Boolean, context, Str8Lit("and operator can only occur between two booleans"));
+
+   Collection ret = { 0 };
+   if (node->type == Piece_Or)
+   {
+    ret = CollectionFromBoolean(arena,  left.first->v.b || right.first->v.b);
+   }
+   else if (node->type == Piece_And) 
+   {
+    ret = CollectionFromBoolean(arena,  left.first->v.b && right.first->v.b);
+   }
+
+   ScratchEnd(temp);
+
+   return ret;
+  } break;
+
+  case Piece_Not:
+  {
+  } break;
+
+		case Piece_String: { return CollectionFromString(arena, node->value.str); } break;
+		case Piece_Number: { return CollectionFromNumber(arena, node->value.num); } break;
+		case Piece_Date:   { return CollectionFromDate(arena, node->value.time); } break;
 	}
 
 	return { 0 };
@@ -867,8 +899,6 @@ ExecutePieces(Arena *arena, FP_ExecutionContext* context)
 {
 	TimeFunction;
 	Collection ret = { 0 };
-	UpdateNextPieces(context->root_node, &nil_piece, &nil_piece);
-
 	Piece* node = context->root_node;
 	return ExecuteExpression(arena, context, node);
 }
