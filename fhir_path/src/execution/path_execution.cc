@@ -507,6 +507,19 @@ ExecuteFunction(Arena *arena, FP_ExecutionContext *context, Piece* node)
 
    ScratchEnd(temp);
   } break;
+  case Function::Not:
+  {
+			Temp temp = ScratchBegin(&arena, 1);
+			Collection left_col = ExecuteExpression(temp.arena, context, node->child[0]);
+
+   if (left_col.count != 0)
+   {
+    FP_Assert(left_col.first->v.type == FP_Entry_Boolean, context, Str8Lit("Not function operates on a boolean"));
+    ret = CollectionFromBoolean(arena, !left_col.first->v.b);
+   }
+
+   ScratchEnd(temp);
+  } break;
 		case Function::Where:
 		{
 			Collection left_col = ExecuteExpression(arena, context, node->child[0]);
@@ -861,20 +874,67 @@ ExecuteExpression(Arena *arena, FP_ExecutionContext *context, Piece* node)
    Collection left = ExecuteExpression(temp.arena, context, node->child[0]);
    Collection right = ExecuteExpression(temp.arena, context, node->child[1]);
 
-			FP_Assert(left.count == 1,  context, Str8Lit("and operator must have left collection with cardinality of 1"));
-			FP_Assert(right.count == 1, context, Str8Lit("and operator must have right collection with cardinality of 1"));
+   if (left.count > 0)
+   {
+    FP_Assert(left.first->v.type == FP_Entry_Boolean,  context, Str8Lit("left of \"and\" operator must be of type boolean if not empty"));
+   }
 
-   FP_Assert(left.first->v.type == FP_Entry_Boolean,  context, Str8Lit("and operator can only occur between two booleans"));
-   FP_Assert(right.first->v.type == FP_Entry_Boolean, context, Str8Lit("and operator can only occur between two booleans"));
+   if(right.count > 0)
+   {
+    FP_Assert(right.first->v.type == FP_Entry_Boolean, context, Str8Lit("right of \"and\" operator must be of type boolean if not empty"));
+   }
+
+   enum EmptyBool
+   {
+    True,
+    False,
+    Empty
+   };
+
+   // NOTE(agw): see https://hl7.org/fhirpath/#and
+
+   EmptyBool and_table[3][3] = {
+    {True, False, Empty},
+    {False, False, False},
+    {Empty, False, True}
+   };
+
+   EmptyBool or_table[3][3] = {
+    {True, True, True},
+    {True, False, Empty},
+    {True, Empty, Empty}
+   };
 
    Collection ret = { 0 };
+   B32 l_empty = left.count == 0;
+   B32 r_empty = right.count == 0;
+
+   B32 l_true = !l_empty && left.first->v.b;
+   B32 r_true = !r_empty && right.first->v.b;
+
+   EmptyBool l_val = (l_empty) ? Empty : False;
+   l_val = (l_val == False && l_true) ? True : False;
+
+   EmptyBool r_val = (r_empty) ? Empty : False;
+   r_val = (r_val == False && r_true) ? True : False;
+
+   EmptyBool res = Empty;
    if (node->type == Piece_Or)
    {
-    ret = CollectionFromBoolean(arena,  left.first->v.b || right.first->v.b);
+    res = or_table[(int)l_val][(int)r_val];
    }
    else if (node->type == Piece_And) 
    {
-    ret = CollectionFromBoolean(arena,  left.first->v.b && right.first->v.b);
+    res = and_table[(int)l_val][(int)r_val];
+   }
+
+   if (res == True)
+   {
+    ret = CollectionFromBoolean(arena, TRUE);
+   }
+   else if (res == False)
+   {
+    ret = CollectionFromBoolean(arena, FALSE);
    }
 
    ScratchEnd(temp);
