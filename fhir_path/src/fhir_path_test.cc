@@ -44,7 +44,6 @@ extern "C"
 	__declspec(dllexport) const ResourceNameTypePair * __cdecl NF_ResourceNameTypePairFromString8(String8 str); 
 }
 
-#include "fhir_path.cc"
 #include "execution/path_execution.cc"
 
 using namespace native_fhir;
@@ -65,30 +64,127 @@ PrintIndent(int indent)
 void
 PrintISO8601_Time(ISO8601_Time time)
 {
-	if (time.precision >= Precision::Year)
-	{
-		printf("%04d", time.year);
-	}
-	if (time.precision >= Precision::Month)
-	{
-		printf("-%02d", time.month);
-	}
-	if (time.precision >= Precision::Day)
-	{
-		printf("-%02d", time.day);
-	}
-	if (time.precision >= Precision::Hour)
-	{
-		printf(":%02d", time.hour);
-	}
-	if (time.precision >= Precision::Minute)
-	{
-		printf(":%02d", time.minute);
-	}
-	if (time.precision >= Precision::Second)
-	{
-		printf(":%02d", time.second);
-	}
+	if (time.precision >= Precision::Year) { printf("%04d", time.year); }
+	if (time.precision >= Precision::Month) { printf("-%02d", time.month); }
+	if (time.precision >= Precision::Day) { printf("-%02d", time.day); }
+	if (time.precision >= Precision::Hour) { printf(":%02d", time.hour); }
+	if (time.precision >= Precision::Minute) { printf(":%02d", time.minute); }
+	if (time.precision >= Precision::Second) { printf(":%02d", time.second); }
+}
+
+void PrintSingleResourceMember(nf_fhir_r4::Resource *resource, int indent);
+
+void
+PrintResourceMember(nf_fhir_r4::Resource *resource,
+                    SerializedClassMemberMetadata *mem,
+                    SerializedValueTypeAndName tan,
+                    int indent)
+{
+  String8 mem_name = M_GetStringFromHandle(g_meta_file, mem->name);
+  switch (tan.type)
+  {
+   case ValueType::ClassReference:
+   {
+    nf_fhir_r4::Resource* child = DEREF_STRUCT(resource, mem->offset, nf_fhir_r4::Resource);
+    if (child)
+    {
+     PrintIndent(indent + 1);
+     printf("%.*s\n", PRINT_STR8(mem_name));
+    }
+    PrintSingleResourceMember(child, indent+2);
+   } break;
+   case VALUE_TYPE_STRING_CASES:
+   case ValueType::Decimal:
+    {
+     NullableString8 str = DEREF_VALUE(resource, mem->offset, NullableString8);
+     if (str.has_value)
+     {
+      PrintIndent(indent);
+      printf(" - %10.*s: %.*s\n", PRINT_STR8(mem_name), PRINT_STR8(str));
+     }
+    } break;
+   case ValueType::Boolean:
+   {
+    NullableBoolean b_value = DEREF_VALUE(resource, mem->offset, NullableBoolean);
+    if (b_value.has_value)
+    {
+     PrintIndent(indent);
+     if (b_value.value) { printf("true\n"); }
+     else { printf("false\n"); }
+    }
+   } break;
+
+   case VALUE_TYPE_TIME_CASES:
+   {
+    ISO8601_Time time = DEREF_VALUE(resource, mem->offset, ISO8601_Time);
+    if (time.precision != Precision::Unknown)
+    {
+     printf(" - %10.*s: ", PRINT_STR8(mem_name));
+     PrintIndent(indent);
+     PrintISO8601_Time(time);
+     printf("\n");
+    }
+   } break;
+  }
+}
+
+void
+PrintIndexedResourceMember(nf_fhir_r4::Resource *resource,
+                    SerializedClassMemberMetadata *mem,
+                    SerializedValueTypeAndName tan,
+                    int indent,
+                    int index)
+{
+  String8 mem_name = M_GetStringFromHandle(g_meta_file, mem->name);
+  switch (tan.type)
+  {
+   case ValueType::ClassReference:
+   {
+    nf_fhir_r4::Resource** resources = DEREF_STRUCT_ARRAY(resource, mem->offset, nf_fhir_r4::Resource);
+    nf_fhir_r4::Resource* child = resources[index];
+    if (child)
+    {
+     PrintIndent(indent + 1);
+     printf("%.*s\n", PRINT_STR8(mem_name));
+    }
+    PrintSingleResourceMember(child, indent+2);
+   } break;
+   case VALUE_TYPE_STRING_CASES:
+   case ValueType::Decimal:
+    {
+     NullableString8* strs = DEREF_VALUE_ARRAY(resource, mem->offset, NullableString8);
+     NullableString8 str = strs[index];
+     if (str.has_value)
+     {
+      PrintIndent(indent);
+      printf(" - %10.*s: %.*s\n", PRINT_STR8(mem_name), PRINT_STR8(str));
+     }
+    } break;
+   case ValueType::Boolean:
+   {
+    NullableBoolean* bools = DEREF_VALUE_ARRAY(resource, mem->offset, NullableBoolean);
+    NullableBoolean b_value = bools[index];
+    if (b_value.has_value)
+    {
+     PrintIndent(indent);
+     if (b_value.value) { printf("true\n"); }
+     else { printf("false\n"); }
+    }
+   } break;
+
+   case VALUE_TYPE_TIME_CASES:
+   {
+    ISO8601_Time* times = DEREF_VALUE_ARRAY(resource, mem->offset, ISO8601_Time);
+    ISO8601_Time time = times[index];
+    if (time.precision != Precision::Unknown)
+    {
+     printf(" - %10.*s: ", PRINT_STR8(mem_name));
+     PrintIndent(indent);
+     PrintISO8601_Time(time);
+     printf("\n");
+    }
+   } break;
+  }
 }
 
 void
@@ -107,60 +203,38 @@ PrintSingleResourceMember(nf_fhir_r4::Resource *resource, int indent)
 		SerializedClassMemberMetadata *mem = M_GetClassMemberMetadata(meta, i);
 		switch (mem->cardinality)
 		{
-			case Cardinality::ZeroToOne:
-			case Cardinality::OneToOne:
-			{
-				if(mem->type == ClassMemberType::Single)
-				{
-					SerializedValueTypeAndName mem_type = M_GetClassMemberType(mem, 0);
-					String8 mem_name = M_GetStringFromHandle(g_meta_file, mem->name);
-					switch (mem_type.type)
-					{
-						case ValueType::ClassReference:
-						{
-							nf_fhir_r4::Resource* child = DEREF_STRUCT(resource, mem->offset, nf_fhir_r4::Resource);
-							if (child)
-							{
-								PrintIndent(indent + 1);
-								printf("%.*s\n", PRINT_STR8(mem_name));
-							}
-							PrintSingleResourceMember(child, indent+2);
-						} break;
-						case VALUE_TYPE_STRING_CASES:
-						case ValueType::Decimal:
-							{
-								NullableString8 str = DEREF_VALUE(resource, mem->offset, NullableString8);
-								if (str.has_value)
-								{
-									PrintIndent(indent);
-									printf(" - %.*s: %.*s\n", PRINT_STR8(mem_name), PRINT_STR8(str));
-								}
-							} break;
-						case ValueType::Boolean:
-						{
-							NullableBoolean b_value = DEREF_VALUE(resource, mem->offset, NullableBoolean);
-							if (b_value.has_value)
-							{
-								PrintIndent(indent);
-								if (b_value.value) { printf("true\n"); }
-								else { printf("false\n"); }
-							}
-						} break;
+   case Cardinality::ZeroToOne:
+   case Cardinality::OneToOne:
+   {
+    if (mem->type == ClassMemberType::Single)
+    {
+     SerializedValueTypeAndName tan = M_GetClassMemberType(mem, 0);
+     PrintResourceMember(resource, mem, tan, indent);
+    } else if (mem->type == ClassMemberType::Union)
+    {
+     SerializedClassMemberMetadata *enum_mem = M_GetClassMemberMetadata(meta, i + 1);
 
-						case VALUE_TYPE_TIME_CASES:
-						{
-							ISO8601_Time time = DEREF_VALUE(resource, mem->offset, ISO8601_Time);
-							if (time.precision != Precision::Unknown)
-							{
-								printf(" - %.*s: ", PRINT_STR8(mem_name));
-        PrintIndent(indent);
-        PrintISO8601_Time(time);
-								printf("\n");
-							}
-						} break;
-					}
-				}
+     U32 type_index = DEREF_VALUE(resource, enum_mem->offset, U32);
+
+     SerializedValueTypeAndName tan = M_GetClassMemberType(mem, type_index);
+     PrintResourceMember(resource, mem, tan, indent);
+    }
 			} break;
+   case Cardinality::OneToInf:
+   case Cardinality::ZeroToInf:
+   {
+    if (mem->type == ClassMemberType::Single)
+    {
+     SerializedClassMemberMetadata *count_mem = M_GetClassMemberMetadata(meta, i - 1);
+     size_t count = DEREF_COUNT(resource, count_mem->offset);
+     for (int j = 0; j < count; j++)
+     {
+      printf("[%d]: ", j);
+      SerializedValueTypeAndName tan = M_GetClassMemberType(mem, 0);
+      PrintIndexedResourceMember(resource, mem, tan, indent, j);
+     }
+    }
+   } break;
 		}
 	}
 }
@@ -225,16 +299,27 @@ ND_ContextNode*
 DeserializeFile(const char* fn, nf_fhir_r4::Resource** res)
 {
 	TimeFunction;
-//	return (ND_ContextNode*)nd_state.DeserializeFile(fn, res);
 	return ND_DeserializeFile((char*)fn, res);
 }
 
+Piece*
+Antlr_ParseExpression(String8 str)
+{
+ ANTLRInputStream input((const char*)str.str, str.size);
+ fhirpathLexer lexer(&input);
+ CommonTokenStream tokens(&lexer);
+ fhirpathParser parser(&tokens);
 
+ native_fhir::FhirPathVisitor visitor; 
+ fhirpathParser::EntireExpressionContext* entireExpression = parser.entireExpression();
+ std::any visit_result = visitor.visitEntireExpression(entireExpression);
+ Piece* root = std::any_cast < Piece* > (visit_result);
+ return root;
+}
 
 int 
 main(void)
 {
- printf("TEsting\n");
  /////////////////// 
  // Setup
 	OS_Init();

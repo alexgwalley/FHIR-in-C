@@ -49,6 +49,9 @@ namespace native_fhir
   std::any visitFunctionInvocation(fhirpathParser::FunctionInvocationContext *ctx);
   std::any visitThisInvocation(fhirpathParser::ThisInvocationContext *ctx);
 
+  //
+  std::any visitIndexerExpression(fhirpathParser::IndexerExpressionContext *ctx);
+
   std::any visitEntireExpression(fhirpathParser::EntireExpressionContext *ctx) {
     return ctx->expression()->accept(this);
   }

@@ -59,6 +59,8 @@ namespace native_fhir
 		Piece_FunctionInvocation,
   Piece_ThisInvocation,
 
+  Piece_Index,
+
   Piece_Identifier,
 
 		Piece_FunctionParameter,

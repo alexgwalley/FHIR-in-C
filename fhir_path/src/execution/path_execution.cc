@@ -7,14 +7,6 @@ Collection ExecuteExpression(Arena *arena, FP_ExecutionContext *context, Piece* 
 ///////////////////
 // Collection Helpers
 
-local_function CollectionEntry*
-PushCollectionEntry(Arena *arena)
-{
-	CollectionEntry *ret = PushStruct(arena, CollectionEntry);
-	ret->resource = &nil_resource;
-	return ret;
-}
-
 B32 IsNilCollectionEntry(CollectionEntry *entry) { return entry == NULL; }
 B32 IsNilCollectionEntryNode(CollectionEntryNode *node) { return node == NULL || node == &nil_entry_node; }
 
@@ -136,59 +128,84 @@ GetMembersFromCollection(Arena *arena, FP_ExecutionContext* context, Collection 
 		// ~ Single Cardinality
 		if (IS_SINGLE_CARDINALITY(mem->cardinality))
 		{
-			// ~ Non-union
-			if (member_meta->type == ClassMemberType::Single)
-			{
-				CollectionEntry ent = { 0 };
+    // ~ Non-union
+    ValueType value_type = ValueType::Unknown;
+    if (member_meta->type == ClassMemberType::Single)
+    {
+     value_type = M_GetClassMemberType(member_meta, 0).type;
+    }
+    else if (member_meta->type == ClassMemberType::Union)
+    {
+     // Desired ValueType
+     value_type = (ValueType)mem->union_type_type;
 
-				ValueType value_type = M_GetClassMemberType(member_meta, 0).type;
-				switch (value_type)
-				{
-					case VALUE_TYPE_STRING_CASES:
-					{
+     SerializedClassMemberMetadata *enum_meta = M_GetClassMemberMetadata(class_meta, mem->member_index + 1);
+     U32 enum_value = DEREF_VALUE(entry.resource, enum_meta->offset, U32);
+     SerializedValueTypeAndName tan = M_GetClassMemberType(member_meta, enum_value);
+     ValueType actual_value_type = tan.type;
+     if (value_type != (ValueType)actual_value_type)
+     {
+      value_type = ValueType::Unknown;
+     }
+    }
+    CollectionEntry ent = { 0 };
 
-						NullableString8 str = *(NullableString8*)mem_ptr;
-						if (str.has_value) { ent.str = str; ent.type = FP_Entry_String; }
-						CollectionPushEntry(arena, &ret, ent);
+    switch (value_type)
+    {
+     case VALUE_TYPE_STRING_CASES:
+     {
 
-					} break;
-					case ValueType::ClassReference:
-					{ 
-						nf_fhir_r4::Resource* ptr = DEREF_STRUCT(entry.resource, mem->offset, nf_fhir_r4::Resource);
-						if (ptr)
-						{
-							ent.resource = ptr;
-							ent.type = FP_Entry_Resource;
-							CollectionPushEntry(arena, &ret, ent); 
-						}
-						else { NotImplemented; }
-					} break;
-					case VALUE_TYPE_TIME_CASES:
-					{
-						ISO8601_Time time = *(ISO8601_Time*)mem_ptr;
-						if (time.precision != Precision::Unknown) { ent.time = time; ent.type = FP_Entry_Iso8601; }
-						CollectionPushEntry(arena, &ret, ent);
-					} break;
-					case ValueType::Decimal:
-					{
-						NullableString8 str = *(NullableString8*)mem_ptr;
-						if (str.has_value) { 
-							Decimal decimal = DecimalFromString(Str8(str.str, str.size));
-							ent.number.decimal = decimal;
-							ent.number.type = Number_Decimal;
-							ent.type = FP_Entry_Number;
-						}
-						CollectionPushEntry(arena, &ret, ent);
-					} break;
-					default: NotImplemented;
-				}
-			}
-			// ~ Union Type
-			else if (member_meta->type == ClassMemberType::Union)
-			{
-				NotImplemented;
-			}
-		}
+      NullableString8 str = *(NullableString8*)mem_ptr;
+      if (str.has_value) { ent.str = str; ent.type = FP_Entry_String; }
+      CollectionPushEntry(arena, &ret, ent);
+
+     } break;
+     case ValueType::ClassReference:
+     { 
+      nf_fhir_r4::Resource* ptr = DEREF_STRUCT(entry.resource, mem->offset, nf_fhir_r4::Resource);
+      if (ptr)
+      {
+       ent.resource = ptr;
+       ent.type = FP_Entry_Resource;
+       CollectionPushEntry(arena, &ret, ent); 
+      }
+      else 
+      { 
+       Collection empty = {};
+       return empty;
+      }
+     } break;
+     case VALUE_TYPE_TIME_CASES:
+     {
+      ISO8601_Time time = *(ISO8601_Time*)mem_ptr;
+      if (time.precision != Precision::Unknown) { ent.time = time; ent.type = FP_Entry_Iso8601; }
+      CollectionPushEntry(arena, &ret, ent);
+     } break;
+     case ValueType::Decimal:
+     {
+      NullableString8 str = *(NullableString8*)mem_ptr;
+      if (str.has_value) { 
+       Decimal decimal = DecimalFromString(Str8(str.str, str.size));
+       ent.number.decimal = decimal;
+       ent.number.type = Number_Decimal;
+       ent.type = FP_Entry_Number;
+      }
+      CollectionPushEntry(arena, &ret, ent);
+     } break;
+     case ValueType::Integer:
+     {
+      NullableInt32 int_val = *(NullableInt32*)mem_ptr;
+      if (int_val.has_value) { 
+       ent.number.s64 = int_val.value;
+       ent.number.type = Number_Integer;
+       ent.type = FP_Entry_Number;
+       CollectionPushEntry(arena, &ret, ent);
+      }
+     } break;
+     case ValueType::Unknown: break;
+     default: NotImplemented;
+    }
+  }
 		else if (IS_MULTIPLE_CARDINALITY(mem->cardinality))
 		{
 
@@ -699,9 +716,7 @@ ExecuteExpression(Arena *arena, FP_ExecutionContext *context, Piece* node)
   } break;
   case Piece_ThisInvocation:
   {
-   Collection col = { 0 };
-   CollectionPushEntry(arena, &col, context->entry_stack_first->v);
-   return col;
+   return CollectionFromEntry(arena, context->entry_stack_first->v);
   } break;
 		case Piece_As:
 		case Piece_Is:
@@ -781,6 +796,35 @@ ExecuteExpression(Arena *arena, FP_ExecutionContext *context, Piece* node)
 			}
 
 		} break;
+  case Piece_Index:
+  {
+			Temp temp = ScratchBegin(&arena, 1);
+
+			Collection left = ExecuteExpression(temp.arena, context,  node->child[0]);
+			Collection right = ExecuteExpression(temp.arena, context, node->child[1]);
+
+   FP_Assert(right.first->v.type == FP_Entry_Number, context, Str8Lit("Must use an integer literal to index collection"));
+   FP_Assert(right.first->v.number.type == Number_Integer, context, Str8Lit("Must use an integer literal to index collection"));
+
+   S64 index = right.first->v.number.s64;
+
+   if (index < 0 || index >= left.count)
+   {
+    Collection col = {};
+    return col;
+   }
+
+   CollectionEntryNode *node = left.first;
+   for (int i = 0; i < index; i++)
+   {
+    node = node->next;
+   }
+
+   Collection ret = CollectionFromEntry(arena, node->v);
+   ScratchEnd(temp);
+
+   return ret;
+  } break;
 		case Piece_EqualCompare:
 		case Piece_QuantityCompare:
 		{

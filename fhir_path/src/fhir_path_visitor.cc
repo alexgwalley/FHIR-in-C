@@ -405,4 +405,18 @@ namespace native_fhir
   return piece;
  }
 
+ std::any
+ FhirPathVisitor::visitIndexerExpression(fhirpathParser::IndexerExpressionContext *ctx)
+ {
+  Piece* piece = PushStruct(this->arena, Piece);
+  piece->type = Piece_Index;
+
+  std::vector<fhirpathParser::ExpressionContext*> expressions = ctx->expression();
+  Assert(expressions.size() == 2);
+
+  MakeBinary(piece, ctx->expression(0), ctx->expression(1));
+
+  return piece;
+ }
+
 };
