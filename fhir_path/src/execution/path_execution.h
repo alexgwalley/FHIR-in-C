@@ -22,6 +22,7 @@ namespace native_fhir
 		Where,
 		OfType,
 		Not,
+		Join,
 		Function_Count,
 	};
 
@@ -46,7 +47,8 @@ namespace native_fhir
 		{ Str8LitComp("select"),  Function::Select },
 		{ Str8LitComp("where"),   Function::Where },
 		{ Str8LitComp("ofType"),  Function::OfType },
-		{ Str8LitComp("not"),     Function::Not }
+		{ Str8LitComp("not"),     Function::Not },
+		{ Str8LitComp("join"),    Function::Join }
 	};
 
 // ~ Execution

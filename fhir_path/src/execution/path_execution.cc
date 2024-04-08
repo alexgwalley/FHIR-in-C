@@ -524,6 +524,38 @@ ExecuteFunction(Arena *arena, FP_ExecutionContext *context, Piece* node)
 
    ScratchEnd(temp);
   } break;
+  case Function::Join:
+  {
+			Temp temp = ScratchBegin(&arena, 1);
+			Collection left_col = ExecuteExpression(temp.arena, context, node->child[0]);
+
+   FP_Assert(left_col.first->v.type == FP_Entry_String, context, Str8Lit("Join() only works on string types"));
+
+   String8List str_list = {};
+   for (CollectionEntryNode *n = left_col.first;
+        !IsNilCollectionEntryNode(n);
+        n = n->next)
+   {
+    Str8ListPush(temp.arena, &str_list, n->v.str.str8);
+   }
+
+   StringJoin join_params = {};
+
+   if (node->child[1]->params.count > 0)
+   {
+    FP_Assert(node->child[1]->params.first->v->type == Piece_String, context, Str8Lit("Expected string separator in function join()"));
+    join_params.sep = node->child[1]->params.first->v->value.str.str8;
+   }
+
+   String8 str = Str8ListJoin(arena, str_list, &join_params);
+   NullableString8 nullable_str = {};
+   nullable_str.str8 = str;
+   nullable_str.has_value = TRUE;
+   ret = CollectionFromString(arena, nullable_str);
+
+   ScratchEnd(temp);
+
+  } break;
   case Function::Not:
   {
 			Temp temp = ScratchBegin(&arena, 1);
@@ -653,57 +685,6 @@ ExecuteExpression(Arena *arena, FP_ExecutionContext *context, Piece* node)
 	Collection next_ret = { 0 };
 	switch (node->type)
 	{
-		case Piece_Literal:
-		{
-			// NOTE(agw): When we have a word as the first part of the first expression (may break inside function params)
-			if (IsNilPiece(node->prev))
-			{
-				if (IsNilCollectionEntryNode(context->entry_stack_first))
-				{
-					// We are _not_ inside a function
-					const ResourceNameTypePair *pair = NF_ResourceNameTypePairFromString8(node->slice);
-					FP_Assert(pair != NULL, context, PushStr8F(context->arena, "Could not find resource type \"%S\"", node->slice));
-					return GetResourcesOfType(arena, context->base_res, (ResourceType)pair->type);
-				}
-				else if (Str8Match(node->slice, Str8Lit("$this"), 0))
-				{
-					Assert(!IsNilCollectionEntryNode(context->entry_stack_first));
-					Collection col = { 0 };
-					CollectionPushEntry(arena, &col, context->entry_stack_first->v);
-					return col;
-				}
-				else
-				{
-					// NOTE(agw): first thing inside a function...expecting to get members
-					String8 member_or_res_name = node->slice;
-					nf_fhir_r4::Resource* resource = context->base_res;
-
-					// NOTE(agw): we want to use this rather than ret
-					Assert(context->entry_stack_first->v.type == FP_Entry_Resource);
-					resource = context->entry_stack_first->v.resource;
-
-					Temp temp = ScratchBegin(&arena, 1);
-
-					Collection col = { 0 };
-					CollectionPushEntry(temp.arena, &col, context->entry_stack_first->v);
-					Collection ret = GetMembersFromCollection(arena, context,  col, member_or_res_name);
-
-					ScratchEnd(temp);
-					return ret;
-				}
-			}
-			else
-			{
-				// See if we are a resource Literal
-    const ResourceNameTypePair* pair = NF_ResourceNameTypePairFromString8(node->slice);
-    FP_Assert(pair, context, PushStr8F(context->arena, "Could not find resource type \"%S\"", node->slice));
-
-    CollectionEntry entry = { 0 };
-    entry.type = FP_Entry_ResourceType;
-    entry.resource_type = (ResourceType)pair->type;
-    return CollectionFromEntry(arena, entry);
-			}
-		} break;
   case Piece_Identifier:
   {
     const ResourceNameTypePair* pair = NF_ResourceNameTypePairFromString8(node->slice);
@@ -824,6 +805,14 @@ ExecuteExpression(Arena *arena, FP_ExecutionContext *context, Piece* node)
    ScratchEnd(temp);
 
    return ret;
+  } break;
+  case Piece_Union:
+  {
+			Collection left = ExecuteExpression(arena, context,  node->child[0]);
+			Collection right = ExecuteExpression(arena, context, node->child[1]);
+
+   MergeCollections(&left, &right);
+   return left;
   } break;
 		case Piece_EqualCompare:
 		case Piece_QuantityCompare:

@@ -30,6 +30,8 @@ namespace native_fhir
   std::any visitAdditiveExpression(fhirpathParser::AdditiveExpressionContext *context);
   std::any visitMultiplicativeExpression(fhirpathParser::MultiplicativeExpressionContext *context);
 
+  std::any visitUnionExpression(fhirpathParser::UnionExpressionContext *ctx);
+
   std::any visitTypeExpression(fhirpathParser::TypeExpressionContext *ctx);
   std::any visitTypeSpecifier(fhirpathParser::TypeSpecifierContext *ctx);
 

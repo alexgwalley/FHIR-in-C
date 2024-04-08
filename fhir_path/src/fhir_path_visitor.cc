@@ -129,6 +129,16 @@ namespace native_fhir
  }
 
  std::any
+ FhirPathVisitor::visitUnionExpression(fhirpathParser::UnionExpressionContext *ctx)
+ {
+  Piece* ret = PushStruct(this->arena, Piece);
+  ret->type = Piece_Union;
+  MakeBinary(ret, ctx->expression(0), ctx->expression(1));
+
+  return ret;
+ }
+
+ std::any
  FhirPathVisitor::visitTypeExpression(fhirpathParser::TypeExpressionContext *ctx)
  {
   Piece* ret = PushStruct(this->arena, Piece);
