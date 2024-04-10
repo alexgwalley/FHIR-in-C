@@ -379,7 +379,7 @@ QuantityCompareCollectionEntries(FP_ExecutionContext *context, CollectionEntry *
 	// TODO(agw): this may need to change for implicit conversion
 	FP_Assert(ent->type == ent2->type, context, Str8Lit("Entries must have the same type to compare"));
 
-	EmptyBool ent_greater = EmptyBool::False;
+	EmptyBool ent_greater_or_equal = EmptyBool::False;
 	switch (ent->type)
 	{
 		case EntryType::String:
@@ -392,29 +392,21 @@ QuantityCompareCollectionEntries(FP_ExecutionContext *context, CollectionEntry *
 		case EntryType::Number:
 		{
 			FP_Assert(ent->number.type == ent2->number.type, context, Str8Lit("Number types must match"));
-   ent_greater = EmptyBoolFromBool(ent->number > ent2->number);
+   ent_greater_or_equal = EmptyBoolFromBool(ent->number > ent2->number);
 		} break;
 
 		case EntryType::Iso8601:
 		{
 			Precision min_precision = (Precision)Min((int)ent->time.precision, (int)ent2->time.precision);
 
-
-   ent_greater = EmptyBool::True;
-   if (min_precision >= Precision::Year   && ent_greater == EmptyBool::True && ent->time.year   < ent2->time.year)   { 
-    ent_greater = EmptyBool::False; 
-   }
-   if (min_precision >= Precision::Month  && ent_greater == EmptyBool::True && ent->time.month  < ent2->time.month)  { ent_greater = EmptyBool::False; }
-   if (min_precision >= Precision::Day    && ent_greater == EmptyBool::True && ent->time.day    < ent2->time.day)    { ent_greater = EmptyBool::False; }
-   if (min_precision >= Precision::Hour   && ent_greater == EmptyBool::True && ent->time.hour   < ent2->time.hour)   { ent_greater = EmptyBool::False; }
-   if (min_precision >= Precision::Minute && ent_greater == EmptyBool::True && ent->time.minute < ent2->time.minute) { ent_greater = EmptyBool::False; }
-   if (min_precision >= Precision::Second && ent_greater == EmptyBool::True && ent->time.second < ent2->time.second) { ent_greater = EmptyBool::False; }
-   if (min_precision >= Precision::Millisecond && ent_greater == EmptyBool::True && ent->time.millisecond < ent2->time.millisecond) { ent_greater = EmptyBool::False; }
-
-   B32 precision_equal = (ent->time.precision == ent2->time.precision) ||
-                         (ent->time.precision == Precision::Second &&  ent2->time.precision == Precision::Millisecond) ||
-                         (ent->time.precision == Precision::Millisecond && ent2->time.precision == Precision::Second);
-   if (!precision_equal) ent_greater = EmptyBool::Empty;
+   ent_greater_or_equal = EmptyBool::False;
+   if (min_precision >= Precision::Year        && ent->time.year   > ent2->time.year)   { ent_greater_or_equal = EmptyBool::True; }
+   else if (min_precision >= Precision::Month  && ent->time.month  > ent2->time.month)  { ent_greater_or_equal = EmptyBool::True; }
+   else if (min_precision >= Precision::Day    && ent->time.day    > ent2->time.day)    { ent_greater_or_equal = EmptyBool::True; }
+   else if (min_precision >= Precision::Hour   && ent->time.hour   > ent2->time.hour)   { ent_greater_or_equal = EmptyBool::True; }
+   else if (min_precision >= Precision::Minute && ent->time.minute > ent2->time.minute) { ent_greater_or_equal = EmptyBool::True; }
+   else if (min_precision >= Precision::Second && ent->time.second > ent2->time.second) { ent_greater_or_equal = EmptyBool::True; }
+   else if (min_precision >= Precision::Millisecond && ent->time.millisecond > ent2->time.millisecond) { ent_greater_or_equal = EmptyBool::True; }
 		} break;
 
 		default: NotImplemented;
@@ -423,14 +415,12 @@ QuantityCompareCollectionEntries(FP_ExecutionContext *context, CollectionEntry *
 	EmptyBool equal = EqualCompareCollectionEntries(context, ent, ent2, CompareType_Equal);
 
 	if (flags & QuantityCompare_Less) { 
-  result = EmptyBoolOperation(EmptyBoolNegate(ent_greater), 
+  result = EmptyBoolOperation(EmptyBoolNegate(ent_greater_or_equal), 
                               EmptyBoolNegate(equal),
                               EmptyBoolOperationType::And); 
  }
 	else if (flags & QuantityCompare_Greater) { 
-  result = EmptyBoolOperation(ent_greater, 
-                              EmptyBoolNegate(equal),
-                              EmptyBoolOperationType::And);
+  result = EmptyBoolFromBool(ent_greater_or_equal == EmptyBool::True && equal != EmptyBool::True);
  }
 
 	if (flags & QuantityCompare_Equal)
