@@ -366,7 +366,8 @@ SingleClassGperf(Arena *arena, CodeGenerationOptions *options, ClassDefinition *
 }
 
 void
-OutputGperfFiles(Arena *arena, CodeGenerationOptions *options, String8 in_dir_name, ClassDefinitionList *list) {
+OutputGperfFiles(Arena *arena, CodeGenerationOptions *options, String8 in_dir_name, ClassDefinitionList *list) 
+{
 	// NOTE(agw): guarantee null terminator
 	String8 dir_name = PushStr8Copy(arena, in_dir_name);
     
@@ -459,6 +460,43 @@ OutputGperfFiles(Arena *arena, CodeGenerationOptions *options, String8 in_dir_na
 	fclose(gperf_inc_file);
 }
 
+void
+OutputResourceTypeLookup(String8 in_dir_name, ClassDefinitionList *list)
+{
+ Temp temp = ScratchBegin(0, 0);
+	String8 resources_gperf_name = PushStr8F(temp.arena, "src/generated/resource_types.gperf");
+	FILE *gperf_file = fopen((char*)resources_gperf_name.str, "w");
+
+ char *header = "%language=C++\n"
+ "%compare-strncmp\n"
+ "%readonly-tables\n"
+ "%define lookup-function-name ResourceTypeLookup\n"
+ "%enum\n"
+ "%define word-array-name word_array_ResourceType\n"
+ "%define class-name ResourceType_Gperf\n"
+ "struct native_fhir::ResourceNameTypePair;\n"
+ "%%\n";
+
+ fwrite(header, strlen(header), 1, gperf_file);
+
+ int index = 1;
+ for (ClassDefinitionNode *node = list->first; node; node = node->next, index++)
+ {
+  String8 str = PushStr8F(temp.arena, "%S, %d\n", node->def.name, index);
+  fwrite(str.str, str.size, 1, gperf_file);
+ }
+
+ fclose(gperf_file);
+
+ String8 gperf_call = PushStr8F(temp.arena,
+                                "gperf.exe -t %S --output-file=src/generated/resource_types.cc -CGD",
+                                resources_gperf_name);
+ // TODO(agw): we don't _always_ need to call this
+ system((char*)gperf_call.str);
+
+ ScratchEnd(temp);
+}
+
 
 ////////////////////////////
 // Metadata 
@@ -511,6 +549,7 @@ int main()
 		GetStructureDefinitionsForFile(arena, &list, Str8Lit("fhir/profiles-resources.json"));
 		GetStructureDefinitionsForFile(arena, &list, Str8Lit("fhir/profiles-types.json"));
 		GetStructureDefinitionsForFile(arena, &list, Str8Lit("fhir/profiles-others.json"));
+		GetStructureDefinitionsForFile(arena, &list, Str8Lit("fhir/view-definition.json"));
 
 		printf("Converting to resources...\n");
 		// Map to resources
@@ -562,10 +601,14 @@ int main()
 			OS_CreateDirectory(generated_path);
 		}
 
+  OutputResourceTypeLookup( Str8Lit("./src/generated/"), &class_defs);
+
 		OutputGperfFiles(scratch.arena,
 		                 CppOptions(scratch.arena),
 		                 Str8Lit("./src/generated/gperf_class_files"),
 		                 &class_defs);
+
+
 
 		ScratchEnd(scratch);
 	}

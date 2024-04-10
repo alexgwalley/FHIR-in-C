@@ -19,6 +19,13 @@ namespace native_fhir
 			ND_Context value;
 		};
 
+  struct ND_ContextList
+  {
+   ND_ContextNode *first;
+   ND_ContextNode *last;
+   size_t count;
+  };
+
 		#if _WIN32
 		#include <windows.h>
 

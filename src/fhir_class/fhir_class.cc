@@ -98,9 +98,12 @@ namespace native_fhir
 	String8
 	CleanContentReference(Arena *arena, String8 content_reference)
 	{
-		if (content_reference.str[0] == '#')
+
+  U64 hash_idx = FindSubstr8(content_reference, Str8Lit("#"), 0, 0);
+  String8 res = Str8Skip(content_reference, hash_idx);
+		if (hash_idx > 0 || content_reference.str[0] == '#')
 		{
-			String8 result = PushStr8Copy(arena, content_reference);
+			String8 result = PushStr8Copy(arena, res);
 			result.str++;
 			result.size--;
 			return result;

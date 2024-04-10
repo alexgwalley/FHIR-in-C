@@ -73,6 +73,5 @@ namespace native_fhir
 #include "hash_table.h"
 #include "fhir_class/fhir_class.h"
 #include "exporter/exporter.h"
-#include "fhir_path/fhir_path.h"
 
 #endif

@@ -5,6 +5,58 @@ CollectionEntryNode nil_entry_node = { 0 };
 Collection ExecuteExpression(Arena *arena, FP_ExecutionContext *context, Piece* node);
 
 ///////////////////
+// Empty Bool Helpers 
+
+enum class EmptyBoolOperationType
+{
+ And,
+ Or
+};
+
+EmptyBool
+EmptyBoolOperation(EmptyBool a, EmptyBool b, EmptyBoolOperationType type)
+{
+ // NOTE(agw): see https://hl7.org/fhirpath/#and
+ EmptyBool and_table[3][3] = {
+  {EmptyBool::True,  EmptyBool::False, EmptyBool::Empty},
+  {EmptyBool::False, EmptyBool::False, EmptyBool::False},
+  {EmptyBool::Empty, EmptyBool::False, EmptyBool::Empty}
+ };
+
+ EmptyBool or_table[3][3] = {
+  {EmptyBool::True, EmptyBool::True,  EmptyBool::True},
+  {EmptyBool::True, EmptyBool::False, EmptyBool::Empty},
+  {EmptyBool::True, EmptyBool::Empty, EmptyBool::Empty}
+ };
+
+ if (type == EmptyBoolOperationType::Or)
+ {
+  return or_table[(int)a][(int)b];
+ }
+ else if (type == EmptyBoolOperationType::And) 
+ {
+  return and_table[(int)a][(int)b];
+ }
+
+ Assert(FALSE);
+}
+
+EmptyBool
+EmptyBoolFromBool(B32 b)
+{
+ return b ? EmptyBool::True : EmptyBool::False;
+}
+
+EmptyBool
+EmptyBoolNegate(EmptyBool a)
+{
+ if (a == EmptyBool::True) return EmptyBool::False;
+ if (a == EmptyBool::False) return EmptyBool::True;
+ return EmptyBool::Empty;
+}
+
+
+///////////////////
 // Collection Helpers
 
 B32 IsNilCollectionEntry(CollectionEntry *entry) { return entry == NULL; }
@@ -31,7 +83,7 @@ Collection
 CollectionFromString(Arena *arena, NullableString8 str)
 {
  CollectionEntry entry = {};
- entry.type = FP_Entry_String;
+ entry.type = EntryType::String;
  entry.str = str;
  return CollectionFromEntry(arena, entry);
 }
@@ -40,7 +92,7 @@ Collection
 CollectionFromNumber(Arena *arena, Number num)
 {
  CollectionEntry entry = {};
- entry.type = FP_Entry_Number;
+ entry.type = EntryType::Number;
  entry.number = num;
  return CollectionFromEntry(arena, entry);
 }
@@ -49,7 +101,7 @@ Collection
 CollectionFromInteger(Arena *arena, S64 num)
 {
  CollectionEntry entry = {};
- entry.type = FP_Entry_Number;
+ entry.type = EntryType::Number;
  entry.number.type = Number_Integer;
  entry.number.s64 = num;
  return CollectionFromEntry(arena, entry);
@@ -59,7 +111,7 @@ Collection
 CollectionFromDate(Arena *arena, ISO8601_Time time)
 {
  CollectionEntry entry = {};
- entry.type = FP_Entry_Iso8601;
+ entry.type = EntryType::Iso8601;
  entry.time = time;
  return CollectionFromEntry(arena, entry);
 }
@@ -68,7 +120,7 @@ Collection
 CollectionFromBoolean(Arena *arena, B32 b)
 {
  CollectionEntry entry = {};
- entry.type = FP_Entry_Boolean;
+ entry.type = EntryType::Boolean;
  entry.b = b;
  return CollectionFromEntry(arena, entry);
 }
@@ -92,16 +144,21 @@ MergeCollections(Collection *dst, Collection *src)
 
 
 local_function Collection
-GetResourcesOfType(Arena *arena, nf_fhir_r4::Resource *resource, ResourceType type)
+GetResourcesOfType(Arena *arena, int res_count, nf_fhir_r4::Resource **resources, ResourceType type)
 {
 	Collection ret = { 0 };
 
-	if(resource->resourceType == type)
-	{
-		CollectionEntry entry = { 0 };
-		entry.resource = resource;
-		CollectionPushEntry(arena, &ret, entry);
-	}
+ for (int i = 0; i < res_count; i++)
+ {
+  nf_fhir_r4::Resource* res = resources[i];
+  if(res->resourceType == type)
+  {
+   CollectionEntry entry = {};
+   entry.resource = res;
+   entry.type = EntryType::Resource;
+   CollectionPushEntry(arena, &ret, entry);
+  }
+ }
 
 	return ret;
 }
@@ -114,6 +171,8 @@ GetMembersFromCollection(Arena *arena, FP_ExecutionContext* context, Collection 
 	for (CollectionEntryNode *node = collection.first; !IsNilCollectionEntryNode(node);
 	node = node->next)
 	{
+
+  FP_Assert(node->v.type == EntryType::Resource, context, Str8Lit("Cannot get members on non-resource entry"));
 		CollectionEntry entry = node->v;
 		const MemberNameAndOffset *mem = NF_ClassMemberLookup((ResourceType) entry.resource->resourceType, member_name);
 		FP_Assert(mem, context, PushStr8F(context->arena, "Could not find member \"%S\" in resource type: %S", member_name, resource_type_pairs[(int)entry.resource->resourceType].str));
@@ -148,7 +207,7 @@ GetMembersFromCollection(Arena *arena, FP_ExecutionContext* context, Collection 
       value_type = ValueType::Unknown;
      }
     }
-    CollectionEntry ent = { 0 };
+    CollectionEntry ent = {};
 
     switch (value_type)
     {
@@ -156,7 +215,7 @@ GetMembersFromCollection(Arena *arena, FP_ExecutionContext* context, Collection 
      {
 
       NullableString8 str = *(NullableString8*)mem_ptr;
-      if (str.has_value) { ent.str = str; ent.type = FP_Entry_String; }
+      if (str.has_value) { ent.str = str; ent.type = EntryType::String; }
       CollectionPushEntry(arena, &ret, ent);
 
      } break;
@@ -166,7 +225,7 @@ GetMembersFromCollection(Arena *arena, FP_ExecutionContext* context, Collection 
       if (ptr)
       {
        ent.resource = ptr;
-       ent.type = FP_Entry_Resource;
+       ent.type = EntryType::Resource;
        CollectionPushEntry(arena, &ret, ent); 
       }
       else 
@@ -178,7 +237,7 @@ GetMembersFromCollection(Arena *arena, FP_ExecutionContext* context, Collection 
      case VALUE_TYPE_TIME_CASES:
      {
       ISO8601_Time time = *(ISO8601_Time*)mem_ptr;
-      if (time.precision != Precision::Unknown) { ent.time = time; ent.type = FP_Entry_Iso8601; }
+      if (time.precision != Precision::Unknown) { ent.time = time; ent.type = EntryType::Iso8601; }
       CollectionPushEntry(arena, &ret, ent);
      } break;
      case ValueType::Decimal:
@@ -188,7 +247,7 @@ GetMembersFromCollection(Arena *arena, FP_ExecutionContext* context, Collection 
        Decimal decimal = DecimalFromString(Str8(str.str, str.size));
        ent.number.decimal = decimal;
        ent.number.type = Number_Decimal;
-       ent.type = FP_Entry_Number;
+       ent.type = EntryType::Number;
       }
       CollectionPushEntry(arena, &ret, ent);
      } break;
@@ -198,7 +257,7 @@ GetMembersFromCollection(Arena *arena, FP_ExecutionContext* context, Collection 
       if (int_val.has_value) { 
        ent.number.s64 = int_val.value;
        ent.number.type = Number_Integer;
-       ent.type = FP_Entry_Number;
+       ent.type = EntryType::Number;
        CollectionPushEntry(arena, &ret, ent);
       }
      } break;
@@ -223,10 +282,10 @@ GetMembersFromCollection(Arena *arena, FP_ExecutionContext* context, Collection 
 						Resource** resources = DEREF_STRUCT_ARRAY(entry.resource, mem->offset, Resource);
 						for (int i = 0; i < count; i++)
 						{
-							CollectionEntry ent = { 0 };
+							CollectionEntry ent = {};
 							Assert(resources[i]);
 							ent.resource = resources[i];
-							ent.type = FP_Entry_Resource;
+							ent.type = EntryType::Resource;
 							CollectionPushEntry(arena, &ret, ent);
 						}
 					} break;
@@ -235,9 +294,9 @@ GetMembersFromCollection(Arena *arena, FP_ExecutionContext* context, Collection 
 						NullableString8* strings = DEREF_VALUE_ARRAY(entry.resource, mem->offset, NullableString8);
 							for (int i = 0; i < count; i++)
 							{
-								CollectionEntry ent = { 0 };
+								CollectionEntry ent = {};
 								ent.str = strings[i];
-								ent.type = FP_Entry_String;
+								ent.type = EntryType::String;
 								CollectionPushEntry(arena, &ret, ent);
 							}
 					} break;
@@ -248,108 +307,137 @@ GetMembersFromCollection(Arena *arena, FP_ExecutionContext* context, Collection 
 			}
 		}
 	}
-
 	
 	return ret;
 }
 
-local_function B32 
+local_function EmptyBool 
 EqualCompareCollectionEntries(FP_ExecutionContext *context, CollectionEntry *ent, CollectionEntry* ent2, CompareTypeFlags flags)
 {
-	B32 result = FALSE;
+	EmptyBool result = EmptyBool::False;
 
 	// TODO(agw): this may need to change for implicit conversion
 	FP_Assert(ent->type == ent2->type, context, Str8Lit("Entries must have the same type to compare"));
 	switch (ent->type)
 	{
-		case FP_Entry_String:
+		case EntryType::String:
 		{
 
-			if(ent->str.size != ent->str.size) result = FALSE;
-			else if (ent->str.has_value != ent2->str.has_value) result = FALSE;
+			if(ent->str.size != ent->str.size) result = EmptyBool::False;
+			else if (ent->str.has_value != ent2->str.has_value) result = EmptyBool::False;
 			else
 			{
 				MatchFlags match_flags = (flags & CompareType_Equivalent) ? MatchFlag_CaseInsensitive : 0;
-				result = Str8Match(ent->str.str8, ent2->str.str8, match_flags);
+				result = Str8Match(ent->str.str8, ent2->str.str8, match_flags) ? EmptyBool::True : EmptyBool::False;
 			}
 
 		} break;
-		case FP_Entry_Iso8601:
+		case EntryType::Iso8601:
 		{
-			B32 equal = FALSE;
-			Precision min_precision = (Precision)Min((int)ent->time.precision, (int)ent2->time.precision);
-			if (min_precision >= Precision::Year) 					{ equal = ent->time.year   == ent2->time.year; }
-			if (min_precision >= Precision::Month) 				{ equal = ent->time.month  == ent2->time.month; }
-			if (min_precision >= Precision::Day)       { equal = ent->time.day    == ent2->time.day; }
-			if (min_precision >= Precision::Hour)      { equal = ent->time.hour   == ent2->time.hour; }
-			if (min_precision >= Precision::Minute)    { equal = ent->time.minute == ent2->time.minute; }
-			if (min_precision >= Precision::Second)    { equal = ent->time.second == ent2->time.second; }
-			if (min_precision >= Precision::Millisecond && !equal) NotImplemented;
-			result = equal;
+   /*
+    NOTE(agw): For some reason, second and millisecond are treated as the same precision in FHIR Path,
+    so we have to do this nonsense.
+   */
+
+   ISO8601_Time a = ent->time;
+   ISO8601_Time b = ent2->time;
+   b.precision = a.precision;
+			B32 equal_without_precision = memcmp(&a, &b, sizeof(b)) == 0;
+
+   B32 precision_equal = (ent->time.precision == ent2->time.precision) ||
+                         (ent->time.precision == Precision::Second &&  ent2->time.precision == Precision::Millisecond) ||
+                         (ent->time.precision == Precision::Millisecond && ent2->time.precision == Precision::Second);
+
+
+   if      (!precision_equal && flags & CompareType_Equal)      { result = EmptyBool::Empty; }
+   else if (!precision_equal && flags & CompareType_Equivalent) { result = EmptyBool::False; }
+   else                                                         { result = EmptyBoolFromBool(equal_without_precision);
+   }
 		} break;
 
-		case FP_Entry_Number:
+		case EntryType::Number:
 		{
-   result = ent->number == ent2->number;
+   // TODO(agw): need to check units if any present
+   result = ent->number == ent2->number ? EmptyBool::True : EmptyBool::False;
 		} break;
 		default: NotImplemented;
 	}
 
 	if (flags & CompareType_Negate)
 	{
-		result = !result;
+		result = EmptyBoolNegate(result);
 	}
 
 	return result;
 }
 
-local_function B32 
+local_function EmptyBool 
 QuantityCompareCollectionEntries(FP_ExecutionContext *context, CollectionEntry *ent, CollectionEntry* ent2, QuantityCompareFlags flags)
 {
-	B32 result = FALSE;
+	EmptyBool result = EmptyBool::False;
 
 	// TODO(agw): this may need to change for implicit conversion
 	FP_Assert(ent->type == ent2->type, context, Str8Lit("Entries must have the same type to compare"));
 
-	B32 ent_greater = FALSE;
+	EmptyBool ent_greater = EmptyBool::False;
 	switch (ent->type)
 	{
-		case FP_Entry_String:
+		case EntryType::String:
 		{
-			if      (ent->str.size != ent->str.size)            result = FALSE;
-			else if (ent->str.has_value != ent2->str.has_value) result = FALSE;
+			if      (ent->str.size != ent->str.size)            result = EmptyBool::False;
+			else if (ent->str.has_value != ent2->str.has_value) result = EmptyBool::False;
 			else { NotImplemented; }
 		} break;
 
-		case FP_Entry_Number:
+		case EntryType::Number:
 		{
 			FP_Assert(ent->number.type == ent2->number.type, context, Str8Lit("Number types must match"));
-   ent_greater = ent->number > ent2->number;
+   ent_greater = EmptyBoolFromBool(ent->number > ent2->number);
 		} break;
 
-		case FP_Entry_Iso8601:
+		case EntryType::Iso8601:
 		{
 			Precision min_precision = (Precision)Min((int)ent->time.precision, (int)ent2->time.precision);
-			if (min_precision >= Precision::Year) 					{ ent_greater = ent->time.year > ent2->time.year; }
-			if (min_precision >= Precision::Month) 				{ ent_greater = ent->time.month > ent2->time.month; }
-			if (min_precision >= Precision::Day)       { ent_greater = ent->time.day > ent2->time.day; }
-			if (min_precision >= Precision::Hour)      { ent_greater = ent->time.hour > ent2->time.hour; }
-			if (min_precision >= Precision::Minute)    { ent_greater = ent->time.minute > ent2->time.minute; }
-			if (min_precision >= Precision::Second)    { ent_greater = ent->time.second > ent2->time.second; }
-			if (min_precision >= Precision::Millisecond && !ent_greater) NotImplemented;
+
+
+   ent_greater = EmptyBool::True;
+   if (min_precision >= Precision::Year   && ent_greater == EmptyBool::True && ent->time.year   < ent2->time.year)   { 
+    ent_greater = EmptyBool::False; 
+   }
+   if (min_precision >= Precision::Month  && ent_greater == EmptyBool::True && ent->time.month  < ent2->time.month)  { ent_greater = EmptyBool::False; }
+   if (min_precision >= Precision::Day    && ent_greater == EmptyBool::True && ent->time.day    < ent2->time.day)    { ent_greater = EmptyBool::False; }
+   if (min_precision >= Precision::Hour   && ent_greater == EmptyBool::True && ent->time.hour   < ent2->time.hour)   { ent_greater = EmptyBool::False; }
+   if (min_precision >= Precision::Minute && ent_greater == EmptyBool::True && ent->time.minute < ent2->time.minute) { ent_greater = EmptyBool::False; }
+   if (min_precision >= Precision::Second && ent_greater == EmptyBool::True && ent->time.second < ent2->time.second) { ent_greater = EmptyBool::False; }
+   if (min_precision >= Precision::Millisecond && ent_greater == EmptyBool::True && ent->time.millisecond < ent2->time.millisecond) { ent_greater = EmptyBool::False; }
+
+   B32 precision_equal = (ent->time.precision == ent2->time.precision) ||
+                         (ent->time.precision == Precision::Second &&  ent2->time.precision == Precision::Millisecond) ||
+                         (ent->time.precision == Precision::Millisecond && ent2->time.precision == Precision::Second);
+   if (!precision_equal) ent_greater = EmptyBool::Empty;
 		} break;
 
 		default: NotImplemented;
 	}
 
-	B32 equal = EqualCompareCollectionEntries(context, ent, ent2, CompareType_Equal);
+	EmptyBool equal = EqualCompareCollectionEntries(context, ent, ent2, CompareType_Equal);
 
-	if      (flags & QuantityCompare_Less)    { result = !ent_greater && !equal; }
-	else if (flags & QuantityCompare_Greater) { result =  ent_greater && !equal; }
+	if (flags & QuantityCompare_Less) { 
+  result = EmptyBoolOperation(EmptyBoolNegate(ent_greater), 
+                              EmptyBoolNegate(equal),
+                              EmptyBoolOperationType::And); 
+ }
+	else if (flags & QuantityCompare_Greater) { 
+  result = EmptyBoolOperation(ent_greater, 
+                              EmptyBoolNegate(equal),
+                              EmptyBoolOperationType::And);
+ }
 
 	if (flags & QuantityCompare_Equal)
 	{
-		result = result || equal;
+  result = EmptyBoolOperation(result, 
+                              equal,
+                              EmptyBoolOperationType::Or);
 	}
 
 	return result;
@@ -364,10 +452,10 @@ CollectionFromLiteralPiece(Arena *arena, FP_ExecutionContext *context,  Piece* e
 	{
 		case Piece_Literal:
 		{
-			CollectionEntry entry { 0 };
+			CollectionEntry entry {};
 			const ResourceNameTypePair* pair = NF_ResourceNameTypePairFromString8(expr->slice);
 			FP_Assert(pair, context, PushStr8F(context->arena, "Could not find resource with name: %S", expr->slice));
-			entry.type = FP_Entry_ResourceType;
+			entry.type = EntryType::ResourceType;
 			entry.resource_type = (ResourceType)pair->type;
 			CollectionPushEntry(arena, &ret, entry);
 		} break;
@@ -379,7 +467,7 @@ CollectionFromLiteralPiece(Arena *arena, FP_ExecutionContext *context,  Piece* e
 local_function Collection
 CollectionFromResourceMember(Arena *arena, FP_ExecutionContext* context,  CollectionEntry *ent, String8 member_name)
 {
-	Assert(ent->type == FP_Entry_Resource);
+	Assert(ent->type == EntryType::Resource);
 
 	Temp temp = ScratchBegin(&arena, 1);
 	// NOTE(agw): we don't need to keep this temp collection, only to feed to function
@@ -390,10 +478,10 @@ CollectionFromResourceMember(Arena *arena, FP_ExecutionContext* context,  Collec
 	return ret;
 }
 
-local_function B32
+local_function EmptyBool
 ExecuteBooleanExpressionOnCollectionEntry(Arena* arena, FP_ExecutionContext* context, CollectionEntry *ent, Piece* expr)
 {
-	B32 result = FALSE;
+	EmptyBool result = EmptyBool::False;
 
 	Collection left_col = ExecuteExpression(arena, context, expr->child[0]);
 	Collection right_col = ExecuteExpression(arena, context, expr->child[1]);
@@ -413,11 +501,11 @@ ExecuteBooleanExpressionOnCollectionEntry(Arena* arena, FP_ExecutionContext* con
 		case Piece_Is:
 		{
 			ResourceType col_first_type = ResourceType::Unknown;
-			if(right_col.first->v.type == FP_Entry_Resource) col_first_type = right_col.first->v.resource->resourceType;
-			else if (right_col.first->v.type == FP_Entry_ResourceType) col_first_type = right_col.first->v.resource_type;
+			if(right_col.first->v.type == EntryType::Resource) col_first_type = right_col.first->v.resource->resourceType;
+			else if (right_col.first->v.type == EntryType::ResourceType) col_first_type = right_col.first->v.resource_type;
 			else Assert(false);
 
-			result = col_first_type == ent->resource->resourceType;
+			result = EmptyBoolFromBool(col_first_type == ent->resource->resourceType);
 		} break;
 		default: Assert(false);
 	}
@@ -529,7 +617,7 @@ ExecuteFunction(Arena *arena, FP_ExecutionContext *context, Piece* node)
 			Temp temp = ScratchBegin(&arena, 1);
 			Collection left_col = ExecuteExpression(temp.arena, context, node->child[0]);
 
-   FP_Assert(left_col.first->v.type == FP_Entry_String, context, Str8Lit("Join() only works on string types"));
+   FP_Assert(left_col.first->v.type == EntryType::String, context, Str8Lit("Join() only works on string types"));
 
    String8List str_list = {};
    for (CollectionEntryNode *n = left_col.first;
@@ -563,7 +651,7 @@ ExecuteFunction(Arena *arena, FP_ExecutionContext *context, Piece* node)
 
    if (left_col.count != 0)
    {
-    FP_Assert(left_col.first->v.type == FP_Entry_Boolean, context, Str8Lit("Not function operates on a boolean"));
+    FP_Assert(left_col.first->v.type == EntryType::Boolean, context, Str8Lit("Not function operates on a boolean"));
     ret = CollectionFromBoolean(arena, !left_col.first->v.b);
    }
 
@@ -582,9 +670,9 @@ ExecuteFunction(Arena *arena, FP_ExecutionContext *context, Piece* node)
 
 				SLLStackPush(context->entry_stack_first, cpy);
 
-				B32 result = ExecuteBooleanExpressionOnCollectionEntry(temp.arena, context, &n->v, func_node->params.first->v);
+				EmptyBool result = ExecuteBooleanExpressionOnCollectionEntry(temp.arena, context, &n->v, func_node->params.first->v);
 
-				if (!result)
+				if (result != EmptyBool::True)
 				{
 					// TODO(agw): we _may_ want to have some type of collection entry free list for speed
 					DLLRemove(left_col.first, left_col.last, n);
@@ -634,7 +722,7 @@ ExecuteFunction(Arena *arena, FP_ExecutionContext *context, Piece* node)
 			Collection left_col = ExecuteExpression(temp.arena, context, node->child[0]);
    for (CollectionEntryNode *n = left_col.first; !IsNilCollectionEntryNode(n); n = n->next)
    {
-    FP_Assert(n->v.type == FP_Entry_Resource, context, Str8Lit("Collection Entry must be of type \"Resource\" to be acted upon in OfType function"));
+    FP_Assert(n->v.type == EntryType::Resource, context, Str8Lit("Collection Entry must be of type \"Resource\" to be acted upon in OfType function"));
     B32 correct_type = (int)n->v.resource->resourceType == pair->type;
 
     if (correct_type) { CollectionPushEntry(arena, &ret, n->v); }
@@ -687,11 +775,11 @@ ExecuteExpression(Arena *arena, FP_ExecutionContext *context, Piece* node)
 	{
   case Piece_Identifier:
   {
-    const ResourceNameTypePair* pair = NF_ResourceNameTypePairFromString8(node->slice);
+    const native_fhir::ResourceNameTypePair* pair = NF_ResourceNameTypePairFromString8(node->slice);
     FP_Assert(pair, context, PushStr8F(context->arena, "Could not find resource type \"%S\"", node->slice));
 
-    CollectionEntry entry = { 0 };
-    entry.type = FP_Entry_ResourceType;
+    CollectionEntry entry = {};
+    entry.type = EntryType::ResourceType;
     entry.resource_type = (ResourceType)pair->type;
     return CollectionFromEntry(arena, entry);
   } break;
@@ -707,7 +795,7 @@ ExecuteExpression(Arena *arena, FP_ExecutionContext *context, Piece* node)
 			Collection right_res = ExecuteExpression(temp.arena, context, node->child[1]);
 
 			Assert(left_res.count == 1);
-			Assert(right_res.count == 1 && right_res.first->v.type == FP_Entry_ResourceType);
+			Assert(right_res.count == 1 && right_res.first->v.type == EntryType::ResourceType);
 
 			ResourceType col_first_type = right_res.first->v.resource_type;
 			B32 types_equal = col_first_type == left_res.first->v.resource->resourceType;
@@ -715,8 +803,8 @@ ExecuteExpression(Arena *arena, FP_ExecutionContext *context, Piece* node)
 			Collection col = { 0 };
 			if(node->type == Piece_Is)
 			{
-				CollectionEntry ent = { 0 };
-				ent.type = FP_Entry_Boolean;
+				CollectionEntry ent = {};
+				ent.type = EntryType::Boolean;
 				ent.b = types_equal;
 				CollectionPushEntry(arena, &col, ent);
 			}
@@ -736,7 +824,7 @@ ExecuteExpression(Arena *arena, FP_ExecutionContext *context, Piece* node)
    if (!IsNilCollectionEntryNode(context->entry_stack_first))
    {
 					String8 member_name = node->slice;
-					Assert(context->entry_stack_first->v.type == FP_Entry_Resource);
+					Assert(context->entry_stack_first->v.type == EntryType::Resource);
 					nf_fhir_r4::Resource* resource = context->entry_stack_first->v.resource;
 
 					Temp temp = ScratchBegin(&arena, 1);
@@ -753,7 +841,7 @@ ExecuteExpression(Arena *arena, FP_ExecutionContext *context, Piece* node)
    {
     const ResourceNameTypePair *pair = NF_ResourceNameTypePairFromString8(node->slice);
     FP_Assert(pair != NULL, context, PushStr8F(context->arena, "Could not find resource type \"%S\"", node->slice));
-    return GetResourcesOfType(arena, context->base_res, (ResourceType)pair->type);
+    return GetResourcesOfType(arena, context->res_count, context->resources, (ResourceType)pair->type);
    }
   } break;
 
@@ -784,7 +872,7 @@ ExecuteExpression(Arena *arena, FP_ExecutionContext *context, Piece* node)
 			Collection left = ExecuteExpression(temp.arena, context,  node->child[0]);
 			Collection right = ExecuteExpression(temp.arena, context, node->child[1]);
 
-   FP_Assert(right.first->v.type == FP_Entry_Number, context, Str8Lit("Must use an integer literal to index collection"));
+   FP_Assert(right.first->v.type == EntryType::Number, context, Str8Lit("Must use an integer literal to index collection"));
    FP_Assert(right.first->v.number.type == Number_Integer, context, Str8Lit("Must use an integer literal to index collection"));
 
    S64 index = right.first->v.number.s64;
@@ -826,7 +914,7 @@ ExecuteExpression(Arena *arena, FP_ExecutionContext *context, Piece* node)
 			FP_Assert(left.count == 1, context, Str8Lit("Comparisons (=, !=, ~, !~, >, <, >=, <=) must have cardinality of 1 on left side"));
 			FP_Assert(right.count == 1, context, Str8Lit("Comparisons (=, !=, ~, !~, >, <, >=, <=) must have cardinality of 1 on right side"));
 
-   B32 result = (node->type == Piece_EqualCompare) 
+   EmptyBool result = (node->type == Piece_EqualCompare) 
     ?
      EqualCompareCollectionEntries(context, &left.first->v,  &right.first->v, node->meta.equal_compare_data)
     :
@@ -834,7 +922,13 @@ ExecuteExpression(Arena *arena, FP_ExecutionContext *context, Piece* node)
 
 			ScratchEnd(temp);
 
-   return CollectionFromBoolean(arena, result);
+   if (result == EmptyBool::Empty)
+   {
+    Collection col = {};
+    return col;
+   }
+
+   return CollectionFromBoolean(arena, result == EmptyBool::True);
 		} break;
 
   case Piece_Multiply:
@@ -850,8 +944,22 @@ ExecuteExpression(Arena *arena, FP_ExecutionContext *context, Piece* node)
 			FP_Assert(left.count == 1,  context, Str8Lit("Addition must have cardinality of 1 on left side"));
 			FP_Assert(right.count == 1, context, Str8Lit("Addition must have cardinality of 1 on right side"));
 
-   FP_Assert(left.first->v.type == FP_Entry_Number,  context, Str8Lit("Addition can only occur between two numbers"));
-   FP_Assert(right.first->v.type == FP_Entry_Number, context, Str8Lit("Addition can only occur between two numbers"));
+   if (node->type == Piece_Plus &&
+    left.first->v.type  == EntryType::String &&
+    right.first->v.type == EntryType::String)
+   {
+
+    String8 concatted = PushStr8F(arena, "%S%S", left.first->v.str.str8, right.first->v.str.str8);
+    NullableString8 ns = {};
+    ns.str8 = concatted;
+    ns.has_value = TRUE;
+    Collection ret = CollectionFromString(arena, ns);
+    ScratchEnd(temp);
+    return ret;
+   }
+
+   FP_Assert(left.first->v.type == EntryType::Number,  context, Str8Lit("Addition can only occur between two numbers"));
+   FP_Assert(right.first->v.type == EntryType::Number, context, Str8Lit("Addition can only occur between two numbers"));
 
    Number value = {};
    Number l_val = left.first->v.number;
@@ -867,8 +975,8 @@ ExecuteExpression(Arena *arena, FP_ExecutionContext *context, Piece* node)
    ScratchEnd(temp);
 
 			Collection ret = {};
-			CollectionEntry ent = { 0 };
-			ent.type = FP_Entry_Number;
+			CollectionEntry ent = {};
+			ent.type = EntryType::Number;
    ent.number = value;
 			CollectionPushEntry(arena, &ret, ent);
 
@@ -879,7 +987,7 @@ ExecuteExpression(Arena *arena, FP_ExecutionContext *context, Piece* node)
   {
    Collection col = ExecuteExpression(arena, context, node->child[0]);
    FP_Assert(col.count == 1, context, Str8Lit("Negate Polarity Expression works on collection of cardinality 1"));
-   FP_Assert(col.first->v.type == FP_Entry_Number, context, Str8Lit("Negate Polarity Expression works on a number"));
+   FP_Assert(col.first->v.type == EntryType::Number, context, Str8Lit("Negate Polarity Expression works on a number"));
 
    CollectionEntry entry = col.first->v;
    if (entry.number.type == Number_Integer)
@@ -909,34 +1017,13 @@ ExecuteExpression(Arena *arena, FP_ExecutionContext *context, Piece* node)
 
    if (left.count > 0)
    {
-    FP_Assert(left.first->v.type == FP_Entry_Boolean,  context, Str8Lit("left of \"and\" operator must be of type boolean if not empty"));
+    FP_Assert(left.first->v.type == EntryType::Boolean,  context, Str8Lit("left of \"and\" operator must be of type boolean if not empty"));
    }
 
    if(right.count > 0)
    {
-    FP_Assert(right.first->v.type == FP_Entry_Boolean, context, Str8Lit("right of \"and\" operator must be of type boolean if not empty"));
+    FP_Assert(right.first->v.type == EntryType::Boolean, context, Str8Lit("right of \"and\" operator must be of type boolean if not empty"));
    }
-
-   enum EmptyBool
-   {
-    True,
-    False,
-    Empty
-   };
-
-   // NOTE(agw): see https://hl7.org/fhirpath/#and
-
-   EmptyBool and_table[3][3] = {
-    {True, False, Empty},
-    {False, False, False},
-    {Empty, False, True}
-   };
-
-   EmptyBool or_table[3][3] = {
-    {True, True, True},
-    {True, False, Empty},
-    {True, Empty, Empty}
-   };
 
    Collection ret = { 0 };
    B32 l_empty = left.count == 0;
@@ -945,27 +1032,27 @@ ExecuteExpression(Arena *arena, FP_ExecutionContext *context, Piece* node)
    B32 l_true = !l_empty && left.first->v.b;
    B32 r_true = !r_empty && right.first->v.b;
 
-   EmptyBool l_val = (l_empty) ? Empty : False;
-   l_val = (l_val == False && l_true) ? True : False;
+   EmptyBool l_val = (l_empty) ? EmptyBool::Empty : EmptyBool::False;
+   l_val = (l_val == EmptyBool::False && l_true) ? EmptyBool::True : EmptyBool::False;
 
-   EmptyBool r_val = (r_empty) ? Empty : False;
-   r_val = (r_val == False && r_true) ? True : False;
+   EmptyBool r_val = (r_empty) ? EmptyBool::Empty : EmptyBool::False;
+   r_val = (r_val == EmptyBool::False && r_true) ? EmptyBool::True : EmptyBool::False;
 
-   EmptyBool res = Empty;
+   EmptyBool res = EmptyBool::Empty;
    if (node->type == Piece_Or)
    {
-    res = or_table[(int)l_val][(int)r_val];
+    res = EmptyBoolOperation(l_val, r_val, EmptyBoolOperationType::Or);
    }
    else if (node->type == Piece_And) 
    {
-    res = and_table[(int)l_val][(int)r_val];
+    res = EmptyBoolOperation(l_val, r_val, EmptyBoolOperationType::And);
    }
 
-   if (res == True)
+   if (res == EmptyBool::True)
    {
     ret = CollectionFromBoolean(arena, TRUE);
    }
-   else if (res == False)
+   else if (res == EmptyBool::False)
    {
     ret = CollectionFromBoolean(arena, FALSE);
    }

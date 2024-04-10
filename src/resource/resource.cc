@@ -296,7 +296,17 @@ namespace native_fhir
 				ResourceAddInherited(arena, result, elem.path, base_path);
 				continue;
 			}
-			#endif
+   #endif
+
+   // TODO(agw): this is temporary and should be changed ASAP to be properly handled
+   if (elem.value_types.node_count >= 1)
+   {
+    String8 str = elem.value_types.first->string;
+    if (Str8Match(str, Str8Lit("Base"), 0))
+    {
+     continue;
+    }
+   }
         
 			if (ElementDefinitionIsResource(&elem)) {
 				ResourceAddSubResource(arena, result, elem.path, &elem);

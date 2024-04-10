@@ -51,16 +51,24 @@ namespace native_fhir
 		{ Str8LitComp("join"),    Function::Join }
 	};
 
-// ~ Execution
-enum EntryType
+
+enum class EmptyBool
 {
-	FP_Entry_Unknown,
-	FP_Entry_Resource,
-	FP_Entry_Boolean,
-	FP_Entry_ResourceType,
-	FP_Entry_String,
-	FP_Entry_Number,
-	FP_Entry_Iso8601,
+ True,
+ False,
+ Empty
+};
+
+// ~ Execution
+enum class EntryType
+{
+	Unknown,
+	Resource,
+	Boolean,
+	ResourceType,
+	String,
+	Number,
+	Iso8601,
 };
 
 typedef struct CollectionEntry CollectionEntry;
@@ -79,7 +87,6 @@ struct CollectionEntry
 	};
 };
 
-
 typedef struct CollectionEntryNode CollectionEntryNode;
 struct CollectionEntryNode
 {
@@ -96,12 +103,13 @@ struct Collection
 	S64 count;
 };
 
-
 typedef struct FP_ExecutionContext FP_ExecutionContext;
 struct FP_ExecutionContext
 {
 	Arena *arena;
-	nf_fhir_r4::Resource *base_res;
+
+ int res_count;
+	nf_fhir_r4::Resource **resources;
 	Piece *root_node;
 
 	MetadataFile *meta_file;

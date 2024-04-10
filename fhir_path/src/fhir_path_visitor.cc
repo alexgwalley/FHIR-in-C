@@ -1,30 +1,71 @@
+#include <stdexcept>
+
 namespace native_fhir
 {
 
- /*
-  General Idea: Convert visit's -> Piece tree
- */
+ /////////////////// 
+ // Helpers 
+
+ String8
+ String8FromIdentifier(Arena *arena, fhirpathParser::IdentifierContext *identifier)
+ {
+   antlr4::tree::TerminalNode* id = identifier->IDENTIFIER();
+   antlr4::tree::TerminalNode* delim_id = identifier->DELIMITEDIDENTIFIER();
+   if (id != NULL)
+   {
+    std::string str = id->getText();
+    String8 str8 = Str8C((char*)str.c_str());
+    return PushStr8Copy(arena, str8);
+   }
+   else if (delim_id != NULL)
+   {
+    std::string str = delim_id->getText();
+    String8 str8 = Str8C((char*)str.c_str());
+    return PushStr8Copy(arena, str8);
+   }
+
+   return {};
+ }
+
+ std::any
+ FhirPathVisitor::visitIndexerExpression(fhirpathParser::IndexerExpressionContext *ctx)
+ {
+  Piece* piece = PushStruct(this->arena, Piece);
+  piece->type = Piece_Index;
+
+  std::vector<fhirpathParser::ExpressionContext*> expressions = ctx->expression();
+  Assert(expressions.size() == 2);
+
+  MakeBinary(piece, ctx->expression(0), ctx->expression(1));
+
+  return piece;
+ }
+
+ /////////////////// 
+ // Unary Expressions 
 
  std::any
  FhirPathVisitor::visitPolarityExpression(fhirpathParser::PolarityExpressionContext *ctx)
  {
-  Piece* ret = PushStruct(this->arena, Piece);
+  Piece* piece = PushStruct(this->arena, Piece);
 
   std::vector<antlr4::tree::ParseTree *> children = ctx->children;
 
   std::string str = children[0]->getText();
 
-  if      (strcmp(str.c_str(), "+") == 0) { ret->type = Piece_Polarity_Positive; } 
-  else if (strcmp(str.c_str(), "-") == 0) { ret->type = Piece_Polarity_Negative; }
+  if      (strcmp(str.c_str(), "+") == 0) { piece->type = Piece_Polarity_Positive; } 
+  else if (strcmp(str.c_str(), "-") == 0) { piece->type = Piece_Polarity_Negative; }
 
   std::any res_any = ctx->expression()->accept(this);
   Piece* res_piece = std::any_cast <Piece*> (res_any);
-  res_piece->parent = ret;
-  ret->child[0] = res_piece;
+  res_piece->parent = piece;
+  piece->child[0] = res_piece;
 
-  return ret;
+  return piece;
  }
 
+ /////////////////// 
+ // Binary Expressions
  void
  FhirPathVisitor::MakeBinary(Piece* parent, antlr4::ParserRuleContext *left, antlr4::ParserRuleContext *right)
  {
@@ -73,7 +114,7 @@ namespace native_fhir
  std::any
  FhirPathVisitor::visitAdditiveExpression(fhirpathParser::AdditiveExpressionContext *ctx)
  {
-  Piece* ret = PushStruct(this->arena, Piece);
+  Piece* piece = PushStruct(this->arena, Piece);
 
   // ~ Get Specific Type
   std::vector<antlr4::tree::ParseTree *> children = ctx->children;
@@ -81,12 +122,12 @@ namespace native_fhir
   {
    std::string str = children[i]->getText();
 
-   if      (strcmp(str.c_str(), "+") == 0) { ret->type = Piece_Plus; } 
-   else if (strcmp(str.c_str(), "-") == 0) { ret->type = Piece_Minus; }
-   else if (strcmp(str.c_str(), "&") == 0) { ret->type = Piece_Ampersand; }
+   if      (strcmp(str.c_str(), "+") == 0) { piece->type = Piece_Plus; } 
+   else if (strcmp(str.c_str(), "-") == 0) { piece->type = Piece_Minus; }
+   else if (strcmp(str.c_str(), "&") == 0) { piece->type = Piece_Ampersand; }
   }
 
-  Assert(ret->type != Piece_Unknown);
+  Assert(piece->type != Piece_Unknown);
 
   // ~ Get Left/Right Sides
   std::vector<fhirpathParser::ExpressionContext*> expressions = ctx->expression();
@@ -94,15 +135,15 @@ namespace native_fhir
 
   Assert(size == 2);
 
-  MakeBinary(ret, ctx->expression(0), ctx->expression(1));
+  MakeBinary(piece, ctx->expression(0), ctx->expression(1));
 
-  return ret;
+  return piece;
  }
 
  std::any
  FhirPathVisitor::visitMultiplicativeExpression(fhirpathParser::MultiplicativeExpressionContext *ctx)
  {
-  Piece* ret = PushStruct(this->arena, Piece);
+  Piece* piece = PushStruct(this->arena, Piece);
 
   // ~ Get Specific Type
   std::vector<antlr4::tree::ParseTree *> children = ctx->children;
@@ -110,112 +151,57 @@ namespace native_fhir
   {
    std::string str = children[i]->getText();
 
-   if      (strcmp(str.c_str(), "*") == 0)   { ret->type = Piece_Multiply; }
-   else if (strcmp(str.c_str(), "/") == 0)   { ret->type = Piece_Divide; }
-   else if (strcmp(str.c_str(), "div") == 0) { ret->type = Piece_Divide; }
-   else if (strcmp(str.c_str(), "mod") == 0) { ret->type = Piece_Mod; }
+   if      (strcmp(str.c_str(), "*") == 0)   { piece->type = Piece_Multiply; }
+   else if (strcmp(str.c_str(), "/") == 0)   { piece->type = Piece_Divide; }
+   else if (strcmp(str.c_str(), "div") == 0) { piece->type = Piece_Divide; }
+   else if (strcmp(str.c_str(), "mod") == 0) { piece->type = Piece_Mod; }
   }
 
-  Assert(ret->type != Piece_Unknown);
+  Assert(piece->type != Piece_Unknown);
 
   // ~ Get Left/Right Sides
   std::vector<fhirpathParser::ExpressionContext*> expressions = ctx->expression();
   size_t size = expressions.size();
   Assert(size == 2);
 
-  MakeBinary(ret, ctx->expression(0), ctx->expression(1));
+  MakeBinary(piece, ctx->expression(0), ctx->expression(1));
 
-  return ret;
+  return piece;
  }
 
  std::any
  FhirPathVisitor::visitUnionExpression(fhirpathParser::UnionExpressionContext *ctx)
  {
-  Piece* ret = PushStruct(this->arena, Piece);
-  ret->type = Piece_Union;
-  MakeBinary(ret, ctx->expression(0), ctx->expression(1));
+  Piece* piece = PushStruct(this->arena, Piece);
+  piece->type = Piece_Union;
+  MakeBinary(piece, ctx->expression(0), ctx->expression(1));
 
-  return ret;
+  return piece;
  }
 
  std::any
  FhirPathVisitor::visitTypeExpression(fhirpathParser::TypeExpressionContext *ctx)
  {
-  Piece* ret = PushStruct(this->arena, Piece);
+  Piece* piece = PushStruct(this->arena, Piece);
   std::vector<antlr4::tree::ParseTree *> children = ctx->children;
   Assert(children.size() > 0);
   for (int i = 1; i < children.size(); i++)
   {
    std::string str = children[i]->getText();
-   if      (strcmp(str.c_str(), "is") == 0)   { ret->type = Piece_Is; }
-   else if (strcmp(str.c_str(), "as") == 0)   { ret->type = Piece_As; }
+   if      (strcmp(str.c_str(), "is") == 0)   { piece->type = Piece_Is; }
+   else if (strcmp(str.c_str(), "as") == 0)   { piece->type = Piece_As; }
   }
 
-  MakeBinary(ret, ctx->expression(), ctx->typeSpecifier());
+  MakeBinary(piece, ctx->expression(), ctx->typeSpecifier());
 
-  return ret;
+  return piece;
  }
-
-
- std::any
- FhirPathVisitor::visitEqualityExpression(fhirpathParser::EqualityExpressionContext *ctx)
- {
-  Piece* ret = PushStruct(this->arena, Piece);
-  ret->type = Piece_EqualCompare;
-
-  CompareTypeFlags compare_flags = CompareType_Unknown;
-
-  std::vector<antlr4::tree::ParseTree *> children = ctx->children;
-  Assert(children.size() > 0);
-  for (int i = 1; i < children.size(); i++)
-  {
-   std::string str = children[i]->getText();
-   if      (strcmp(str.c_str(), "=")  == 0)  { compare_flags = CompareType_Equal; }
-   else if (strcmp(str.c_str(), "!=") == 0)  { compare_flags = CompareType_Equal | CompareType_Negate; }
-   else if (strcmp(str.c_str(), "~")  == 0)  { compare_flags = CompareType_Equivalent; }
-   else if (strcmp(str.c_str(), "!~") == 0)  { compare_flags = CompareType_Equivalent | CompareType_Negate; }
-  }
-
-  ret->meta.equal_compare_data = compare_flags;
-
-  MakeBinary(ret, ctx->expression(0), ctx->expression(1));
-
-  return ret;
- }
-
-
- std::any
- FhirPathVisitor::visitInequalityExpression(fhirpathParser::InequalityExpressionContext *ctx)
- {
-  Piece* ret = PushStruct(this->arena, Piece);
-  ret->type = Piece_QuantityCompare;
-
-  QuantityCompareFlags compare_flags = 0;
-
-  std::vector<antlr4::tree::ParseTree *> children = ctx->children;
-  Assert(children.size() > 0);
-  for (int i = 1; i < children.size(); i++)
-  {
-   std::string str = children[i]->getText();
-   if      (strcmp(str.c_str(), ">")  == 0)  { compare_flags = QuantityCompare_Greater; }
-   else if (strcmp(str.c_str(), ">=") == 0)  { compare_flags = QuantityCompare_Equal | QuantityCompare_Greater; }
-   else if (strcmp(str.c_str(), "<")  == 0)  { compare_flags = QuantityCompare_Less; }
-   else if (strcmp(str.c_str(), "<=") == 0)  { compare_flags = QuantityCompare_Equal | QuantityCompare_Less; }
-  }
-
-  ret->meta.quantity_compare_data = compare_flags;
-
-  MakeBinary(ret, ctx->expression(0), ctx->expression(1));
-
-  return ret;
- }
- 
 
  std::any
  FhirPathVisitor::visitTypeSpecifier(fhirpathParser::TypeSpecifierContext *ctx)
  {
-  Piece* ret = PushStruct(this->arena, Piece);
-  ret->type = Piece_Identifier;
+  Piece* piece = PushStruct(this->arena, Piece);
+  piece->type = Piece_Identifier;
 
   /* 
    TODO(agw): this one is a little different...
@@ -231,11 +217,67 @@ namespace native_fhir
   std::string id_str = ids[0]->getText();
 
   String8 strc = Str8C((char*)id_str.c_str());
-  ret->slice = PushStr8Copy(this->arena, strc);
+  piece->slice = PushStr8Copy(this->arena, strc);
 
-  return ret;
+  return piece;
  }
 
+ /////////////////// 
+ // Equality Expressions
+ 
+ std::any
+ FhirPathVisitor::visitEqualityExpression(fhirpathParser::EqualityExpressionContext *ctx)
+ {
+  Piece* piece = PushStruct(this->arena, Piece);
+  piece->type = Piece_EqualCompare;
+
+  CompareTypeFlags compare_flags = CompareType_Unknown;
+
+  std::vector<antlr4::tree::ParseTree *> children = ctx->children;
+  Assert(children.size() > 0);
+  for (int i = 1; i < children.size(); i++)
+  {
+   std::string str = children[i]->getText();
+   if      (strcmp(str.c_str(), "=")  == 0)  { compare_flags = CompareType_Equal; }
+   else if (strcmp(str.c_str(), "!=") == 0)  { compare_flags = CompareType_Equal | CompareType_Negate; }
+   else if (strcmp(str.c_str(), "~")  == 0)  { compare_flags = CompareType_Equivalent; }
+   else if (strcmp(str.c_str(), "!~") == 0)  { compare_flags = CompareType_Equivalent | CompareType_Negate; }
+  }
+
+  piece->meta.equal_compare_data = compare_flags;
+
+  MakeBinary(piece, ctx->expression(0), ctx->expression(1));
+
+  return piece;
+ }
+
+
+ std::any
+ FhirPathVisitor::visitInequalityExpression(fhirpathParser::InequalityExpressionContext *ctx)
+ {
+  Piece* piece = PushStruct(this->arena, Piece);
+  piece->type = Piece_QuantityCompare;
+
+  QuantityCompareFlags compare_flags = 0;
+
+  std::vector<antlr4::tree::ParseTree *> children = ctx->children;
+  Assert(children.size() > 0);
+  for (int i = 1; i < children.size(); i++)
+  {
+   std::string str = children[i]->getText();
+   if      (strcmp(str.c_str(), ">")  == 0)  { compare_flags = QuantityCompare_Greater; }
+   else if (strcmp(str.c_str(), ">=") == 0)  { compare_flags = QuantityCompare_Equal | QuantityCompare_Greater; }
+   else if (strcmp(str.c_str(), "<")  == 0)  { compare_flags = QuantityCompare_Less; }
+   else if (strcmp(str.c_str(), "<=") == 0)  { compare_flags = QuantityCompare_Equal | QuantityCompare_Less; }
+  }
+
+  piece->meta.quantity_compare_data = compare_flags;
+
+  MakeBinary(piece, ctx->expression(0), ctx->expression(1));
+
+  return piece;
+ }
+ 
 
  /////////////////
  // ~ Invocations
@@ -243,45 +285,25 @@ namespace native_fhir
  std::any 
  FhirPathVisitor::visitInvocationExpression(fhirpathParser::InvocationExpressionContext *ctx)
  {
-  Piece* ret = PushStruct(this->arena, Piece);
-  ret->type = Piece_Dot;
+  Piece* piece = PushStruct(this->arena, Piece);
+  piece->type = Piece_Dot;
 
-  MakeBinary(ret, ctx->expression(), ctx->invocation());
+  MakeBinary(piece, ctx->expression(), ctx->invocation());
 
-  return ret;
+  return piece;
  }
 
- String8
- String8FromIdentifier(Arena *arena, fhirpathParser::IdentifierContext *identifier)
- {
-   antlr4::tree::TerminalNode* id = identifier->IDENTIFIER();
-   antlr4::tree::TerminalNode* delim_id = identifier->DELIMITEDIDENTIFIER();
-   if (id != NULL)
-   {
-    std::string str = id->getText();
-    String8 str8 = Str8C((char*)str.c_str());
-    return PushStr8Copy(arena, str8);
-   }
-   else if (delim_id != NULL)
-   {
-    std::string str = delim_id->getText();
-    String8 str8 = Str8C((char*)str.c_str());
-    return PushStr8Copy(arena, str8);
-   }
-
-   return {};
- }
 
  std::any
  FhirPathVisitor::visitFunctionInvocation(fhirpathParser::FunctionInvocationContext *ctx)
  {
-  Piece* ret = PushStruct(this->arena, Piece);
-  ret->type = Piece_FunctionInvocation;
+  Piece* piece = PushStruct(this->arena, Piece);
+  piece->type = Piece_FunctionInvocation;
 
   fhirpathParser::FunctionContext *func = ctx->function();
 
   String8 name = String8FromIdentifier(this->arena, func->identifier());
-  ret->slice = name;
+  piece->slice = name;
 
   PieceList list = {};
 
@@ -299,17 +321,17 @@ namespace native_fhir
     list.count++;
    }
 
-   ret->params = list;
+   piece->params = list;
   }
 
-  return ret;
+  return piece;
  }
 
  std::any 
  FhirPathVisitor::visitMemberInvocation(fhirpathParser::MemberInvocationContext *ctx)
  {
-  Piece* ret = PushStruct(this->arena, Piece);
-  ret->type = Piece_MemberInvocation;
+  Piece* piece = PushStruct(this->arena, Piece);
+  piece->type = Piece_MemberInvocation;
 
   fhirpathParser::IdentifierContext *identifier = ctx->identifier();
   antlr4::tree::TerminalNode* id = identifier->IDENTIFIER();
@@ -320,29 +342,29 @@ namespace native_fhir
   {
    std::string str = id->getText();
    String8 str8 = Str8C((char*)str.c_str());
-   ret->slice = PushStr8Copy(this->arena, str8);
+   piece->slice = PushStr8Copy(this->arena, str8);
   }
   else if (delim_id != NULL)
   {
    std::string str = delim_id->getText();
    String8 str8 = Str8C((char*)str.c_str());
-   ret->slice = PushStr8Copy(this->arena, str8);
+   piece->slice = PushStr8Copy(this->arena, str8);
   }
   else
   {
    // TODO(agw): throw error
+   NotImplemented;
   }
 
-  return ret;
+  return piece;
  }
 
  std::any
  FhirPathVisitor::visitThisInvocation(fhirpathParser::ThisInvocationContext *ctx)
  {
-  Piece* ret = PushStruct(this->arena, Piece);
-  ret->type = Piece_ThisInvocation;
-
-  return ret;
+  Piece* piece = PushStruct(this->arena, Piece);
+  piece->type = Piece_ThisInvocation;
+  return piece;
  }
 
  ///////////////
@@ -415,18 +437,231 @@ namespace native_fhir
   return piece;
  }
 
+ /*
+  Date Examples:
+  @2014-01-25
+  @2014-01
+  @2014
+ */
+
+ /*
+  Time Examples:
+  @T12:00
+  @T14:30:14.559
+ */
+
+ /*
+  DateTime Examples:
+  @2014-01-25T14:30:14.559
+  @2014-01-25T14:30:14.559Z // A date time with UTC timezone offset
+  @2014-01-25T14:30 // A partial DateTime with year, month, day, hour, and minute
+  @2014-03-25T // A partial DateTime with year, month, and day
+  @2014-01T // A partial DateTime with year and month
+  @2014T // A partial DateTime with only the year
+ */
+
+ #define SKIP(c, ptr, len_remaining) if (*(ptr) != (c)) { throw std::invalid_argument("invalid date/time/datetime"); } (ptr)++; (len_remaining)--;
+ #define CHECK_LESS(a, b) if ((a) < (b)) { throw std::invalid_argument("invalid date/time/datetime"); }
+
+ local_function ISO8601_Time
+ Deserialize_TimeZoneSection(ISO8601_Time *in_time, String8 str)
+ {
+  ISO8601_Time time = {};
+  if (in_time) { time = *in_time; }
+
+  char* start = (char*)str.str;
+  char* ptr = (char*)str.str;
+  ptrdiff_t len_remaining = str.size;
+
+  if (len_remaining == 0) return time;
+
+  time.timezone_char = *ptr;
+
+  ptr++; len_remaining--;
+
+  if (time.timezone_char == 'Z') return time;
+
+  CHECK_LESS(len_remaining, 2)
+
+  time.timezone_hour += (U8)CharToInt(*ptr) * 10; ptr++; len_remaining--;
+  time.timezone_hour += (U8)CharToInt(*ptr);      ptr++; len_remaining--;
+  time.precision = Precision::TimezoneHour;
+
+  SKIP(':', ptr, len_remaining);
+  CHECK_LESS(len_remaining, 2)
+
+  time.timezone_minute += (U8)CharToInt(*ptr) * 10; ptr++; len_remaining--;
+  time.timezone_minute += (U8)CharToInt(*ptr);      ptr++; len_remaining--;
+  time.precision = Precision::TimezoneMinute;
+
+  return time;
+ }
+
+ local_function ISO8601_Time
+ Deserialize_TimeSection(ISO8601_Time *in_time, String8 str)
+ {
+  ISO8601_Time time = {};
+  if (in_time) { time = *in_time; }
+
+  char* start = (char*)str.str;
+  char* ptr = (char*)str.str;
+  ptrdiff_t len_remaining = str.size;
+
+  CHECK_LESS(len_remaining, 2)
+
+  time.hour += (U8)CharToInt(*ptr) * 10; ptr++; len_remaining--;
+  time.hour += (U8)CharToInt(*ptr);      ptr++; len_remaining--;
+
+  {
+   time.precision = Precision::Hour;
+   if (len_remaining == 0) return time;
+   if (*ptr == 'Z' || *ptr == '+' || *ptr == '-') return Deserialize_TimeZoneSection(&time, Str8((U8*)(ptr), len_remaining));
+  }
+
+  SKIP(':', ptr, len_remaining);
+  CHECK_LESS(len_remaining, 2)
+
+  time.minute += (U8)CharToInt(*ptr) * 10; ptr++; len_remaining--;
+  time.minute += (U8)CharToInt(*ptr);      ptr++; len_remaining--;
+
+  {
+   time.precision = Precision::Minute;
+   if (len_remaining == 0) return time;
+   if (*ptr == 'Z' || *ptr == '+' || *ptr == '-') return Deserialize_TimeZoneSection(&time, Str8((U8*)(ptr), len_remaining));
+  }
+
+  SKIP(':', ptr, len_remaining);
+  CHECK_LESS(len_remaining, 2)
+
+  time.second += (U8)CharToInt(*ptr) * 10; ptr++; len_remaining--;
+  time.second += (U8)CharToInt(*ptr);      ptr++; len_remaining--;
+
+  {
+   time.precision = Precision::Second;
+   if (len_remaining == 0) return time;
+   if (*ptr == 'Z' || *ptr == '+' || *ptr == '-') return Deserialize_TimeZoneSection(&time, Str8((U8*)(ptr), len_remaining));
+  }
+
+  if (*ptr == '.')
+  {
+   SKIP('.', ptr, len_remaining);
+
+   while (*ptr != 'Z' && *ptr != '+' && *ptr != '-' && len_remaining > 0)
+   {
+    time.millisecond *= 10;
+    time.millisecond += (U16)CharToInt(*ptr);
+
+    ptr++; len_remaining--;
+   }
+
+   time.precision = Precision::Millisecond;
+  }
+
+  if (*ptr == 'Z' || *ptr == '+' || *ptr == '-') return Deserialize_TimeZoneSection(&time, Str8((U8*)(ptr), len_remaining));
+
+  return time;
+ }
+
+ ISO8601_Time
+ Deserialize_ISO8601(String8 str,
+                     ValueType type)
+ {
+  if (type == ValueType::Time) { return Deserialize_TimeSection(0, str); }
+
+  char* start = (char*)str.str;
+  char* ptr   = (char*)str.str;
+  ptrdiff_t len_remaining = str.size;
+
+  ISO8601_Time time = {};
+  CHECK_LESS(len_remaining, 4)
+
+  time.year += (U16)CharToInt(*ptr) * 1000; ptr++; len_remaining--;
+  time.year += (U16)CharToInt(*ptr) * 100;  ptr++; len_remaining--;
+  time.year += (U16)CharToInt(*ptr) * 10;   ptr++; len_remaining--;
+  time.year += (U16)CharToInt(*ptr);        ptr++; len_remaining--;
+
+  {
+   time.precision = Precision::Year;
+   if (*ptr == 'T') return Deserialize_TimeSection(&time, Str8((U8*)(ptr + 1), len_remaining - 1));
+   if (len_remaining == 0) return time;
+  }
+
+  SKIP('-', ptr, len_remaining);
+  CHECK_LESS(len_remaining, 2)
+
+  time.month += (U8)CharToInt(*ptr) * 10; ptr++; len_remaining--;
+  time.month += (U8)CharToInt(*ptr);      ptr++; len_remaining--;
+
+  {
+   time.precision = Precision::Month;
+   if (*ptr == 'T') return Deserialize_TimeSection(&time, Str8((U8*)(ptr + 1), len_remaining - 1));
+   if (len_remaining == 0) return time;
+  }
+
+  SKIP('-', ptr, len_remaining);
+  CHECK_LESS(len_remaining, 2)
+
+  time.day += (U8)CharToInt(*ptr) * 10; ptr++; len_remaining--;
+  time.day += (U8)CharToInt(*ptr);      ptr++; len_remaining--;
+
+  {
+   time.precision = Precision::Day;
+   if (*ptr == 'T') return Deserialize_TimeSection(&time, Str8((U8*)(ptr + 1), len_remaining - 1));
+   if (len_remaining == 0) return time;
+  }
+
+  return time;
+ }
+
+ #undef SKIP
+ #undef CHECK_LESS
+
+ // TODO(agw): Fill these in
  std::any
- FhirPathVisitor::visitIndexerExpression(fhirpathParser::IndexerExpressionContext *ctx)
+ FhirPathVisitor::visitDateLiteral(fhirpathParser::DateLiteralContext *ctx)
  {
   Piece* piece = PushStruct(this->arena, Piece);
-  piece->type = Piece_Index;
+  piece->type = Piece_Date;
 
-  std::vector<fhirpathParser::ExpressionContext*> expressions = ctx->expression();
-  Assert(expressions.size() == 2);
+  std::string str = ctx->DATE()->getText();
+  String8 str8 = Str8C((char*)str.c_str());
 
-  MakeBinary(piece, ctx->expression(0), ctx->expression(1));
+  // NOTE(agw): remove @ symbol
+
+  str8.str++;
+  str8.size--;
+  ISO8601_Time time = Deserialize_ISO8601(str8, ValueType::Date);
+
+  piece->value.time = time;
+  return piece;
+ }
+
+ std::any
+ FhirPathVisitor::visitDateTimeLiteral(fhirpathParser::DateTimeLiteralContext *ctx)
+ {  
+  Piece* piece = PushStruct(this->arena, Piece);
+  piece->type = Piece_Date;
+
+  std::string str = ctx->DATETIME()->getText();
+  String8 str8 = Str8C((char*)str.c_str());
+
+  // NOTE(agw): remove @ symbol
+
+  str8.str++;
+  str8.size--;
+  ISO8601_Time time = Deserialize_ISO8601(str8, ValueType::DateTime);
+
+  piece->value.time = time;
+  return piece;
+ }
+
+ std::any
+ FhirPathVisitor::visitTimeLiteral(fhirpathParser::TimeLiteralContext *ctx)
+ {
+  Piece* piece = PushStruct(this->arena, Piece);
 
   return piece;
  }
+
 
 };

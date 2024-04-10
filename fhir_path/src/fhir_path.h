@@ -9,7 +9,7 @@
 namespace native_fhir
 {
 
-	enum FP_PieceType {
+	enum PieceType {
 		Piece_Unknown,
 		Piece_Plus,
 		Piece_Minus,
@@ -66,29 +66,6 @@ namespace native_fhir
 		Piece_FunctionParameter,
 	};
 
-	typedef enum FP_Precedence
-	{
-		P_None,
-		P_Implies,
-		P_Xor_Or,
-		P_And,
-		P_In_Contains,
-		P_Equal,
-		P_Greater,
-		P_Pipe,
-		P_Is_As,
-		P_Plus_Minus_Ampersand,
-		P_Mul_Divide,
-		P_Unary,
-		P_Indexer,
-		P_Path,
-		P_Dot,
-		P_Max
-	} FP_Precedence;
-
-
-	// ~ Piece
-
 	typedef U32 PieceFlags;
 	enum
 	{
@@ -101,9 +78,9 @@ namespace native_fhir
 	enum
 	{
 		CompareType_Unknown,
-		CompareType_Negate,
-		CompareType_Equal,
-		CompareType_Equivalent,
+		CompareType_Negate = (1 << 0),
+		CompareType_Equal = (1 << 1),
+		CompareType_Equivalent = (1 << 2),
 	};
 
 	typedef U32 QuantityCompareFlags;
@@ -150,14 +127,11 @@ namespace native_fhir
 		// TODO(agw): Should describe parameter value
 		//	String8 value; // Set for function param
 
-		FP_PieceType type;
+		PieceType type;
 
 		PieceMetadata meta;
 
 		PieceFlags flags;
-
-		// ~ If operator
-		FP_Precedence precedence;
 
 		// ~ If function
 		PieceList params;
@@ -176,34 +150,6 @@ namespace native_fhir
 	{
 		return piece == NULL || piece == &nil_piece;
 	}
-
-	typedef struct Tokenizer Tokenizer;
-	struct Tokenizer
-	{
-		Arena *arena;
-
-		U8* pos;
-		U8* max_pos;
-
-		size_t parens_depth;
-
-		Piece* first;
-		Piece* last;
-		size_t count;
-
-		String8 error_message;
-		jmp_buf error_buf;
-	};
-
-
-	typedef struct PrecedenceEntry PrecedenceEntry;
-	struct PrecedenceEntry
-	{
-		String8 c;
-		FP_Precedence prescedence;
-		FP_PieceType type;
-		PieceMetadata meta;
-	};
 
 };
 #endif

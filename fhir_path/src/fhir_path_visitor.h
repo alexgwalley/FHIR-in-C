@@ -19,7 +19,16 @@ namespace native_fhir
    ArenaRelease(arena);
   }
 
+  std::any visitIndexerExpression(fhirpathParser::IndexerExpressionContext *ctx);
 
+  std::any visitEntireExpression(fhirpathParser::EntireExpressionContext *ctx) {
+    return ctx->expression()->accept(this);
+  }
+  std::any visitParenthesizedTerm(fhirpathParser::ParenthesizedTermContext *ctx) {
+    return ctx->expression()->accept(this);
+  }
+
+  // Unary Expressions
   std::any visitPolarityExpression(fhirpathParser::PolarityExpressionContext *ctx);
 
   // Binary Expressions
@@ -39,27 +48,20 @@ namespace native_fhir
   std::any visitEqualityExpression(fhirpathParser::EqualityExpressionContext *ctx);
   std::any visitInequalityExpression(fhirpathParser::InequalityExpressionContext *ctx);
   
-  std::any visitParent(fhirpathParser::NumberLiteralContext *ctx);
+
+  // Invocations
+  std::any visitInvocationExpression(fhirpathParser::InvocationExpressionContext *ctx);
+  std::any visitFunctionInvocation(fhirpathParser::FunctionInvocationContext *ctx);
+  std::any visitMemberInvocation(fhirpathParser::MemberInvocationContext *ctx);
+  std::any visitThisInvocation(fhirpathParser::ThisInvocationContext *ctx);
 
   // Literals 
   std::any visitNumberLiteral(fhirpathParser::NumberLiteralContext *ctx);
   std::any visitStringLiteral(fhirpathParser::StringLiteralContext *ctx);
+  std::any visitDateLiteral(fhirpathParser::DateLiteralContext *ctx);
+  std::any visitDateTimeLiteral(fhirpathParser::DateTimeLiteralContext *ctx);
+  std::any visitTimeLiteral(fhirpathParser::TimeLiteralContext *ctx);
 
-  // Invocations
-  std::any visitInvocationExpression(fhirpathParser::InvocationExpressionContext *ctx);
-  std::any visitMemberInvocation(fhirpathParser::MemberInvocationContext *ctx);
-  std::any visitFunctionInvocation(fhirpathParser::FunctionInvocationContext *ctx);
-  std::any visitThisInvocation(fhirpathParser::ThisInvocationContext *ctx);
-
-  //
-  std::any visitIndexerExpression(fhirpathParser::IndexerExpressionContext *ctx);
-
-  std::any visitEntireExpression(fhirpathParser::EntireExpressionContext *ctx) {
-    return ctx->expression()->accept(this);
-  }
-  std::any visitParenthesizedTerm(fhirpathParser::ParenthesizedTermContext *ctx) {
-    return ctx->expression()->accept(this);
-  }
 
  };
 

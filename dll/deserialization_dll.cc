@@ -116,7 +116,7 @@ extern "C"
 	const ResourceNameTypePair *
 	NF_ResourceNameTypePairFromString8(String8 str)
 	{
-		return  Perfect_Hash::in_word_set((char*)str.str, str.size);
+  return ResourceType_Gperf::ResourceTypeLookup((char*)str.str, str.size);
 	}
 
 

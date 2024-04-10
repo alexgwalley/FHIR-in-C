@@ -195,7 +195,7 @@ Deserialize_ISO8601_Impl(String8 str,
 		ptr++;
 		Assert(time.timezone_hour >= 0 && time.timezone_hour < 60);
 
-		time.precision = Precision::TimezoneMinute;
+		time.precision = Precision::TimezoneHour;
 
 		Assert(*ptr == ':');
 		ptr++;
@@ -207,7 +207,7 @@ Deserialize_ISO8601_Impl(String8 str,
 		time.timezone_minute += (U8)CharToInt(*ptr);
 		ptr++;
 		Assert(time.timezone_minute >= 0 && time.timezone_minute < 60);
-		time.precision = Precision::TimezoneSecond;
+		time.precision = Precision::TimezoneMinute;
 
 		Assert(ptr - (char*)str.str >= (ptrdiff_t)str.size);
 	}

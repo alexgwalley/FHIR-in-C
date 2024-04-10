@@ -29,11 +29,8 @@ namespace native_fhir
 		bool pretty_print : 1;
 	} SerializationSettings;
 
-	namespace nf_fhir_r4
-	{
-		typedef struct ResourceNameTypePair ResourceNameTypePair;
-		struct ResourceNameTypePair { char* name; int type; };
-	};
+ typedef struct ResourceNameTypePair ResourceNameTypePair;
+ struct ResourceNameTypePair { char* name; int type; };
     
 	struct MemberNameAndOffset {
 		char *name; // 8

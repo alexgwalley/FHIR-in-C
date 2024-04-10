@@ -14,20 +14,24 @@ set(ANTLR4_WITH_STATIC_CRT OFF)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDebugDLL")
 
 include_directories(src .)
-include_directories(fhir_path/src/antlr .)
+include_directories(fhir_path/src/third_party/antlr .)
+include_directories(fhir_path/src/third_party/arrow .)
 
 if ( MSVC )
  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd5033 /wd4244")
 endif()
 
+# generated targets
 add_executable(main src/main.cc)
-# Add an executable target
 add_library(deserialization_dll SHARED dll/deserialization_dll.cc)
 add_executable(fhir_path_test fhir_path/src/fhir_path_test.cc)
 
 # Link libs
-link_directories(${CMAKE_SOURCE_DIR}/fhir_path/src/antlr)
+#link_directories(${CMAKE_SOURCE_DIR}/fhir_path/src/third_party/antlr)
 
 # Find ANTLR and link it
-find_library(ANTLR_LIB NAMES antlr4_runtime_static PATHS ${CMAKE_SOURCE_DIR}/fhir_path/src/antlr)
-target_link_libraries(fhir_path_test deserialization_dll ${ANTLR_LIB})
+find_library(ANTLR_LIB NAMES antlr4_runtime_static PATHS ${CMAKE_SOURCE_DIR}/fhir_path/src/third_party/antlr)
+find_library(ARROW_LIB NAMES arrow PATHS ${CMAKE_SOURCE_DIR}/fhir_path/src/third_party/arrow)
+target_link_libraries(fhir_path_test deserialization_dll ${ARROW_LIB} ${ANTLR_LIB})
+
+

@@ -1,0 +1,43 @@
+{
+ "resourceType": "Bundle",
+ "entry": [
+  {
+   "resource": {
+    "resourceType": "ViewDefinition",
+    "resource": "Patient",
+    "status": "active",
+    "select": [
+     {
+       "column": [
+         {
+           "name": "id",
+           "path": "id",
+           "type": "id"
+         },
+         {
+           "name": "birthDate",
+           "path": "birthDate",
+           "type": "date"
+         }
+       ]
+     },
+     {
+       "forEach": "name",
+       "column": [
+         {
+           "name": "last_name",
+           "path": "family",
+           "type": "string"
+         },
+         {
+           "name": "first_name",
+           "path": "given.join(' ')",
+           "type": "string"
+         }
+       ]
+     }
+    ]
+   }
+  }
+ ]
+}

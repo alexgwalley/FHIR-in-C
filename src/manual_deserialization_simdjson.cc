@@ -13,7 +13,7 @@ namespace native_fhir
 	namespace nf_fhir_r4
 	{
 		#include "generated/gperf-inc.cc"
-		#include "resources-gperf.cc"
+		#include "generated/resource_types.cc"
 	};
 };
 //#undef strncmp
@@ -36,7 +36,7 @@ Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
 static ResourceType
 ResourceTypeFromString8(String8 str)
 {
-	const ResourceNameTypePair *pair = Perfect_Hash::in_word_set((char*)str.str, str.size);
+	const ResourceNameTypePair *pair = ResourceType_Gperf::ResourceTypeLookup((char*)str.str, str.size);
 	return (ResourceType)pair->type;
 }
 

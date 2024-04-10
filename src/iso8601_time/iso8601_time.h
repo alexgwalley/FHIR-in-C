@@ -4,17 +4,22 @@
 namespace native_fhir
 {
 
+ /*
+
+ NOTE(agw): For some reason, second and millisecond
+ precisions are equivalent in FHIR Path
+ */
 	enum class Precision : U8 {
-		Unknown,
-		Year,
-		Month,
-		Day,
-		Hour,
-		Minute,
-		Second,
-		Millisecond,
-		TimezoneMinute,
-		TimezoneSecond,
+		Unknown = 0,
+		Year    = 4,
+		Month   = 6,
+		Day     = 8,
+		Hour    = 10,
+		Minute  = 12,
+		Second  = 14,
+		Millisecond  = 17,
+		TimezoneHour = 19,
+		TimezoneMinute = 21,
 	};
 
 	struct ISO8601_Time
@@ -33,7 +38,8 @@ namespace native_fhir
 		uint16_t year;
 		uint16_t millisecond;
 		Precision precision;
-		uint8_t reserved[3];
+		Precision min_precision;
+		uint8_t reserved[2];
 	};
 
 
