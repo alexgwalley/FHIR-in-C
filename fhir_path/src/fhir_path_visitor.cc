@@ -663,5 +663,16 @@ namespace native_fhir
   return piece;
  }
 
+ std::any
+ FhirPathVisitor::visitBooleanLiteral(fhirpathParser::BooleanLiteralContext *ctx)
+ {
+  Piece* piece = PushStruct(this->arena, Piece);
+  piece->type = Piece_Boolean;
+  std::string text = ctx->getText();
+  B32 value = text == "true";
+  piece->value.b = value;
+  return piece;
+ }
+
 
 };

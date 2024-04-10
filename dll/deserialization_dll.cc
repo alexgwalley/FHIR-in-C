@@ -125,6 +125,7 @@ extern "C"
 	__declspec(dllexport) void __cdecl ND_Cleanup(void);
 	__declspec(dllexport) ND_ContextNode* __cdecl ND_DeserializeFile(const char* file_name, nf_fhir_r4::Resource **out);
 	__declspec(dllexport) ND_ContextNode* __cdecl ND_DeserializeString(char* bytes, size_t length, nf_fhir_r4::Resource **out);
+ __declspec(dllexport) ND_ContextNode* __cdecl ND_DeserializeStringOfType(char* bytes, size_t length, nf_fhir_r4::Resource **out, nf_fhir_r4::ResourceType type);
 	__declspec(dllexport) void __cdecl ND_FreeContext(ND_ContextNode *node);
 
 
@@ -238,9 +239,11 @@ extern "C"
 
 	}
 
-	ND_ContextNode*
-	ND_DeserializeString(char* bytes, size_t length, nf_fhir_r4::Resource **out)
-	{
+
+
+ ND_ContextNode*
+ ND_DeserializeStringOfType(char* bytes, size_t length, nf_fhir_r4::Resource **out, nf_fhir_r4::ResourceType type)
+ {
 		ND_ContextNode *node = ND_GetFreeContext(contexts_arena);
 		if (node->value.main_arena)
 		{
@@ -294,11 +297,17 @@ extern "C"
 		nf_fhir_r4::Resource* result = Resource_Deserialize_SIMDJSON(&node->value,
 		                                                          node->value.main_arena,
 		                                                          &node->value.options,
-		                                                          ResourceType::Unknown,
+		                                                          type,
 		                                                          obj);
 		Bundle* bundle = (Bundle*)result;
 		*out = result;
 		return node;
+ }
+
+	ND_ContextNode*
+	ND_DeserializeString(char* bytes, size_t length, nf_fhir_r4::Resource **out)
+	{
+  return ND_DeserializeStringOfType(bytes, length, out, nf_fhir_r4::ResourceType::Unknown);
 	}
 
 	ND_ContextNode*

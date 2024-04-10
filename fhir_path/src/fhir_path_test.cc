@@ -26,6 +26,12 @@
 
 
 //////////////////
+// ~ ARROW - Parquet Gen
+#include "third_party/simdjson.h"
+#include "third_party/simdjson.cpp"
+
+
+//////////////////
 // ~ OURS
 #include "native_fhir_inc.h"
 #include "execution/number.h"
@@ -41,29 +47,21 @@
 #include "fhir_class/fhir_class.h"
 #include "fhir_path_visitor.h"
 
+#include "test_execution.h"
+
 #include "native_fhir_inc.cc"
 #include "fhir_path_visitor.cc"
-
-
-// TODO(agw): this should go in an include header
-extern "C"
-{
-	__declspec(dllexport) void __cdecl ND_Init(int num_contexts);
-	__declspec(dllexport) void __cdecl ND_Cleanup(void);
-	__declspec(dllexport) ND_ContextNode* __cdecl ND_DeserializeFile(const char* file_name, Resource **out);
-	__declspec(dllexport) ND_ContextNode* __cdecl ND_DeserializeString(char* bytes, size_t length, Resource **out);
-	__declspec(dllexport) void __cdecl ND_FreeContext(ND_ContextNode *node);
-	__declspec(dllexport) const native_fhir::MemberNameAndOffset* NF_ClassMemberLookup(ResourceType resourceType, String8 member_name);
-	__declspec(dllexport) const native_fhir::ResourceNameTypePair * __cdecl NF_ResourceNameTypePairFromString8(String8 str); 
-}
-
-#include "execution/path_execution.cc"
 
 using namespace native_fhir;
 using namespace nf_fhir_r4;
 using namespace antlr4;
-
 MetadataFile *g_meta_file;
+
+#include "execution/path_execution.cc"
+#include "test_execution.cc"
+
+
+
 
 nf_fhir_r4::Resource nil_resource = {};
 
@@ -94,66 +92,68 @@ std::shared_ptr<arrow::Table> generate_table() {
  return arrow::Table::Make(schema, {i64array, strarray});
 }
 
-Piece*
-Antlr_ParseExpression(String8 str)
+namespace native_fhir
 {
- ANTLRInputStream input((const char*)str.str, str.size);
- fhirpathLexer lexer(&input);
- CommonTokenStream tokens(&lexer);
- fhirpathParser parser(&tokens);
+ Piece*
+ Antlr_ParseExpression(String8 str)
+ {
+  ANTLRInputStream input((const char*)str.str, str.size);
+  fhirpathLexer lexer(&input);
+  CommonTokenStream tokens(&lexer);
+  fhirpathParser parser(&tokens);
 
- native_fhir::FhirPathVisitor visitor; 
- fhirpathParser::EntireExpressionContext* entireExpression = parser.entireExpression();
- std::any visit_result = visitor.visitEntireExpression(entireExpression);
- Piece* root = std::any_cast < Piece* > (visit_result);
- return root;
-}
+  native_fhir::FhirPathVisitor visitor;
+  fhirpathParser::EntireExpressionContext* entireExpression = parser.entireExpression();
+  std::any visit_result = visitor.visitEntireExpression(entireExpression);
+  Piece* root = std::any_cast < Piece* > (visit_result);
+  return root;
+ }
 
-// builders
-// append data
-// make schema
-// make table
+ // builders
+ // append data
+ // make schema
+ // make table
 
-// write table to file
+ // write table to file
 
 
 
-//////////////////
-// ~ Printing
-void
-PrintIndent(int indent)
-{
-	for (int i = 0; i < indent; i++)
-	{
-		printf(" ");
-	}
-}
+ //////////////////
+ // ~ Printing
+ void
+ PrintIndent(int indent)
+ {
+  for (int i = 0; i < indent; i++)
+  {
+   printf(" ");
+  }
+ }
 
-void
-PrintISO8601_Time(ISO8601_Time time)
-{
-	if (time.precision >= Precision::Year) { printf("%04d", time.year); }
-	if (time.precision >= Precision::Month) { printf("-%02d", time.month); }
-	if (time.precision >= Precision::Day) { printf("-%02d", time.day); }
-	if (time.precision >= Precision::Hour) { printf(":%02d", time.hour); }
-	if (time.precision >= Precision::Minute) { printf(":%02d", time.minute); }
-	if (time.precision >= Precision::Second) { printf(":%02d", time.second); }
-	if (time.precision >= Precision::Millisecond) { printf(":%03d", time.millisecond); }
+ void
+ PrintISO8601_Time(ISO8601_Time time)
+ {
+  if (time.precision >= Precision::Year) { printf("%04d", time.year); }
+  if (time.precision >= Precision::Month) { printf("-%02d", time.month); }
+  if (time.precision >= Precision::Day) { printf("-%02d", time.day); }
+  if (time.precision >= Precision::Hour) { printf(":%02d", time.hour); }
+  if (time.precision >= Precision::Minute) { printf(":%02d", time.minute); }
+  if (time.precision >= Precision::Second) { printf(":%02d", time.second); }
+  if (time.precision >= Precision::Millisecond) { printf(":%03d", time.millisecond); }
 
- if (time.timezone_char) { printf("%c", time.timezone_char); }
+  if (time.timezone_char) { printf("%c", time.timezone_char); }
 
-	if (time.precision >= Precision::TimezoneHour)   { printf("%02d", time.timezone_hour); }
-	if (time.precision >= Precision::TimezoneMinute) { printf(":%02d", time.timezone_minute); }
-}
+  if (time.precision >= Precision::TimezoneHour) { printf("%02d", time.timezone_hour); }
+  if (time.precision >= Precision::TimezoneMinute) { printf(":%02d", time.timezone_minute); }
+ }
 
-void PrintSingleResourceMember(nf_fhir_r4::Resource *resource, int indent);
+ void PrintSingleResourceMember(nf_fhir_r4::Resource *resource, int indent);
 
-void
-PrintResourceMember(nf_fhir_r4::Resource *resource,
-                    SerializedClassMemberMetadata *mem,
-                    SerializedValueTypeAndName tan,
-                    int indent)
-{
+ void
+ PrintResourceMember(nf_fhir_r4::Resource *resource,
+                     SerializedClassMemberMetadata *mem,
+                     SerializedValueTypeAndName tan,
+                     int indent)
+ {
   String8 mem_name = M_GetStringFromHandle(g_meta_file, mem->name);
   switch (tan.type)
   {
@@ -165,18 +165,18 @@ PrintResourceMember(nf_fhir_r4::Resource *resource,
      PrintIndent(indent + 1);
      printf("%.*s\n", PRINT_STR8(mem_name));
     }
-    PrintSingleResourceMember(child, indent+2);
+    PrintSingleResourceMember(child, indent + 2);
    } break;
    case VALUE_TYPE_STRING_CASES:
    case ValueType::Decimal:
+   {
+    NullableString8 str = DEREF_VALUE(resource, mem->offset, NullableString8);
+    if (str.has_value)
     {
-     NullableString8 str = DEREF_VALUE(resource, mem->offset, NullableString8);
-     if (str.has_value)
-     {
-      PrintIndent(indent);
-      printf(" - %10.*s: %.*s\n", PRINT_STR8(mem_name), PRINT_STR8(str));
-     }
-    } break;
+     PrintIndent(indent);
+     printf(" - %10.*s: %.*s\n", PRINT_STR8(mem_name), PRINT_STR8(str));
+    }
+   } break;
    case ValueType::Boolean:
    {
     NullableBoolean b_value = DEREF_VALUE(resource, mem->offset, NullableBoolean);
@@ -200,15 +200,15 @@ PrintResourceMember(nf_fhir_r4::Resource *resource,
     }
    } break;
   }
-}
+ }
 
-void
-PrintIndexedResourceMember(nf_fhir_r4::Resource *resource,
-                    SerializedClassMemberMetadata *mem,
-                    SerializedValueTypeAndName tan,
-                    int indent,
-                    int index)
-{
+ void
+ PrintIndexedResourceMember(nf_fhir_r4::Resource *resource,
+                            SerializedClassMemberMetadata *mem,
+                            SerializedValueTypeAndName tan,
+                            int indent,
+                            int index)
+ {
   String8 mem_name = M_GetStringFromHandle(g_meta_file, mem->name);
   switch (tan.type)
   {
@@ -221,19 +221,19 @@ PrintIndexedResourceMember(nf_fhir_r4::Resource *resource,
      PrintIndent(indent + 1);
      printf("%.*s\n", PRINT_STR8(mem_name));
     }
-    PrintSingleResourceMember(child, indent+2);
+    PrintSingleResourceMember(child, indent + 2);
    } break;
    case VALUE_TYPE_STRING_CASES:
    case ValueType::Decimal:
+   {
+    NullableString8* strs = DEREF_VALUE_ARRAY(resource, mem->offset, NullableString8);
+    NullableString8 str = strs[index];
+    if (str.has_value)
     {
-     NullableString8* strs = DEREF_VALUE_ARRAY(resource, mem->offset, NullableString8);
-     NullableString8 str = strs[index];
-     if (str.has_value)
-     {
-      PrintIndent(indent);
-      printf(" - %10.*s: %.*s\n", PRINT_STR8(mem_name), PRINT_STR8(str));
-     }
-    } break;
+     PrintIndent(indent);
+     printf(" - %10.*s: %.*s\n", PRINT_STR8(mem_name), PRINT_STR8(str));
+    }
+   } break;
    case ValueType::Boolean:
    {
     NullableBoolean* bools = DEREF_VALUE_ARRAY(resource, mem->offset, NullableBoolean);
@@ -259,113 +259,114 @@ PrintIndexedResourceMember(nf_fhir_r4::Resource *resource,
     }
    } break;
   }
-}
+ }
 
-void
-PrintSingleResourceMember(nf_fhir_r4::Resource *resource, int indent)
-{
-	if (!resource) return;
+ void
+ PrintSingleResourceMember(nf_fhir_r4::Resource *resource, int indent)
+ {
+  if (!resource) return;
 
-	SerializedClassMetadata *meta = M_GetClassMetadata(g_meta_file, (int)resource->resourceType);
-	String8 meta_name = M_GetStringFromHandle(g_meta_file, meta->name);
+  SerializedClassMetadata *meta = M_GetClassMetadata(g_meta_file, (int)resource->resourceType);
+  String8 meta_name = M_GetStringFromHandle(g_meta_file, meta->name);
 
-	PrintIndent(indent);
-	printf("%.*s\n", PRINT_STR8(meta_name));
+  PrintIndent(indent);
+  printf("%.*s\n", PRINT_STR8(meta_name));
 
-	for (int i = 0; i < meta->members_count; i++)
-	{
-		SerializedClassMemberMetadata *mem = M_GetClassMemberMetadata(meta, i);
-		switch (mem->cardinality)
-		{
-   case Cardinality::ZeroToOne:
-   case Cardinality::OneToOne:
+  for (int i = 0; i < meta->members_count; i++)
+  {
+   SerializedClassMemberMetadata *mem = M_GetClassMemberMetadata(meta, i);
+   switch (mem->cardinality)
    {
-    if (mem->type == ClassMemberType::Single)
+    case Cardinality::ZeroToOne:
+    case Cardinality::OneToOne:
     {
-     SerializedValueTypeAndName tan = M_GetClassMemberType(mem, 0);
-     PrintResourceMember(resource, mem, tan, indent);
-    } else if (mem->type == ClassMemberType::Union)
-    {
-     SerializedClassMemberMetadata *enum_mem = M_GetClassMemberMetadata(meta, i + 1);
-
-     U32 type_index = DEREF_VALUE(resource, enum_mem->offset, U32);
-
-     SerializedValueTypeAndName tan = M_GetClassMemberType(mem, type_index);
-     PrintResourceMember(resource, mem, tan, indent);
-    }
-			} break;
-   case Cardinality::OneToInf:
-   case Cardinality::ZeroToInf:
-   {
-    if (mem->type == ClassMemberType::Single)
-    {
-     SerializedClassMemberMetadata *count_mem = M_GetClassMemberMetadata(meta, i - 1);
-     size_t count = DEREF_COUNT(resource, count_mem->offset);
-     for (int j = 0; j < count; j++)
+     if (mem->type == ClassMemberType::Single)
      {
-      printf("[%d]: ", j);
       SerializedValueTypeAndName tan = M_GetClassMemberType(mem, 0);
-      PrintIndexedResourceMember(resource, mem, tan, indent, j);
+      PrintResourceMember(resource, mem, tan, indent);
+     } else if (mem->type == ClassMemberType::Union)
+     {
+      SerializedClassMemberMetadata *enum_mem = M_GetClassMemberMetadata(meta, i + 1);
+
+      U32 type_index = DEREF_VALUE(resource, enum_mem->offset, U32);
+
+      SerializedValueTypeAndName tan = M_GetClassMemberType(mem, type_index);
+      PrintResourceMember(resource, mem, tan, indent);
      }
-    }
-   } break;
-		}
-	}
-}
+    } break;
+    case Cardinality::OneToInf:
+    case Cardinality::ZeroToInf:
+    {
+     if (mem->type == ClassMemberType::Single)
+     {
+      SerializedClassMemberMetadata *count_mem = M_GetClassMemberMetadata(meta, i - 1);
+      size_t count = DEREF_COUNT(resource, count_mem->offset);
+      for (int j = 0; j < count; j++)
+      {
+       printf("[%d]: ", j);
+       SerializedValueTypeAndName tan = M_GetClassMemberType(mem, 0);
+       PrintIndexedResourceMember(resource, mem, tan, indent, j);
+      }
+     }
+    } break;
+   }
+  }
+ }
 
-void
-PrintCollection(Collection col)
-{
-	printf("Collection: -----------------\n\n");
-	TimeFunction;
-	for (CollectionEntryNode *node = col.first; !IsNilCollectionEntryNode(node); node = node->next)
-	{
-		switch (node->v.type)
-		{
-			case EntryType::Resource:
-			{
-				PrintSingleResourceMember(node->v.resource, 0);
-			} break;
-			case EntryType::String:
-			{
-				PrintIndent(0);
-				printf("%.*s\n", PRINT_STR8(node->v.str));
-			} break;
-			case EntryType::Number:
-			{
-				switch (node->v.number.type)
-				{
-					case Number_Integer:
-					{
-						printf("%lld\n", node->v.number.s64);
-					} break;
-					case Number_Decimal:
-					{
-						Temp temp = ScratchBegin(0, 0);
-						String8 str = Str8FromDecimal(temp.arena, node->v.number.decimal);
-						printf("%.*s\n", PRINT_STR8(str));
-						ScratchEnd(temp);
-					} break;
-				}
-			} break;
-			case EntryType::Boolean:
-			{
-				if (node->v.b) { printf("true\n"); }
-				else { printf("false\n"); }
-			} break;
-			case EntryType::Iso8601:
-			{
-				PrintISO8601_Time(node->v.time);
-				printf("\n");
-			} break;
-		}
+ void
+ PrintCollection(Collection col)
+ {
+  printf("Collection: -----------------\n\n");
+  TimeFunction;
+  for (CollectionEntryNode *node = col.first; !IsNilCollectionEntryNode(node); node = node->next)
+  {
+   switch (node->v.type)
+   {
+    case EntryType::Resource:
+    {
+     PrintSingleResourceMember(node->v.resource, 0);
+    } break;
+    case EntryType::String:
+    {
+     PrintIndent(0);
+     printf("%.*s\n", PRINT_STR8(node->v.str));
+    } break;
+    case EntryType::Number:
+    {
+     switch (node->v.number.type)
+     {
+      case Number_Integer:
+      {
+       printf("%lld\n", node->v.number.s64);
+      } break;
+      case Number_Decimal:
+      {
+       Temp temp = ScratchBegin(0, 0);
+       String8 str = Str8FromDecimal(temp.arena, node->v.number.decimal);
+       printf("%.*s\n", PRINT_STR8(str));
+       ScratchEnd(temp);
+      } break;
+     }
+    } break;
+    case EntryType::Boolean:
+    {
+     if (node->v.b) { printf("true\n"); }
+     else { printf("false\n"); }
+    } break;
+    case EntryType::Iso8601:
+    {
+     PrintISO8601_Time(node->v.time);
+     printf("\n");
+    } break;
+   }
 
-  printf("\n\n");
-	}
+   printf("\n\n");
+  }
 
-	printf("\n--------------------------------\n");
-	printf("Collection Count: %llu\n", col.count);
-}
+  printf("\n--------------------------------\n");
+  printf("Collection Count: %llu\n", col.count);
+ }
+};
 
 ND_ContextNode*
 DeserializeFile(const char* fn, nf_fhir_r4::Resource** res)
@@ -374,109 +375,6 @@ DeserializeFile(const char* fn, nf_fhir_r4::Resource** res)
 	return ND_DeserializeFile((char*)fn, res);
 }
 
-typedef struct ColumnDef ColumnDef;
-struct ColumnDef
-{
- String8 full_path;
- String8 name;
-};
-
-typedef struct ColumnNode ColumnNode;
-struct ColumnNode
-{
- ColumnNode* next;
- ColumnDef v;
-};
-
-typedef struct ColumnList ColumnList;
-struct ColumnList
-{
- ColumnNode* first;
- ColumnNode* last;
- size_t count;
-};
-
-ColumnList
-ParseViewDefinitions(Arena* arena)
-{
- nf_fhir_r4::Resource *res;
- ND_ContextNode *ctx_node = ND_DeserializeFile("C:\\Users\\awalley\\Code\\FHIR-in-C\\fhir_path\\view_definitions.json", &res);
-
- ColumnList list = {};
-
- Assert(res->resourceType == ResourceType::Bundle);
- nf_fhir_r4::Bundle *bundle = (nf_fhir_r4::Bundle *)res;
-
- for (int i = 0; i < bundle->_entry_count; i++)
- {
-  nf_fhir_r4::Bundle_Entry *entry = bundle->_entry[i];
-  if (entry->_resource == NULL || entry->_resource->resourceType != ResourceType::ViewDefinition)
-  {
-   continue;
-  }
-
-  nf_fhir_r4::ViewDefinition *vd = (nf_fhir_r4::ViewDefinition *)entry->_resource;
-  NullableString8 resource_name = vd->_resource;
-
-  for (int j = 0; j < vd->_where_count; j++)
-  {
-   nf_fhir_r4::ViewDefinition_Where *where = vd->_where[j];
-  }
-
-  // TODO(agw): this is recursive...
-  for (int j = 0; j < vd->_select_count; j++)
-  {
-   nf_fhir_r4::ViewDefinition_Select *select = vd->_select[j];
-   NullableString8 forEach = select->_forEach;
-
-   for (int k = 0; k < select->_column_count; k++)
-   {
-    nf_fhir_r4::ViewDefinition_Select_Column *column = select->_column[k];
-    NullableString8 name = column->_name;
-    NullableString8 path = column->_path;
-
-    // Full Path: Bundle.entry.resource.ofType({resource_name}).{path}
-    ColumnDef def = {};
-    if (forEach.has_value)
-    {
-     def.full_path = PushStr8F(arena, "Bundle.entry.resource.ofType(%S).%S.%S", resource_name.str8, forEach.str8, path.str8);
-    }
-    else
-    {
-     def.full_path = PushStr8F(arena, "Bundle.entry.resource.ofType(%S).%S", resource_name.str8, path.str8);
-    }
-
-    def.name = PushStr8Copy(arena, name.str8);
-    ColumnNode *node = PushStruct(arena, ColumnNode);
-    node->v = def;
-
-    QueuePush(list.first, list.last, node);
-    list.count++;
-   }
-
-  }
-
- }
-
- ND_FreeContext(ctx_node);
-
- return list;
-}
-
-void
-ExecuteViewDefinitions(ColumnList list, FP_ExecutionContext *context)
-{
- for (ColumnNode *node = list.first; node; node = node->next)
- {
-  Temp temp = ScratchBegin(0, 0);
-  String8 path_expr = node->v.full_path;
-  Piece* piece = Antlr_ParseExpression(path_expr);
-  context->root_node = piece;
-  Collection col = ExecutePieces(temp.arena, context);
-  PrintCollection(col);
-  ScratchEnd(temp);
- }
-}
 
 int 
 main(void)
@@ -547,8 +445,7 @@ main(void)
   }
  }
 
- ColumnList column_list = ParseViewDefinitions(meta_arena);
- ExecuteViewDefinitions(column_list, &context);
+ ReadAndExecuteTests(Str8Lit(""));
 
 	char line[4096];
 	Assert(expr.size < sizeof(line));

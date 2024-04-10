@@ -80,10 +80,3 @@ PackStr8_64(Arena *arena, String8 str)
 	memcpy(bytes, str.str, str.size);
 	return Str8((U8*)bytes, str.size + 64);
 }
-
-ND_ContextNode*
-ND_DeserializeString(String8 str, Resource **res)
-{
-	void *context = nd_state.DeserializeString((char*)str.str, str.size, res);
-	return (ND_ContextNode*)context;
-}

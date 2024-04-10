@@ -47,6 +47,7 @@ namespace native_fhir
 		Piece_String,
 		Piece_Date,
 		Piece_Number,
+  Piece_Boolean,
 
   Piece_Divide,
   Piece_Mod,
@@ -141,6 +142,7 @@ namespace native_fhir
 			Number num;
 			NullableString8 str;
 			ISO8601_Time time;
+   B32 b;
 		} value;
 	};
 

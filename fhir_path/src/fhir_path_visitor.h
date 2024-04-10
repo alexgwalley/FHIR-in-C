@@ -61,6 +61,7 @@ namespace native_fhir
   std::any visitDateLiteral(fhirpathParser::DateLiteralContext *ctx);
   std::any visitDateTimeLiteral(fhirpathParser::DateTimeLiteralContext *ctx);
   std::any visitTimeLiteral(fhirpathParser::TimeLiteralContext *ctx);
+  std::any visitBooleanLiteral(fhirpathParser::BooleanLiteralContext *ctx);
 
 
  };

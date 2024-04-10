@@ -177,7 +177,7 @@ namespace native_fhir
 
 					SerializedClassMetadata *class_ptr = (SerializedClassMetadata*)U8_OFFSET(curr_section, sizeof(ClassMetadataSection));
 					int idx = 0;
-					while (class_ptr->offset_to_next)
+					for (;idx < meta.classes_count; idx++)
 					{
 						Assert(idx < meta.classes_count);
 						Assert(class_ptr->magic == SERIALIZED_CM_MAGIC);
@@ -196,7 +196,6 @@ namespace native_fhir
 							s_member = (SerializedClassMemberMetadata *)U8_OFFSET(s_member, size);
 						}
 
-						idx++;
 					}
 
 				} break;
