@@ -103,6 +103,21 @@ struct Collection
 	S64 count;
 };
 
+typedef struct CollectionNode CollectionNode;
+struct CollectionNode
+{
+ CollectionNode *next;
+ Collection v;
+};
+
+typedef struct CollectionList CollectionList;
+struct CollectionList
+{
+ CollectionNode *first;
+ CollectionNode *last;
+ int count;
+};
+
 typedef struct FP_ExecutionContext FP_ExecutionContext;
 struct FP_ExecutionContext
 {

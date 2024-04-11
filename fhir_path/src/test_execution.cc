@@ -43,8 +43,9 @@ ParseViewSelect(Arena *arena, nf_fhir_r4::ViewDefinition_Select* select, String8
   {
    def.full_path = PushStr8F(arena, "%S.%S", resource_name, path.str8);
   }
-
   def.name = PushStr8Copy(arena, name.str8);
+  def.collection = column->_collection;
+
   ColumnNode *node = PushStruct(arena, ColumnNode);
   node->v = def;
 
@@ -176,35 +177,46 @@ ExecuteViewDefinitions(ColumnList columns, FP_Test test, FP_ExecutionContext *co
   next_res[idx] = node->v.resource;
  }
 
+ DataTable data_table = {};
+ data_table.num_rows = next_res_count;
+ data_table.rows = PushArray(temp.arena, DataRow, data_table.num_rows);
+
  for (int i = 0; i < next_res_count; i++)
  {
-  Collection all_columns = { };
+  DataRow *row = &data_table.rows[i];
+  row->count = columns.count;
+  row->data = PushArray(temp.arena, Collection, next_res_count);
+
   for (ColumnNode *node = columns.first; node; node = node->next)
   {
    context->res_count = 1;
    context->resources = &next_res[i];
 
    Temp inner_temp = ScratchBegin(&temp.arena, 1);
-   String8 path_expr = node->v.full_path;
-   Piece* piece = Antlr_ParseExpression(path_expr);
-   context->root_node = piece;
-   CollectionEntry res_entry = {};
+   context->root_node = Antlr_ParseExpression(node->v.full_path);
 
-   // This is one row, match with row from test expectations
+   CollectionEntry res_entry = {};
    Collection col = ExecutePieces(temp.arena, context);
-   MergeCollections(&all_columns, &col);
-   printf("column name: %.*s\n", node->v.name.size, node->v.name.str);
+   MergeCollections(&row->data[i], &col);
+
+   if (node->v.collection.has_value && node->v.collection.value == false && col.count > 1)
+   {
+    // TODO(agw): passes test
+    if (test.expect_error) return;
+    FP_Assert(false, context, Str8Lit("Test may not have collection"));
+   }
+
    ScratchEnd(inner_temp);
   }
-
-   FP_TestResult expectation = test.expectations[i];
-   B32 equal = CollectionEqual(all_columns, expectation.values);
-   PrintCollection(all_columns);
-   if (!equal)
-   {
-    printf("Collections not equal! Test: %.*s\n", PRINT_STR8(test.title));
-   }
  }
+
+ // ~ Compare results
+ for (int i = 0; i < test.expectations.num_rows; i++)
+ {
+  DataRow expectation = test.expectations.rows[i];
+//  B32 equal = CollectionEqual(all_columns, expectation);
+ }
+
 
 
  ScratchEnd(temp);
@@ -272,11 +284,17 @@ CollectionFromTestArray(Arena *arena, simdjson::ondemand::array array)
  return col;
 }
 
-FP_TestResult
+DataRow
 DeserializeTestResult(Arena *arena, simdjson::ondemand::object base)
 {
- FP_TestResult test_res = {};
+ DataRow test_res = {};
+ //test_res.columns = PushStruct(arena, ColumnList);
 
+ for (auto field : base) { test_res.count++; }
+
+ base.reset();
+
+ int i = 0;
  for (auto field : base)
  {
 		String8 key = String8FromStringView(arena, field.unescaped_key());
@@ -285,7 +303,7 @@ DeserializeTestResult(Arena *arena, simdjson::ondemand::object base)
   simdjson::ondemand::value value = field.value();
   switch (value.type())
 		{
-			case simdjson::ondemand::json_type::string: // copy into dest
+			case simdjson::ondemand::json_type::string:
 			{
 				std::string_view str_view;
 				auto res = value.get(str_view);
@@ -293,7 +311,7 @@ DeserializeTestResult(Arena *arena, simdjson::ondemand::object base)
 
     String8 str8 = String8FromStringView(arena, str_view);
     CollectionEntry ent = CollectionEntryFromString(str8);
-    CollectionPushEntry(arena, &test_res.values, ent);
+    CollectionPushEntry(arena, &test_res.data[i], ent);
 			} break;
 			case simdjson::ondemand::json_type::number:
 			{
@@ -306,7 +324,7 @@ DeserializeTestResult(Arena *arena, simdjson::ondemand::object base)
     Number num = Number::FromString(str);
 
     CollectionEntry ent = CollectionEntryFromNumber(num);
-    CollectionPushEntry(arena, &test_res.values, ent);
+    CollectionPushEntry(arena, &test_res.data[i], ent);
 			} break;
 			case simdjson::ondemand::json_type::boolean: // copy into dest
 			{
@@ -315,7 +333,7 @@ DeserializeTestResult(Arena *arena, simdjson::ondemand::object base)
 				Assert(res == simdjson::error_code::SUCCESS);
 
     CollectionEntry ent = CollectionEntryFromBoolean((B32)_boolean);
-    CollectionPushEntry(arena, &test_res.values, ent);
+    CollectionPushEntry(arena, &test_res.data[i], ent);
 			} break;
 			case simdjson::ondemand::json_type::object: // copy into dest
 			{
@@ -326,8 +344,12 @@ DeserializeTestResult(Arena *arena, simdjson::ondemand::object base)
 				simdjson::ondemand::array arr;
 				auto res = value.get(arr);
 
+    Collection col = CollectionFromTestArray(arena, arr);
+    test_res.data[i] = col;
 			} break;
 		}
+
+  i++;
  }
 
  return test_res;
@@ -360,20 +382,31 @@ DeserializeTest(Arena *arena, simdjson::ondemand::object base)
  Assert(res->resourceType == nf_fhir_r4::ResourceType::ViewDefinition);
  test.vd = (nf_fhir_r4::ViewDefinition*)res;
 
- for (simdjson::ondemand::object obj : base["expect"])
+ if (base["expect"].error() == simdjson::SUCCESS)
  {
-  test.expect_count++;
+  for (simdjson::ondemand::object obj : base["expect"])
+  {
+   test.expectations.num_rows++;
+  }
+
+  base.reset();
+
+  test.expectations.rows = PushArray(arena, DataRow, test.expectations.num_rows);
+
+  S64 expect_idx = 0;
+  for (simdjson::ondemand::object obj : base["expect"])
+  {
+   DataRow result = DeserializeTestResult(arena, obj);
+   test.expectations.rows[expect_idx] = result;
+   expect_idx++;
+  }
  }
-
- base.reset();
-
- test.expectations = PushArray(arena, FP_TestResult, test.expect_count);
- S64 expect_idx = 0;
- for (simdjson::ondemand::object obj : base["expect"])
+ else
  {
-  FP_TestResult result = DeserializeTestResult(arena, obj);
-  test.expectations[expect_idx] = result;
-  expect_idx++;
+  simdjson::ondemand::value value = base["expectError"];
+  bool b = false;
+  value.get(b);
+  test.expect_error = b;
  }
 
  return test;
@@ -474,7 +507,7 @@ ExecuteTestCollection(FP_TestCollection col)
 void
 ReadAndExecuteTests(String8 test_folder)
 {
- String8 test_file_name = Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\where.json");
+ String8 test_file_name = Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\basic.json");
 
 
  Temp temp = ScratchBegin(0, 0);

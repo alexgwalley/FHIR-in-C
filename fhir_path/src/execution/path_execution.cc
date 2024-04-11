@@ -162,14 +162,13 @@ namespace native_fhir
   if (dst->last)
   {
    dst->last->next = src->first;
-   dst->last = src->first;
   }
   else
   {
    dst->first = src->first;
-   dst->last = src->last;
   }
 
+  dst->last = src->last;
   dst->count += src->count;
  }
 

@@ -4,48 +4,56 @@
 namespace native_fhir
 {
 
-typedef struct VD_Where VD_Where;
-struct VD_Where
-{
- String8 full_path;
- String8 desc;
-};
-
-typedef struct ColumnDef ColumnDef;
-struct ColumnDef
-{
- String8 full_path;
- String8 name;
-};
-
-typedef struct ColumnNode ColumnNode;
-struct ColumnNode
-{
- ColumnNode* next;
- ColumnDef v;
-};
-
-typedef struct ColumnList ColumnList;
-struct ColumnList
-{
- ColumnNode* first;
- ColumnNode* last;
- size_t count;
-
- size_t where_count;
- VD_Where* wheres;
-};
-
- struct FP_TestResult
+ typedef struct VD_Where VD_Where;
+ struct VD_Where
  {
+  String8 full_path;
+  String8 desc;
+ };
+
+ typedef struct ColumnDef ColumnDef;
+ struct ColumnDef
+ {
+  String8 full_path;
+  String8 name;
+  NullableBoolean collection;
+ };
+
+ typedef struct ColumnNode ColumnNode;
+ struct ColumnNode
+ {
+  ColumnNode* next;
+  ColumnDef v;
+ };
+
+ typedef struct ColumnList ColumnList;
+ struct ColumnList
+ {
+  ColumnNode* first;
+  ColumnNode* last;
+  size_t count;
+
+  size_t where_count;
+  VD_Where* wheres;
+ };
+
+ struct DataRow
+ {
+  int count;
   String8List column_names;
-  Collection values;
+  Collection *data;
+ };
+
+ struct DataTable
+ {
+  int num_rows;
+  DataRow *rows;
  };
 
  struct FP_TestResultNode
  {
   FP_TestResultNode *next;
-  FP_TestResult v;
+  DataRow v;
  };
 
  struct FP_Test
@@ -55,9 +63,8 @@ struct ColumnList
   nf_fhir_r4::ViewDefinition *vd;
   ND_ContextNode* ctx;
 
-  
-  S64 expect_count;
-  FP_TestResult *expectations;
+  B32 expect_error;
+  DataTable expectations;
  };
 
  struct FP_TestNode
