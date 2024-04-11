@@ -316,7 +316,7 @@ namespace native_fhir
  void
  PrintCollection(Collection col)
  {
-  printf("Collection: -----------------\n\n");
+  printf("Collection: -----------------\n");
   TimeFunction;
   for (CollectionEntryNode *node = col.first; !IsNilCollectionEntryNode(node); node = node->next)
   {
@@ -359,11 +359,9 @@ namespace native_fhir
      printf("\n");
     } break;
    }
-
-   printf("\n\n");
   }
 
-  printf("\n--------------------------------\n");
+  printf("-------------------------------- ");
   printf("Collection Count: %llu\n", col.count);
  }
 };
@@ -386,25 +384,14 @@ main(void)
 	tctx.is_main_thread = 1;
 	SetThreadCtx(&tctx);
 
- Arena *test_arena = ArenaAlloc(Kilobytes(4));
- for (int i = 0; i < 10; i++)
- {
-  void* mem = ArenaPush(test_arena, Megabytes(512));
- }
-
- ArenaPopTo(test_arena, 0);
-
-	// TODO(agw): this needs to be a chained arena...
 	Arena *meta_arena = ArenaAlloc(Megabytes(64));
 	MetadataFile file = M_Deserialize(meta_arena, &g_metadata, ArrayCount(g_metadata));
 	g_meta_file = PushStruct(meta_arena, MetadataFile);
 	MemoryCopy(g_meta_file, &file, sizeof(MetadataFile));
-
-
  
  /////////////////// 
  // Parse Expression
-	String8 expr = Str8Lit("Bundle.entry.exists() and Bundle.entry.empty()");
+	String8 expr = Str8Lit("");
 
  ND_Init(1);
 
@@ -444,8 +431,6 @@ main(void)
   resource_contexts.count++;
  }
 
-
-
  if (setjmp(context.error_buf) != 0)
  {
   if (context.error_message.size > 0)
@@ -474,23 +459,27 @@ main(void)
 
 		String8 line_str = Str8C(line);
 
-		ArenaPopTo(context.arena, 0);
-  context.entry_stack_first = context.entry_stack_last = &nil_entry_node;
-  context.meta_file = g_meta_file;
+  if (line_str.size > 0)
+  {
 
-		BeginProfile();
+   ArenaPopTo(context.arena, 0);
+   context.entry_stack_first = context.entry_stack_last = &nil_entry_node;
+   context.meta_file = g_meta_file;
 
-		Piece *tok = Antlr_ParseExpression(line_str);
-		context.root_node = tok;
+   BeginProfile();
 
-		Collection collection = ExecutePieces(context.arena, &context);
+   Piece *tok = Antlr_ParseExpression(line_str);
+   context.root_node = tok;
 
-		PrintCollection(collection);
+   Collection collection = ExecutePieces(context.arena, &context);
 
-		EndAndPrintProfile();
+   PrintCollection(collection);
 
-		double gb2 = context.arena->commit_pos / (double)Gigabytes(1);
-		printf("context arena: %f GB\n", gb2);
+   EndAndPrintProfile();
+
+   double gb2 = context.arena->commit_pos / (double)Gigabytes(1);
+   printf("context arena: %f GB\n", gb2);
+  }
 
 		fgets(&line[0], ArrayCount(line), stdin);
 	}

@@ -80,6 +80,18 @@ namespace native_fhir
   return ret;
  }
 
+ CollectionEntry
+ CollectionEntryFromString(String8 str)
+ {
+  CollectionEntry entry = {};
+  entry.type = EntryType::String;
+  NullableString8 nstr = {};
+  nstr.has_value = 1;
+  nstr.str8 = str;
+  entry.str = nstr;
+  return entry;
+ }
+
  Collection
  CollectionFromString(Arena *arena, NullableString8 str)
  {
@@ -87,6 +99,15 @@ namespace native_fhir
   entry.type = EntryType::String;
   entry.str = str;
   return CollectionFromEntry(arena, entry);
+ }
+
+ CollectionEntry
+ CollectionEntryFromNumber(Number num)
+ {
+  CollectionEntry entry = {};
+  entry.type = EntryType::Number;
+  entry.number = num;
+  return entry;
  }
 
  Collection
@@ -117,6 +138,15 @@ namespace native_fhir
   return CollectionFromEntry(arena, entry);
  }
 
+ CollectionEntry
+ CollectionEntryFromBoolean(B32 b)
+ {
+  CollectionEntry entry = {};
+  entry.type = EntryType::Boolean;
+  entry.b = b;
+  return entry;
+ }
+
  Collection
  CollectionFromBoolean(Arena *arena, B32 b)
  {
@@ -141,6 +171,36 @@ namespace native_fhir
   }
 
   dst->count += src->count;
+ }
+
+ B32
+ CollectionEqual(Collection a, Collection b)
+ {
+  if (a.count != b.count) return false;
+
+  for (CollectionEntryNode *a_node = a.first, *b_node = b.first;
+   a_node && b_node;
+   a_node = a_node->next, b_node = b_node->next)
+  {
+   if (a_node->v.type != b_node->v.type) return false;
+
+   B32 equal = false;
+   switch (a_node->v.type)
+   {
+    case EntryType::String:
+    {
+     equal = Str8Match(a_node->v.str.str8, b_node->v.str.str8, 0);
+    } break;
+    default:
+    {
+     equal = memcmp(&a_node->v, &b_node->v, sizeof(a_node->v)) == 0;
+    };
+   }
+
+   if (!equal) return false;
+  }
+
+  return true;
  }
 
 
@@ -179,6 +239,7 @@ namespace native_fhir
    FP_Assert(mem, context, PushStr8F(context->arena, "Could not find member \"%S\" in resource type: %S", member_name, resource_type_pairs[(int)entry.resource->resourceType].str));
    Assert(mem);
 
+
    // TODO(agw): this type may change based on build
    SerializedClassMetadata *class_meta = M_GetClassMetadata(context->meta_file, (int)entry.resource->resourceType);
    SerializedClassMemberMetadata *member_meta = M_GetClassMemberMetadata(class_meta, mem->member_index);
@@ -199,14 +260,21 @@ namespace native_fhir
      // Desired ValueType
      value_type = (ValueType)mem->union_type_type;
 
+     // NOTE(agw): Unknown type...
      SerializedClassMemberMetadata *enum_meta = M_GetClassMemberMetadata(class_meta, mem->member_index + 1);
      U32 enum_value = DEREF_VALUE(entry.resource, enum_meta->offset, U32);
      SerializedValueTypeAndName tan = M_GetClassMemberType(member_meta, enum_value);
      ValueType actual_value_type = tan.type;
-     if (value_type != (ValueType)actual_value_type)
+
+     if (value_type != (ValueType)actual_value_type && value_type != ValueType::Choice)
      {
       value_type = ValueType::Unknown;
      }
+     else
+     {
+      value_type = actual_value_type;
+     }
+
     }
     CollectionEntry ent = {};
 
@@ -214,11 +282,9 @@ namespace native_fhir
     {
      case VALUE_TYPE_STRING_CASES:
      {
-
       NullableString8 str = *(NullableString8*)mem_ptr;
       if (str.has_value) { ent.str = str; ent.type = EntryType::String; }
       CollectionPushEntry(arena, &ret, ent);
-
      } break;
      case ValueType::ClassReference:
      { 
@@ -671,7 +737,11 @@ namespace native_fhir
 
      SLLStackPush(context->entry_stack_first, cpy);
 
-     EmptyBool result = ExecuteBooleanExpressionOnCollectionEntry(temp.arena, context, &n->v, func_node->params.first->v);
+     Collection col = ExecuteExpression(temp.arena, context, func_node->params.first->v);
+     FP_Assert(col.count == 0 || col.first->v.type == EntryType::Boolean, context, Str8Lit("Where expression needs a boolean to test upon."));
+     
+     EmptyBool result = (col.count == 0) ? EmptyBool::Empty : EmptyBoolFromBool(col.first->v.b);
+//     EmptyBool result = ExecuteBooleanExpressionOnCollectionEntry(temp.arena, context, &n->v, func_node->params.first->v);
 
      if (result != EmptyBool::True)
      {
@@ -718,16 +788,71 @@ namespace native_fhir
     FP_Assert(type_piece->type == Piece_MemberInvocation, context, Str8Lit("Function \"OfType\" expects a parameter of type Identifier"));
 
     const ResourceNameTypePair* pair = NF_ResourceNameTypePairFromString8(type_piece->slice);
-    FP_Assert(pair, context, PushStr8F(context->arena, "Could not find resource type \"%S\"", node->slice));
+    ValueType value_type = ValueType::Unknown;
+
+    // NOTE(agw): type_piece->slice can be _any_ fhir type.
+    if (!pair)
+    {
+     for (int i = 0; i < ArrayCount(native_fhir::value_type_meta); i++)
+     {
+      for (int j = 0; j < ArrayCount(native_fhir::value_type_meta[i].fhir_names); j++)
+      {
+       if (Str8Match(native_fhir::value_type_meta[i].fhir_names[j], type_piece->slice, 0))
+       {
+         value_type = native_fhir::value_type_meta[i].type;
+         break;
+       }
+      }
+      if (value_type != ValueType::Unknown) break;
+     }
+    }
+    else
+    {
+     value_type = ValueType::ClassReference;
+    }
 
     Collection left_col = ExecuteExpression(temp.arena, context, node->child[0]);
-    for (CollectionEntryNode *n = left_col.first; !IsNilCollectionEntryNode(n); n = n->next)
-    {
-     FP_Assert(n->v.type == EntryType::Resource, context, Str8Lit("Collection Entry must be of type \"Resource\" to be acted upon in OfType function"));
-     B32 correct_type = (int)n->v.resource->resourceType == pair->type;
+    EntryType correct_entry_type = EntryType::Unknown;
 
-     if (correct_type) { CollectionPushEntry(arena, &ret, n->v); }
+    switch (value_type)
+    {
+     case VALUE_TYPE_STRING_CASES: 
+     {
+      for (CollectionEntryNode *n = left_col.first; !IsNilCollectionEntryNode(n); n = n->next)
+      {
+       B32 correct_type = n->v.type == EntryType::String;
+       if (correct_type) { CollectionPushEntry(arena, &ret, n->v); }
+      }
+     } break;
+     case VALUE_TYPE_TIME_CASES: 
+     {
+      for (CollectionEntryNode *n = left_col.first; !IsNilCollectionEntryNode(n); n = n->next)
+      {
+       B32 correct_type = n->v.type == EntryType::Iso8601;
+       if (correct_type) { CollectionPushEntry(arena, &ret, n->v); }
+      }
+     } break;
+     case ValueType::Integer:
+     case ValueType::Integer64:
+     case ValueType::Decimal:
+     {
+      for (CollectionEntryNode *n = left_col.first; !IsNilCollectionEntryNode(n); n = n->next)
+      {
+       NumberType num_type = value_type == ValueType::Decimal ? Number_Decimal : Number_Integer;
+       B32 correct_type = n->v.type == EntryType::Number && n->v.number.type == num_type;
+       if (correct_type) { CollectionPushEntry(arena, &ret, n->v); }
+      }
+     } break;
+     case ValueType::ClassReference:
+     {
+      for (CollectionEntryNode *n = left_col.first; !IsNilCollectionEntryNode(n); n = n->next)
+      {
+       B32 correct_type = n->v.type == EntryType::Resource && (int)n->v.resource->resourceType == pair->type;
+       if (correct_type) { CollectionPushEntry(arena, &ret, n->v); }
+      }
+     } break;
     }
+
     ScratchEnd(temp);
 
    } break;

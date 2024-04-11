@@ -95,6 +95,12 @@ case ValueType::Instant\
 		ClassReference,
 		ResourceType,
 		ArrayCount,
+  /*
+  NOTE(agw): kind of ugly but this is used to signify that the value is a choice,
+  i.e. value[x] which could be one of many, ex. integer, code, etc.
+  should only really be used when trying to get an unknown typed entry
+  */
+  Choice, 
 		Count
 	};
 

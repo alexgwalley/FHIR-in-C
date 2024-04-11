@@ -5,40 +5,64 @@ Piece* Antlr_ParseExpression(String8 str);
 Collection ExecutePieces(Arena *arena, FP_ExecutionContext* context);
 void PrintCollection(Collection col);
 
-typedef struct VD_Where VD_Where;
-struct VD_Where
+local_function void
+MergeColumnLists(ColumnList *dst, ColumnList *src)
 {
- String8 full_path;
- String8 desc;
-};
+ if (dst->last)
+ {
+  dst->last->next = src->first;
+  dst->last = src->first;
+ }
+ else
+ {
+  dst->first = src->first;
+  dst->last = src->last;
+ }
 
-typedef struct ColumnDef ColumnDef;
-struct ColumnDef
+ dst->count += src->count;
+}
+
+local_function ColumnList
+ParseViewSelect(Arena *arena, nf_fhir_r4::ViewDefinition_Select* select, String8 resource_name)
 {
- String8 full_path;
- String8 name;
-};
+ ColumnList list = {};
+ NullableString8 forEach = select->_forEach;
 
-typedef struct ColumnNode ColumnNode;
-struct ColumnNode
-{
- ColumnNode* next;
- ColumnDef v;
-};
+ for (int k = 0; k < select->_column_count; k++)
+ {
+  nf_fhir_r4::ViewDefinition_Select_Column *column = select->_column[k];
+  NullableString8 name = column->_name;
+  NullableString8 path = column->_path;
 
-typedef struct ColumnList ColumnList;
-struct ColumnList
-{
- ColumnNode* first;
- ColumnNode* last;
- size_t count;
+  ColumnDef def = {};
+  if (forEach.has_value)
+  {
+   def.full_path = PushStr8F(arena, "%S.%S.%S", resource_name, forEach.str8, path.str8);
+  }
+  else
+  {
+   def.full_path = PushStr8F(arena, "%S.%S", resource_name, path.str8);
+  }
 
- size_t where_count;
- VD_Where* wheres;
-};
+  def.name = PushStr8Copy(arena, name.str8);
+  ColumnNode *node = PushStruct(arena, ColumnNode);
+  node->v = def;
 
+  QueuePush(list.first, list.last, node);
+  list.count++;
+ }
 
-ColumnList
+ for (int j = 0; j < select->_select_count; j++)
+ {
+  nf_fhir_r4::ViewDefinition_Select *inner_select = select->_select[j];
+  ColumnList inner_list = ParseViewSelect(arena, inner_select, resource_name);
+  MergeColumnLists(&list, &inner_list);
+ }
+
+ return list;
+}
+
+local_function ColumnList
 ParseViewDefinition(Arena* arena, nf_fhir_r4::ViewDefinition* vd)
 {
 
@@ -49,7 +73,7 @@ ParseViewDefinition(Arena* arena, nf_fhir_r4::ViewDefinition* vd)
   nf_fhir_r4::ViewDefinition_Where *where = vd->_where[j];
   list.where_count = vd->_where_count;
   VD_Where w = {};
-  w.full_path = where->_path.str8;
+  w.full_path = PushStr8F(arena, "%S.%S", vd->_resource.str8, where->_path.str8);
   w.desc = where->_description.str8;
   list.wheres[j] = w;
  }
@@ -58,34 +82,9 @@ ParseViewDefinition(Arena* arena, nf_fhir_r4::ViewDefinition* vd)
  for (int j = 0; j < vd->_select_count; j++)
  {
   nf_fhir_r4::ViewDefinition_Select *select = vd->_select[j];
-  NullableString8 forEach = select->_forEach;
-
-  for (int k = 0; k < select->_column_count; k++)
-  {
-   nf_fhir_r4::ViewDefinition_Select_Column *column = select->_column[k];
-   NullableString8 name = column->_name;
-   NullableString8 path = column->_path;
-
-   // Full Path: Bundle.entry.resource.ofType({resource_name}).{path}
-   NullableString8 resource_name = vd->_resource;
-   ColumnDef def = {};
-   if (forEach.has_value)
-   {
-    def.full_path = PushStr8F(arena, "%S.%S.%S", resource_name.str8, forEach.str8, path.str8);
-   }
-   else
-   {
-    def.full_path = PushStr8F(arena, "%S.%S", resource_name.str8, path.str8);
-   }
-
-   def.name = PushStr8Copy(arena, name.str8);
-   ColumnNode *node = PushStruct(arena, ColumnNode);
-   node->v = def;
-
-   QueuePush(list.first, list.last, node);
-   list.count++;
-  }
-
+  Assert(vd->_resource.has_value);
+  ColumnList inner_list = ParseViewSelect(arena, select, vd->_resource.str8);
+  MergeColumnLists(&list, &inner_list);
  }
 
  return list;
@@ -118,74 +117,69 @@ ParseViewDefinitions(Arena* arena)
 }
 
 void
-ExecuteViewDefinitions(ColumnList list, FP_ExecutionContext *context, int res_count, nf_fhir_r4::Resource** res)
+ExecuteViewDefinitions(ColumnList columns, FP_Test test, FP_ExecutionContext *context, int res_count, nf_fhir_r4::Resource** res)
 {
 
-		if (setjmp(context->error_buf) != 0)
-		{
-			if (context->error_message.size > 0)
-			{
-				printf("ERROR: %.*s\n", PRINT_STR8(context->error_message));
-			}
-   return;
-		}
+ if (setjmp(context->error_buf) != 0)
+ {
+  if (context->error_message.size > 0)
+  {
+   printf("ERROR: %.*s\n", PRINT_STR8(context->error_message));
+  }
+  return;
+ }
 
-
- // TODO(agw): this is awful....clean this
  Temp temp = ScratchBegin(0, 0);
  context->res_count = res_count;
  context->resources = res;
- for (int i = 0; i < list.where_count; i++)
- {
-  VD_Where where = list.wheres[i];
 
+ Collection valid_resources = {};
+ for (int i = 0; i < res_count; i++)
+ {
+  const ResourceNameTypePair* pair = NF_ResourceNameTypePairFromString8(test.vd->_resource.str8);
+  if (pair && (nf_fhir_r4::ResourceType)pair->type != res[i]->resourceType) continue;
+  CollectionEntry ent = {};
+  ent.type = EntryType::Resource;
+  ent.resource = res[i];
+  CollectionPushEntry(temp.arena, &valid_resources, ent);
+ }
+
+
+ for (int i = 0; i < columns.where_count; i++)
+ {
+  VD_Where where = columns.wheres[i];
   Piece* piece = Antlr_ParseExpression(where.full_path);
 
-  Collection passes_where = {};
-  int next_res_count = context->res_count;
-  nf_fhir_r4::Resource** next_res = context->resources;
-  for (int j = 0; j < next_res_count; j++)
+  for (CollectionEntryNode *node = valid_resources.first; node; node = node->next)
   {
    context->root_node = piece;
    context->res_count = 1;
-   context->resources = &next_res[j];
+   context->resources = &node->v.resource;
    context->entry_stack_first = context->entry_stack_last = &nil_entry_node;
    context->meta_file = g_meta_file;
 
    Collection single_res = ExecutePieces(temp.arena, context);
-   if (single_res.count > 0)
+   if (single_res.count == 0 || !single_res.first->v.b)
    {
-    if (single_res.first->v.b)
-    {
-     CollectionEntry ent = {};
-     ent.type = EntryType::Resource;
-     ent.resource = next_res[j];
-     CollectionPushEntry(temp.arena, &passes_where, ent);
-    }
+    DLLRemove(valid_resources.first, valid_resources.last, node);
+    valid_resources.count--;
    }
   }
-
-  int num_true = passes_where.count;
-  nf_fhir_r4::Resource** next_resources = PushArray(temp.arena, nf_fhir_r4::Resource*, num_true);
-  int j = 0;
-  int next_idx = 0;
-  for (CollectionEntryNode *n = passes_where.first; n; n = n->next, j++)
-  {
-   next_resources[next_idx] = n->v.resource;
-   next_idx++;
-  }
-
-  context->res_count = num_true;
-  context->resources = next_resources;
  }
 
- // TODO(agw): first filter the resources, then execute path for each resource
- int next_res_count = context->res_count;
- nf_fhir_r4::Resource** next_res = context->resources;
+ int next_res_count = valid_resources.count;
+ nf_fhir_r4::Resource** next_res = PushArray(temp.arena, nf_fhir_r4::Resource*, valid_resources.count);
+
+ int idx = 0;
+ for (CollectionEntryNode *node = valid_resources.first; node; node = node->next, idx++)
+ {
+  next_res[idx] = node->v.resource;
+ }
 
  for (int i = 0; i < next_res_count; i++)
  {
-  for (ColumnNode *node = list.first; node; node = node->next)
+  Collection all_columns = { };
+  for (ColumnNode *node = columns.first; node; node = node->next)
   {
    context->res_count = 1;
    context->resources = &next_res[i];
@@ -195,10 +189,21 @@ ExecuteViewDefinitions(ColumnList list, FP_ExecutionContext *context, int res_co
    Piece* piece = Antlr_ParseExpression(path_expr);
    context->root_node = piece;
    CollectionEntry res_entry = {};
+
+   // This is one row, match with row from test expectations
    Collection col = ExecutePieces(temp.arena, context);
-   PrintCollection(col);
+   MergeCollections(&all_columns, &col);
+   printf("column name: %.*s\n", node->v.name.size, node->v.name.str);
    ScratchEnd(inner_temp);
   }
+
+   FP_TestResult expectation = test.expectations[i];
+   B32 equal = CollectionEqual(all_columns, expectation.values);
+   PrintCollection(all_columns);
+   if (!equal)
+   {
+    printf("Collections not equal! Test: %.*s\n", PRINT_STR8(test.title));
+   }
  }
 
 
@@ -214,12 +219,118 @@ String8FromStringView(Arena* arena, std::string_view view)
  return PushStr8Copy(arena, str);
 }
 
+Collection
+CollectionFromTestArray(Arena *arena, simdjson::ondemand::array array)
+{
+ Collection col = {};
+
+ for (auto field : array)
+ {
+  simdjson::ondemand::value value = field.value();
+  switch (value.type())
+  {
+			{
+				std::string_view str_view;
+				auto res = value.get(str_view);
+				Assert(res == simdjson::error_code::SUCCESS);
+
+    String8 str8 = String8FromStringView(arena, str_view);
+    CollectionEntry ent = CollectionEntryFromString(str8);
+    CollectionPushEntry(arena, &col, ent);
+			} break;
+			case simdjson::ondemand::json_type::number:
+			{
+    auto raw_value = field.value().raw_json();
+    Assert(raw_value.error() == simdjson::error_code::SUCCESS);
+
+    std::string_view view = raw_value.value_unsafe();
+
+    String8 str = String8FromStringView(arena, view);
+    Number num = Number::FromString(str);
+
+    CollectionEntry ent = CollectionEntryFromNumber(num);
+    CollectionPushEntry(arena, &col, ent);
+			} break;
+			case simdjson::ondemand::json_type::boolean: // copy into dest
+			{
+				bool _boolean;
+				auto res = value.get(_boolean);
+				Assert(res == simdjson::error_code::SUCCESS);
+
+    CollectionEntry ent = CollectionEntryFromBoolean((B32)_boolean);
+    CollectionPushEntry(arena, &col, ent);
+			} break;
+
+   case simdjson::ondemand::json_type::array:
+   case simdjson::ondemand::json_type::object:
+   {
+    NotImplemented;
+   } break;
+  }
+ }
+
+ return col;
+}
+
 FP_TestResult
 DeserializeTestResult(Arena *arena, simdjson::ondemand::object base)
 {
- FP_TestResult res = {};
+ FP_TestResult test_res = {};
 
- return res;
+ for (auto field : base)
+ {
+		String8 key = String8FromStringView(arena, field.unescaped_key());
+  Str8ListPush(arena, &test_res.column_names, key);
+
+  simdjson::ondemand::value value = field.value();
+  switch (value.type())
+		{
+			case simdjson::ondemand::json_type::string: // copy into dest
+			{
+				std::string_view str_view;
+				auto res = value.get(str_view);
+				Assert(res == simdjson::error_code::SUCCESS);
+
+    String8 str8 = String8FromStringView(arena, str_view);
+    CollectionEntry ent = CollectionEntryFromString(str8);
+    CollectionPushEntry(arena, &test_res.values, ent);
+			} break;
+			case simdjson::ondemand::json_type::number:
+			{
+    auto raw_value = field.value().raw_json();
+    Assert(raw_value.error() == simdjson::error_code::SUCCESS);
+
+    std::string_view view = raw_value.value_unsafe();
+
+    String8 str = String8FromStringView(arena, view);
+    Number num = Number::FromString(str);
+
+    CollectionEntry ent = CollectionEntryFromNumber(num);
+    CollectionPushEntry(arena, &test_res.values, ent);
+			} break;
+			case simdjson::ondemand::json_type::boolean: // copy into dest
+			{
+				bool _boolean;
+				auto res = value.get(_boolean);
+				Assert(res == simdjson::error_code::SUCCESS);
+
+    CollectionEntry ent = CollectionEntryFromBoolean((B32)_boolean);
+    CollectionPushEntry(arena, &test_res.values, ent);
+			} break;
+			case simdjson::ondemand::json_type::object: // copy into dest
+			{
+    NotImplemented;
+			} break;
+			case simdjson::ondemand::json_type::array:
+			{
+				simdjson::ondemand::array arr;
+				auto res = value.get(arr);
+
+			} break;
+		}
+ }
+
+ return test_res;
 }
 
 FP_Test
@@ -248,6 +359,22 @@ DeserializeTest(Arena *arena, simdjson::ondemand::object base)
 
  Assert(res->resourceType == nf_fhir_r4::ResourceType::ViewDefinition);
  test.vd = (nf_fhir_r4::ViewDefinition*)res;
+
+ for (simdjson::ondemand::object obj : base["expect"])
+ {
+  test.expect_count++;
+ }
+
+ base.reset();
+
+ test.expectations = PushArray(arena, FP_TestResult, test.expect_count);
+ S64 expect_idx = 0;
+ for (simdjson::ondemand::object obj : base["expect"])
+ {
+  FP_TestResult result = DeserializeTestResult(arena, obj);
+  test.expectations[expect_idx] = result;
+  expect_idx++;
+ }
 
  return test;
 }
@@ -338,7 +465,7 @@ ExecuteTestCollection(FP_TestCollection col)
   printf("Test: %.*s\n", test.title.size, test.title.str);
   ColumnList columns = ParseViewDefinition(temp.arena, test.vd);
 
-  ExecuteViewDefinitions(columns, &context, col.res_count, col.res);
+  ExecuteViewDefinitions(columns, test, &context, col.res_count, col.res);
  }
 
  ScratchEnd(temp);
@@ -347,7 +474,7 @@ ExecuteTestCollection(FP_TestCollection col)
 void
 ReadAndExecuteTests(String8 test_folder)
 {
- String8 test_file_name = Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\basic.json");
+ String8 test_file_name = Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\where.json");
 
 
  Temp temp = ScratchBegin(0, 0);

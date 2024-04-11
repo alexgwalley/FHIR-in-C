@@ -24,6 +24,49 @@ namespace native_fhir
    Decimal decimal;
   };
 
+  static Number
+  FromString(String8 str)
+  {
+   Number result = {};
+   // TODO(agw): parse string to number
+   S64 parsed_int = 0;
+
+   B32 is_decimal = false;
+   for (int i = 0; i < str.size; i++)
+   {
+    if ((char)str.str[i] == '.')
+    {
+     is_decimal = true;
+    }
+   }
+
+   if (is_decimal)
+   {
+    result.type = Number_Decimal;
+    Temp temp = ScratchBegin(0, 0);
+
+    Decimal decimal = DecimalFromString(str);
+    result.decimal = decimal;
+
+    ScratchEnd(temp);
+   }
+   else
+   {
+    result.type = Number_Integer;
+    for (int i = 0; i < str.size; i++)
+    {
+     Assert(CharIsDigit((char)str.str[i]));
+
+     parsed_int *= 10;
+     parsed_int += (char)str.str[i] - '0';
+    }
+
+    result.s64 = parsed_int;
+   }
+
+   return result;
+  }
+
   static Decimal
   AsDecimal(Number const& num)
   {

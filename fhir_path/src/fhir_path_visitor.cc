@@ -373,47 +373,14 @@ namespace native_fhir
  std::any
  FhirPathVisitor::visitNumberLiteral(fhirpathParser::NumberLiteralContext *ctx)
  {
-  std::string str_text = ctx->getText();
-  
-  // TODO(agw): parse string to number
-  S64 parsed_int = 0;
-
-  B32 is_decimal = FALSE;
-  for (int i = 0; i < str_text.length(); i++)
-  {
-   if (str_text[i] == '.')
-   {
-    is_decimal = TRUE;
-   }
-  }
-
   Piece* piece = PushStruct(this->arena, Piece);
   piece->type = Piece_Number;
 
-  if (is_decimal)
-  {
-   piece->value.num.type = Number_Decimal;
-   Temp temp = ScratchBegin(0, 0);
-
-   String8 str8 = Str8C((char*)str_text.c_str());
-   Decimal decimal = DecimalFromString(str8);
-   piece->value.num.decimal = decimal;
-
-   ScratchEnd(temp);
-  }
-  else
-  {
-   piece->value.num.type = Number_Integer;
-   for (int i = 0; i < str_text.length(); i++)
-   {
-    Assert(CharIsDigit(str_text[i]));
-
-    parsed_int *= 10;
-    parsed_int += str_text[i] - '0';
-   }
-
-   piece->value.num.s64 = parsed_int;
-  }
+  std::string str_text = ctx->getText();
+  String8 str8 = Str8C((char*)str_text.c_str());
+  Number num = Number::FromString(str8);
+  
+  piece->value.num = num;
 
   return piece;
  }

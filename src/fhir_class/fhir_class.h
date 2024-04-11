@@ -44,7 +44,8 @@ namespace native_fhir
 		{ ValueType::Instant, 		sizeof(ISO8601_Time), 	 Str8Lit("Instant"), 	{Str8Lit("instant")}, 															Str8Lit("Hl7.Fhir.Model.Instant"), 		Str8Lit("ISO8601_Time"),            Str8Lit("ISO8601_Time") },
 		{ ValueType::ClassReference,sizeof(void*),      Str8Lit("ClassReference"),  {},                                                               Str8Lit(""),                                Str8Lit(""),            Str8Lit("ClassReference") },
 		{ ValueType::ResourceType, 	ENUM_SIZE, 			Str8Lit("ResourceType"),	{}, 																			Str8Lit(""),								Str8Lit("ResourceType"),Str8Lit("ResourceType")	},
-		{ ValueType::ArrayCount, 	sizeof(U64), 		Str8Lit("ArrayCount"), 		{}, 																			Str8Lit(""), 								Str8Lit("UIntPtr"),     Str8Lit("size_t")}
+		{ ValueType::ArrayCount, 	sizeof(U64), 		Str8Lit("ArrayCount"), 		{}, 																			Str8Lit(""), 								Str8Lit("UIntPtr"),     Str8Lit("size_t")},
+		{ ValueType::Choice, 	0, 		Str8Lit("Choice"), 		{}, 																			Str8Lit(""), 								Str8Lit(""),     Str8Lit("")}
 	};
 
 

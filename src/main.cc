@@ -314,6 +314,18 @@ SingleClassGperf(Arena *arena, CodeGenerationOptions *options, ClassDefinition *
         
 		if (mem.type == ClassMemberType::Union)
 		{
+   String8 choice_type_row = GPerfRow(scratch.arena,
+                                mem.fhir_name,
+                                offset,
+                                i,
+                                0,
+                                mem.clean_name,
+                                Str8Lit("Unknown"),
+                                ValueType::Choice,
+                                mem.fhir_name,
+                                mem.cardinality);
+   Str8ListPush(scratch.arena, &result_list, choice_type_row);
+
 			for (int j = 0; j < mem.types_count; j++)
 			{
                 
