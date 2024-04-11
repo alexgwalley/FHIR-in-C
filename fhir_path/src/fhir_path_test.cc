@@ -386,11 +386,20 @@ main(void)
 	tctx.is_main_thread = 1;
 	SetThreadCtx(&tctx);
 
+ Arena *test_arena = ArenaAlloc(Kilobytes(4));
+ for (int i = 0; i < 10; i++)
+ {
+  void* mem = ArenaPush(test_arena, Megabytes(512));
+ }
+
+ ArenaPopTo(test_arena, 0);
+
 	// TODO(agw): this needs to be a chained arena...
 	Arena *meta_arena = ArenaAlloc(Megabytes(64));
 	MetadataFile file = M_Deserialize(meta_arena, &g_metadata, ArrayCount(g_metadata));
 	g_meta_file = PushStruct(meta_arena, MetadataFile);
 	MemoryCopy(g_meta_file, &file, sizeof(MetadataFile));
+
 
  
  /////////////////// 

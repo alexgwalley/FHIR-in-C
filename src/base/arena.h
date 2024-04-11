@@ -5,6 +5,8 @@
 ////////////////////////////////
 //~ rjf: Constants
 
+#define ARENA_HEADER_SIZE 128
+
 #if !defined(ARENA_COMMIT_GRANULARITY)
 #define ARENA_COMMIT_GRANULARITY Kilobytes(4)
 #endif
@@ -47,12 +49,15 @@ U64 OS_PageSize(void);
 typedef struct Arena Arena;
 struct Arena
 {
+ Arena *prev;
+ Arena *current;
  U64 pos;
  U64 commit_pos;
+ U64 base_pos;
  U64 align;
- U64 size;
+ U64 reserve_size;
  Arena *ptr;
- U64 _unused_[3];
+ U64 _unused_[1];
 };
 
 typedef struct Temp Temp;

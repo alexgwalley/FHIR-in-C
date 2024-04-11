@@ -9,6 +9,8 @@
 #define Gigabytes(n)  (((U64)n) << 30)
 #define Terabytes(n)  (((U64)n) << 40)
 
+#define AlignPow2(x,b) (((x) + (b) - 1)&(~((b) - 1)))
+
 #define ArrayCount(a) (sizeof(a) / sizeof((a)[0]))
 
 //- rjf: linked list helpers
