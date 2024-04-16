@@ -14,6 +14,7 @@ namespace native_fhir
    DataChunkNode* _ = AddChunk(arena);
   }
 
+  num_values++;
   if (val.value_type == ColumnValueType::Null)
   {
    last->count++;
@@ -39,7 +40,6 @@ namespace native_fhir
   }
 
   last->count++;
-  num_values++;
  }
 
  void
@@ -327,6 +327,13 @@ namespace native_fhir
     {
      CollectionEntry ent = node->v;
      DataColumn_AddCollectionEntry(arena, context, &column, ent);
+    }
+
+    if (col.count == 0)
+    {
+     ColumnValue null_value = {};
+     null_value.value_type = ColumnValueType::Null;
+     column.AddValue(arena, null_value);
     }
 
     result.AddColumn(arena, column);
