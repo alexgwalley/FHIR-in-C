@@ -118,9 +118,15 @@ struct CollectionList
  int count;
 };
 
+
+CollectionEntryNode nil_entry_node = { 0 };
+
 typedef struct FP_ExecutionContext FP_ExecutionContext;
 struct FP_ExecutionContext
 {
+ // NOTE(agw): this is only meant to hold info needed
+ // to report errors. Generated collections
+ // will store their data in another arena (typically)
 	Arena *arena;
 
  int res_count;
@@ -137,6 +143,21 @@ struct FP_ExecutionContext
 
 	jmp_buf error_buf;
 	String8 error_message;
+
+ void ZeroOut()
+ {
+  entry_stack_first = entry_stack_last = &nil_entry_node;
+  meta_file = g_meta_file;
+  ArenaPopTo(arena, 0);
+ }
+
+ void Set(size_t num_resources, nf_fhir_r4::Resource** resources, String8 path)
+ {
+  this->ZeroOut();
+  res_count = num_resources;
+  this->resources = resources;
+  root_node = Antlr_ParseExpression(path);
+ }
 };
 
 };

@@ -43,10 +43,17 @@
 #include "fhir_path.h"
 #include "manual_deserialization.h"
 #include "native_deserializer.h"
+
+namespace native_fhir
+{
+ Piece* Antlr_ParseExpression(String8 str);
+};
+
 #include "execution/path_execution.h"
 #include "fhir_class/fhir_class.h"
 #include "fhir_path_visitor.h"
 
+#include "data_table.h"
 #include "test_execution.h"
 
 #include "native_fhir_inc.cc"
@@ -55,13 +62,11 @@
 using namespace native_fhir;
 using namespace nf_fhir_r4;
 using namespace antlr4;
-MetadataFile *g_meta_file;
+
 
 #include "execution/path_execution.cc"
+#include "data_table.cc"
 #include "test_execution.cc"
-
-
-
 
 nf_fhir_r4::Resource nil_resource = {};
 
@@ -69,6 +74,7 @@ nf_fhir_r4::Resource nil_resource = {};
 // ARROW PARQUET TEST
 std::shared_ptr<arrow::Table> generate_table() {
  arrow::Int64Builder i64builder;
+
 
  PARQUET_THROW_NOT_OK(i64builder.AppendValues({1, 2, 3, 4, 5}));
 

@@ -255,6 +255,8 @@ case ValueType::Instant\
 
 		// NOTE(agw): here will go the beginning of the sections
 	};
+
+ MetadataFile *g_meta_file;
 };
 
 #endif

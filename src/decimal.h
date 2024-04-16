@@ -23,6 +23,7 @@ namespace native_fhir
 	String8 Str8FromDecimal(Arena *arena, Decimal str);
 
  Decimal DecimalFromInt(S64 v);
+ F64 DoubleFromDecimal(Decimal d);
 
 	// NOTE(agw): returns sign of a-b
 	int DecimalCompare(Decimal a, Decimal b);

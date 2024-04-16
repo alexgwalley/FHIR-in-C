@@ -4,52 +4,6 @@
 namespace native_fhir
 {
 
- typedef struct VD_Where VD_Where;
- struct VD_Where
- {
-  String8 full_path;
-  String8 desc;
- };
-
- typedef struct ColumnDef ColumnDef;
- struct ColumnDef
- {
-  String8 full_path;
-  String8 name;
-  NullableBoolean collection;
- };
-
- typedef struct ColumnNode ColumnNode;
- struct ColumnNode
- {
-  ColumnNode* next;
-  ColumnDef v;
- };
-
- typedef struct ColumnList ColumnList;
- struct ColumnList
- {
-  ColumnNode* first;
-  ColumnNode* last;
-  size_t count;
-
-  size_t where_count;
-  VD_Where* wheres;
- };
-
- struct DataRow
- {
-  int count;
-  String8List column_names;
-  Collection *data;
- };
-
- struct DataTable
- {
-  int num_rows;
-  DataRow *rows;
- };
-
  struct FP_TestResultNode
  {
   FP_TestResultNode *next;
@@ -60,7 +14,8 @@ namespace native_fhir
  {
   String8 title;
 
-  nf_fhir_r4::ViewDefinition *vd;
+  //nf_fhir_r4::ViewDefinition *vd;
+  native_fhir::ViewDefinition vd;
   ND_ContextNode* ctx;
 
   B32 expect_error;

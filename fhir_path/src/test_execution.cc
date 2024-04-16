@@ -2,225 +2,9 @@ namespace native_fhir
 {
  // TODO(agw): should be in header
 Piece* Antlr_ParseExpression(String8 str);
+
 Collection ExecutePieces(Arena *arena, FP_ExecutionContext* context);
 void PrintCollection(Collection col);
-
-local_function void
-MergeColumnLists(ColumnList *dst, ColumnList *src)
-{
- if (dst->last)
- {
-  dst->last->next = src->first;
-  dst->last = src->first;
- }
- else
- {
-  dst->first = src->first;
-  dst->last = src->last;
- }
-
- dst->count += src->count;
-}
-
-local_function ColumnList
-ParseViewSelect(Arena *arena, nf_fhir_r4::ViewDefinition_Select* select, String8 resource_name)
-{
- ColumnList list = {};
- NullableString8 forEach = select->_forEach;
-
- for (int k = 0; k < select->_column_count; k++)
- {
-  nf_fhir_r4::ViewDefinition_Select_Column *column = select->_column[k];
-  NullableString8 name = column->_name;
-  NullableString8 path = column->_path;
-
-  ColumnDef def = {};
-  if (forEach.has_value)
-  {
-   def.full_path = PushStr8F(arena, "%S.%S.%S", resource_name, forEach.str8, path.str8);
-  }
-  else
-  {
-   def.full_path = PushStr8F(arena, "%S.%S", resource_name, path.str8);
-  }
-  def.name = PushStr8Copy(arena, name.str8);
-  def.collection = column->_collection;
-
-  ColumnNode *node = PushStruct(arena, ColumnNode);
-  node->v = def;
-
-  QueuePush(list.first, list.last, node);
-  list.count++;
- }
-
- for (int j = 0; j < select->_select_count; j++)
- {
-  nf_fhir_r4::ViewDefinition_Select *inner_select = select->_select[j];
-  ColumnList inner_list = ParseViewSelect(arena, inner_select, resource_name);
-  MergeColumnLists(&list, &inner_list);
- }
-
- return list;
-}
-
-local_function ColumnList
-ParseViewDefinition(Arena* arena, nf_fhir_r4::ViewDefinition* vd)
-{
-
- ColumnList list = {};
- list.wheres = PushArray(arena, VD_Where, vd->_where_count);
- for (int j = 0; j < vd->_where_count; j++)
- {
-  nf_fhir_r4::ViewDefinition_Where *where = vd->_where[j];
-  list.where_count = vd->_where_count;
-  VD_Where w = {};
-  w.full_path = PushStr8F(arena, "%S.%S", vd->_resource.str8, where->_path.str8);
-  w.desc = where->_description.str8;
-  list.wheres[j] = w;
- }
-
- // TODO(agw): this is recursive...
- for (int j = 0; j < vd->_select_count; j++)
- {
-  nf_fhir_r4::ViewDefinition_Select *select = vd->_select[j];
-  Assert(vd->_resource.has_value);
-  ColumnList inner_list = ParseViewSelect(arena, select, vd->_resource.str8);
-  MergeColumnLists(&list, &inner_list);
- }
-
- return list;
-}
-
-ColumnList
-ParseViewDefinitions(Arena* arena)
-{
- nf_fhir_r4::Resource *res;
- ND_ContextNode *ctx_node = ND_DeserializeFile("C:\\Users\\awalley\\Code\\FHIR-in-C\\fhir_path\\view_definitions.json", &res);
-
- Assert(res->resourceType == ResourceType::Bundle);
- nf_fhir_r4::Bundle *bundle = (nf_fhir_r4::Bundle *)res;
-
- for (int i = 0; i < bundle->_entry_count; i++)
- {
-  nf_fhir_r4::Bundle_Entry *entry = bundle->_entry[i];
-  if (entry->_resource == NULL || entry->_resource->resourceType != ResourceType::ViewDefinition)
-  {
-   continue;
-  }
-
-  nf_fhir_r4::ViewDefinition *vd = (nf_fhir_r4::ViewDefinition *)entry->_resource;
- }
-
- ND_FreeContext(ctx_node);
-
- ColumnList list = {};
- return list;
-}
-
-void
-ExecuteViewDefinitions(ColumnList columns, FP_Test test, FP_ExecutionContext *context, int res_count, nf_fhir_r4::Resource** res)
-{
-
- if (setjmp(context->error_buf) != 0)
- {
-  if (context->error_message.size > 0)
-  {
-   printf("ERROR: %.*s\n", PRINT_STR8(context->error_message));
-  }
-  return;
- }
-
- Temp temp = ScratchBegin(0, 0);
- context->res_count = res_count;
- context->resources = res;
-
- Collection valid_resources = {};
- for (int i = 0; i < res_count; i++)
- {
-  const ResourceNameTypePair* pair = NF_ResourceNameTypePairFromString8(test.vd->_resource.str8);
-  if (pair && (nf_fhir_r4::ResourceType)pair->type != res[i]->resourceType) continue;
-  CollectionEntry ent = {};
-  ent.type = EntryType::Resource;
-  ent.resource = res[i];
-  CollectionPushEntry(temp.arena, &valid_resources, ent);
- }
-
-
- for (int i = 0; i < columns.where_count; i++)
- {
-  VD_Where where = columns.wheres[i];
-  Piece* piece = Antlr_ParseExpression(where.full_path);
-
-  for (CollectionEntryNode *node = valid_resources.first; node; node = node->next)
-  {
-   context->root_node = piece;
-   context->res_count = 1;
-   context->resources = &node->v.resource;
-   context->entry_stack_first = context->entry_stack_last = &nil_entry_node;
-   context->meta_file = g_meta_file;
-
-   Collection single_res = ExecutePieces(temp.arena, context);
-   if (single_res.count == 0 || !single_res.first->v.b)
-   {
-    DLLRemove(valid_resources.first, valid_resources.last, node);
-    valid_resources.count--;
-   }
-  }
- }
-
- int next_res_count = valid_resources.count;
- nf_fhir_r4::Resource** next_res = PushArray(temp.arena, nf_fhir_r4::Resource*, valid_resources.count);
-
- int idx = 0;
- for (CollectionEntryNode *node = valid_resources.first; node; node = node->next, idx++)
- {
-  next_res[idx] = node->v.resource;
- }
-
- DataTable data_table = {};
- data_table.num_rows = next_res_count;
- data_table.rows = PushArray(temp.arena, DataRow, data_table.num_rows);
-
- for (int i = 0; i < next_res_count; i++)
- {
-  DataRow *row = &data_table.rows[i];
-  row->count = columns.count;
-  row->data = PushArray(temp.arena, Collection, next_res_count);
-
-  for (ColumnNode *node = columns.first; node; node = node->next)
-  {
-   context->res_count = 1;
-   context->resources = &next_res[i];
-
-   Temp inner_temp = ScratchBegin(&temp.arena, 1);
-   context->root_node = Antlr_ParseExpression(node->v.full_path);
-
-   CollectionEntry res_entry = {};
-   Collection col = ExecutePieces(temp.arena, context);
-   MergeCollections(&row->data[i], &col);
-
-   if (node->v.collection.has_value && node->v.collection.value == false && col.count > 1)
-   {
-    // TODO(agw): passes test
-    if (test.expect_error) return;
-    FP_Assert(false, context, Str8Lit("Test may not have collection"));
-   }
-
-   ScratchEnd(inner_temp);
-  }
- }
-
- // ~ Compare results
- for (int i = 0; i < test.expectations.num_rows; i++)
- {
-  DataRow expectation = test.expectations.rows[i];
-//  B32 equal = CollectionEqual(all_columns, expectation);
- }
-
-
-
- ScratchEnd(temp);
-}
 
 inline String8
 String8FromStringView(Arena* arena, std::string_view view)
@@ -231,24 +15,31 @@ String8FromStringView(Arena* arena, std::string_view view)
  return PushStr8Copy(arena, str);
 }
 
-Collection
-CollectionFromTestArray(Arena *arena, simdjson::ondemand::array array)
+void
+AddTestArrayToColumn(Arena *arena, simdjson::ondemand::array array, DataColumn* column)
 {
- Collection col = {};
-
+ DataColumn *col = PushStruct(arena, DataColumn);
  for (auto field : array)
  {
   simdjson::ondemand::value value = field.value();
   switch (value.type())
   {
-			{
+			case simdjson::ondemand::json_type::string:
+   {
 				std::string_view str_view;
 				auto res = value.get(str_view);
 				Assert(res == simdjson::error_code::SUCCESS);
 
     String8 str8 = String8FromStringView(arena, str_view);
-    CollectionEntry ent = CollectionEntryFromString(str8);
-    CollectionPushEntry(arena, &col, ent);
+    NullableString8 n_str = {};
+    n_str.has_value = true;
+    n_str.str8 = str8;
+
+    ColumnValue value = {};
+    value.value_type = ColumnValueType::String;
+    value.str = n_str;
+
+    col->AddValue(arena, value);
 			} break;
 			case simdjson::ondemand::json_type::number:
 			{
@@ -260,8 +51,19 @@ CollectionFromTestArray(Arena *arena, simdjson::ondemand::array array)
     String8 str = String8FromStringView(arena, view);
     Number num = Number::FromString(str);
 
-    CollectionEntry ent = CollectionEntryFromNumber(num);
-    CollectionPushEntry(arena, &col, ent);
+    ColumnValue value = {};
+    if (num.type == Number_Integer)
+    {
+     value.value_type = ColumnValueType::Int64;
+     value.s64 = num.s64;
+    }
+    else
+    {
+     value.value_type = ColumnValueType::Int64;
+     value._double = DoubleFromDecimal(num.decimal);
+    }
+
+    col->AddValue(arena, value);
 			} break;
 			case simdjson::ondemand::json_type::boolean: // copy into dest
 			{
@@ -269,8 +71,14 @@ CollectionFromTestArray(Arena *arena, simdjson::ondemand::array array)
 				auto res = value.get(_boolean);
 				Assert(res == simdjson::error_code::SUCCESS);
 
-    CollectionEntry ent = CollectionEntryFromBoolean((B32)_boolean);
-    CollectionPushEntry(arena, &col, ent);
+    ColumnValue value = {};
+    value.value_type = ColumnValueType::Boolean;
+    NullableBoolean n_bool = {};
+    n_bool.has_value = true;
+    n_bool.value = _boolean;
+    value.b = n_bool;
+
+    col->AddValue(arena, value);
 			} break;
 
    case simdjson::ondemand::json_type::array:
@@ -281,40 +89,49 @@ CollectionFromTestArray(Arena *arena, simdjson::ondemand::array array)
   }
  }
 
- return col;
+ ColumnValue value = { };
+ value.value_type = ColumnValueType::Array;
+ value.array = col;
+
+ col->AddValue(arena, value);
 }
 
-DataRow
+DataTable
 DeserializeTestResult(Arena *arena, simdjson::ondemand::object base)
 {
- DataRow test_res = {};
- //test_res.columns = PushStruct(arena, ColumnList);
+ DataTable table = {};
 
- for (auto field : base) { test_res.count++; }
-
- base.reset();
-
- int i = 0;
  for (auto field : base)
  {
+  DataColumn col = {};
 		String8 key = String8FromStringView(arena, field.unescaped_key());
-  Str8ListPush(arena, &test_res.column_names, key);
+  col.name = key;
 
   simdjson::ondemand::value value = field.value();
   switch (value.type())
 		{
 			case simdjson::ondemand::json_type::string:
 			{
+    col.value_type = ColumnValueType::String;
+
 				std::string_view str_view;
 				auto res = value.get(str_view);
 				Assert(res == simdjson::error_code::SUCCESS);
 
     String8 str8 = String8FromStringView(arena, str_view);
-    CollectionEntry ent = CollectionEntryFromString(str8);
-    CollectionPushEntry(arena, &test_res.data[i], ent);
+    NullableString8 n_str = {};
+    n_str.has_value = true;
+    n_str.str8 = str8;
+
+    ColumnValue value = {};
+    value.value_type = ColumnValueType::String;
+    value.str = n_str;
+
+    col.AddValue(arena, value);
 			} break;
 			case simdjson::ondemand::json_type::number:
 			{
+    col.value_type = ColumnValueType::Double;
     auto raw_value = field.value().raw_json();
     Assert(raw_value.error() == simdjson::error_code::SUCCESS);
 
@@ -323,17 +140,39 @@ DeserializeTestResult(Arena *arena, simdjson::ondemand::object base)
     String8 str = String8FromStringView(arena, view);
     Number num = Number::FromString(str);
 
-    CollectionEntry ent = CollectionEntryFromNumber(num);
-    CollectionPushEntry(arena, &test_res.data[i], ent);
+    ColumnValue value = {};
+    if (num.type == Number_Integer)
+    {
+     value.value_type = ColumnValueType::Int64;
+     value.s64 = num.s64;
+
+     col.value_type = ColumnValueType::Int64;
+    }
+    else
+    {
+     value.value_type = ColumnValueType::Double;
+     value._double = DoubleFromDecimal(num.decimal);
+    }
+
+    col.AddValue(arena, value);
+
 			} break;
 			case simdjson::ondemand::json_type::boolean: // copy into dest
 			{
+    col.value_type = ColumnValueType::Boolean;
+
 				bool _boolean;
 				auto res = value.get(_boolean);
 				Assert(res == simdjson::error_code::SUCCESS);
 
-    CollectionEntry ent = CollectionEntryFromBoolean((B32)_boolean);
-    CollectionPushEntry(arena, &test_res.data[i], ent);
+    ColumnValue value = {};
+    value.value_type = ColumnValueType::Boolean;
+    NullableBoolean n_bool = {};
+    n_bool.has_value = true;
+    n_bool.value = _boolean;
+    value.b = n_bool;
+
+    col.AddValue(arena, value);
 			} break;
 			case simdjson::ondemand::json_type::object: // copy into dest
 			{
@@ -341,18 +180,101 @@ DeserializeTestResult(Arena *arena, simdjson::ondemand::object base)
 			} break;
 			case simdjson::ondemand::json_type::array:
 			{
+    col.value_type = ColumnValueType::Array;
+
 				simdjson::ondemand::array arr;
 				auto res = value.get(arr);
 
-    Collection col = CollectionFromTestArray(arena, arr);
-    test_res.data[i] = col;
+    AddTestArrayToColumn(arena, arr, &col);
 			} break;
 		}
 
-  i++;
+  table.AddColumn(arena, col);
  }
 
- return test_res;
+ return table;
+}
+
+View*
+ConvertSelect(Arena *arena, nf_fhir_r4::ViewDefinition_Select *select)
+{
+ View *result = PushStruct(arena, View);
+ result->type = ViewType::Select;
+
+ // ~ Columns
+ for (int i = 0; i < select->_column_count; i++)
+ {
+  nf_fhir_r4::ViewDefinition_Select_Column* column = select->_column[i];
+
+  View *col_view = PushStruct(arena, View);
+
+  col_view->type = ViewType::Column;
+  col_view->path = column->_path;
+  col_view->name = column->_name;
+  col_view->description = column->_description;
+  col_view->collection = column->_collection;
+
+  SLLQueuePush(result->column_first, result->column_last, col_view);
+  result->column_count++;
+ }
+
+ // ~ Select
+ for (int i = 0; i < select->_select_count; i++)
+ {
+  View *view = ConvertSelect(arena, select->_select[i]);
+  SLLQueuePush(result->select_first, result->select_last, view);
+  result->select_count++;
+ }
+
+ // ~ UnionAll
+ for (int i = 0; i < select->_unionAll_count; i++)
+ {
+  View *view = ConvertSelect(arena, select->_unionAll[i]);
+  view->is_union = true;
+  SLLQueuePush(result->select_first, result->select_last, view);
+  result->select_count++;
+ }
+
+ // ~ For Each
+ if (select->_forEach.has_value)
+ {
+  result->for_each = select->_forEach;
+ }
+
+ if (select->_forEachOrNull.has_value)
+ {
+  result->for_each = select->_forEachOrNull;
+  result->for_each_is_null = true;
+ }
+
+ return result;
+}
+
+native_fhir::ViewDefinition
+ConvertViewDefinition(Arena *arena, nf_fhir_r4::ViewDefinition *vd)
+{
+ native_fhir::ViewDefinition result = {};
+
+ // ~ Resource Type
+ String8 res_name = vd->_resource.str8;
+ const ResourceNameTypePair *pair = NF_ResourceNameTypePairFromString8(res_name);
+ Assert(pair);
+ result.resource_type = (nf_fhir_r4::ResourceType)pair->type;
+
+ // ~ Where
+ for (int i = 0; i < vd->_where_count; i++)
+ {
+  nf_fhir_r4::ViewDefinition_Where *where = vd->_where[i];
+  Str8ListPush(arena, &result.where, where->_path.str8);
+ }
+
+ for (int i = 0; i < vd->_select_count; i++)
+ {
+  View *view = ConvertSelect(arena, vd->_select[i]);
+  SLLQueuePush(result.first, result.last, view);
+ }
+
+ return result;
 }
 
 FP_Test
@@ -380,25 +302,27 @@ DeserializeTest(Arena *arena, simdjson::ondemand::object base)
  test.ctx = context;
 
  Assert(res->resourceType == nf_fhir_r4::ResourceType::ViewDefinition);
- test.vd = (nf_fhir_r4::ViewDefinition*)res;
+ test.vd = ConvertViewDefinition(arena, (nf_fhir_r4::ViewDefinition*)res);
 
  if (base["expect"].error() == simdjson::SUCCESS)
  {
   for (simdjson::ondemand::object obj : base["expect"])
   {
-   test.expectations.num_rows++;
-  }
 
-  base.reset();
+   DataTable result = DeserializeTestResult(arena, obj);
 
-  test.expectations.rows = PushArray(arena, DataRow, test.expectations.num_rows);
-
-  S64 expect_idx = 0;
-  for (simdjson::ondemand::object obj : base["expect"])
-  {
-   DataRow result = DeserializeTestResult(arena, obj);
-   test.expectations.rows[expect_idx] = result;
-   expect_idx++;
+   for (DataColumnNode *node = result.first; node; node = node->next)
+   {
+    DataColumnNode* matching_column = test.expectations.GetMatchingColumn(node->v.name);
+    if (matching_column)
+    {
+     matching_column->v.AddAllValuesFromColumn(arena, node->v);
+    }
+    else
+    {
+     test.expectations.AddColumn(arena, node->v);
+    }
+   }
   }
  }
  else
@@ -483,25 +407,103 @@ DeserializeTestCollection(Arena *arena, String8 file_name)
 void
 ExecuteTestCollection(FP_TestCollection col)
 {
- Temp temp = ScratchBegin(0, 0);
-
-	FP_ExecutionContext context = { 0 };
-	context.arena = ArenaAlloc(Gigabytes(1));
- context.entry_stack_first = context.entry_stack_last = &nil_entry_node;
- context.meta_file = g_meta_file;
-
  for (int i = 0; i < col.test_count; i++)
  {
+  Temp temp = ScratchBegin(0, 0);
   FP_Test test = col.tests[i];
 
   printf("==========================================\n");
   printf("Test: %.*s\n", test.title.size, test.title.str);
-  ColumnList columns = ParseViewDefinition(temp.arena, test.vd);
+  //ColumnList columns = ParseViewDefinition(temp.arena, test.vd);
 
-  ExecuteViewDefinitions(columns, test, &context, col.res_count, col.res);
+  Collection resources = {};
+  for (int i = 0; i < col.res_count; i++)
+  {
+   if (test.vd.resource_type != col.res[i]->resourceType) continue;
+
+   CollectionEntry ent = {};
+   ent.type = EntryType::Resource;
+   ent.resource = col.res[i];
+   CollectionPushEntry(temp.arena, &resources, ent);
+  }
+
+  DataTable table = ExecuteViewDefinition(temp.arena, test.vd, resources);
+
+  B32 passed = true;
+  if (test.expect_error)
+  {
+   passed = table.execution_error;
+  }
+  else if (table.column_count != test.expectations.column_count)
+  {
+   // Fail Test
+   passed = false;
+  }
+  else
+  {
+   for(DataColumnNode *node = table.first; node; node = node->next)
+   {
+    DataColumnNode *test_node = test.expectations.GetMatchingColumn(node->v.name);
+    if (node->v.num_values != test_node->v.num_values)
+    {
+     // Fail Test
+     passed = false;
+    }
+    else if (node->v.value_type != test_node->v.value_type)
+    {
+     passed = false;
+    }
+    else
+    {
+     // ~ Compare each chunk
+     DataChunkNode *test_chunk = test_node->v.first;
+     for (DataChunkNode *chunk = node->v.first;
+      chunk && test_chunk;
+      chunk = chunk->next, test_chunk = test_chunk->next)
+     {
+      switch (node->v.value_type)
+      {
+       default: NotImplemented;
+       case ColumnValueType::String:
+       {
+        NullableString8* chunk_array = (NullableString8*)chunk->data;
+        NullableString8* test_array = (NullableString8*)test_chunk->data;
+        for (int i = 0; i < chunk->count; i++)
+        {
+         if (Str8Match(chunk_array[i].str8, test_array[i].str8, 0) == 0)
+         {
+          passed = false;
+         }
+        }
+       } break;
+       case ColumnValueType::Int32:
+       case ColumnValueType::Int64:
+       case ColumnValueType::Double:
+       case ColumnValueType::ISO8601_Time:
+       case ColumnValueType::Boolean:
+       {
+        B32 equal = memcmp(chunk->data, test_chunk->data, chunk->MaxDataSize()) == 0;
+        if (!equal) passed = false;
+       } break;
+      }
+     }
+    }
+
+   }
+  }
+
+  if (passed)
+  {
+   printf("PASSED: \"%.*s\"\n", PRINT_STR8(test.title));
+  }
+   else
+  {
+   printf("FAILED: \"%.*s\"\n", PRINT_STR8(test.title));
+  }
+
+  ScratchEnd(temp);
  }
 
- ScratchEnd(temp);
 }
 
 void

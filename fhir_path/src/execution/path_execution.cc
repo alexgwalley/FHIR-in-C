@@ -1,13 +1,11 @@
 namespace native_fhir
 {
  using namespace nf_fhir_r4;
- CollectionEntryNode nil_entry_node = { 0 };
 
  Collection ExecuteExpression(Arena *arena, FP_ExecutionContext *context, Piece* node);
 
  ///////////////////
  // Empty Bool Helpers 
-
  enum class EmptyBoolOperationType
  {
   And,

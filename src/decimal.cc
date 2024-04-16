@@ -61,6 +61,13 @@ namespace native_fhir
   return ret;
  }
 
+ F64
+ DoubleFromDecimal(Decimal d)
+ {
+  double ret = r128ToFloat(&d.v);
+  return (F64)ret;
+ }
+
 
 	int
 	DecimalCompare(Decimal a, Decimal b)
