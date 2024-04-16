@@ -55,12 +55,18 @@ AddTestArrayToColumn(Arena *arena, simdjson::ondemand::array array, DataColumn* 
     if (num.type == Number_Integer)
     {
      value.value_type = ColumnValueType::Int64;
-     value.s64 = num.s64;
+     NullableInt64 n_i = {};
+     n_i.has_value = true;
+     n_i.value = num.s64;
+     value.s64 = n_i;
     }
     else
     {
      value.value_type = ColumnValueType::Int64;
-     value._double = DoubleFromDecimal(num.decimal);
+     NullableDouble n = {};
+     n.has_value = true;
+     n.value = DoubleFromDecimal(num.decimal);
+     value._double = n;
     }
 
     col->AddValue(arena, value);
@@ -131,7 +137,6 @@ DeserializeTestResult(Arena *arena, simdjson::ondemand::object base)
 			} break;
 			case simdjson::ondemand::json_type::number:
 			{
-    col.value_type = ColumnValueType::Double;
     auto raw_value = field.value().raw_json();
     Assert(raw_value.error() == simdjson::error_code::SUCCESS);
 
@@ -143,15 +148,23 @@ DeserializeTestResult(Arena *arena, simdjson::ondemand::object base)
     ColumnValue value = {};
     if (num.type == Number_Integer)
     {
-     value.value_type = ColumnValueType::Int64;
-     value.s64 = num.s64;
-
      col.value_type = ColumnValueType::Int64;
+     value.value_type = ColumnValueType::Int64;
+     NullableInt64 n = {};
+     n.has_value = true;
+     n.value = num.s64;
+     value.s64 = n;
+
     }
     else
     {
+     col.value_type = ColumnValueType::Double;
      value.value_type = ColumnValueType::Double;
-     value._double = DoubleFromDecimal(num.decimal);
+
+     NullableDouble n = {};
+     n.has_value = true;
+     n.value = DoubleFromDecimal(num.decimal);
+     value._double = n;
     }
 
     col.AddValue(arena, value);
@@ -213,6 +226,7 @@ ConvertSelect(Arena *arena, nf_fhir_r4::ViewDefinition_Select *select)
   col_view->name = column->_name;
   col_view->description = column->_description;
   col_view->collection = column->_collection;
+  col_view->column_data_type = column->_type;
 
   SLLQueuePush(result->column_first, result->column_last, col_view);
   result->column_count++;
@@ -265,6 +279,7 @@ ConvertViewDefinition(Arena *arena, nf_fhir_r4::ViewDefinition *vd)
  for (int i = 0; i < vd->_where_count; i++)
  {
   nf_fhir_r4::ViewDefinition_Where *where = vd->_where[i];
+  // TODO(agw): this path job should be fixed in fhir path...not here
   String8 full_path = PushStr8F(arena, "%S.%S", vd->_resource.str8, where->_path.str8);
   Str8ListPush(arena, &result.where, full_path);
  }
@@ -317,6 +332,11 @@ DeserializeTest(Arena *arena, simdjson::ondemand::object base)
     DataColumnNode* matching_column = test.expectations.GetMatchingColumn(node->v.name);
     if (matching_column)
     {
+     if (matching_column->v.value_type == ColumnValueType::Unknown && node->v.value_type != ColumnValueType::Unknown)
+     {
+      matching_column->v.value_type = node->v.value_type;
+     }
+
      matching_column->v.AddAllValuesFromColumn(arena, node->v);
     }
     else
@@ -510,7 +530,7 @@ ExecuteTestCollection(FP_TestCollection col)
 void
 ReadAndExecuteTests(String8 test_folder)
 {
- String8 test_file_name = Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\where.json");
+ String8 test_file_name = Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\foreach.json");
 
 
  Temp temp = ScratchBegin(0, 0);

@@ -36,9 +36,9 @@ namespace native_fhir
   0,
   sizeof(NullableString8),
   sizeof(NullableBoolean),
-  sizeof(S32),
-  sizeof(S64),
-  sizeof(F64),
+  sizeof(NullableInt32),
+  sizeof(NullableInt64),
+  sizeof(NullableDouble),
   sizeof(ISO8601_Time),
   sizeof(void*),
  };
@@ -75,9 +75,9 @@ namespace native_fhir
   {
    NullableString8 str;
    NullableBoolean b;
-   S32 s32;
-   S64 s64;
-   F64 _double;
+   NullableInt32 s32;
+   NullableInt64 s64;
+   NullableDouble _double;
    ISO8601_Time time;
 
    // TODO(agw): other values
@@ -128,17 +128,41 @@ namespace native_fhir
    ret.value_type = value_type;
    switch (value_type)
    {
+    default: NotImplemented;
     case ColumnValueType::String:
     {
      NullableString8* array = (NullableString8*)last->data;
-     NullableString8 str = array[last->count-1];
-     ret.str = str;
+     ret.str = array[last->count-1];
     } break;
     case ColumnValueType::Boolean:
     {
      NullableBoolean* array = (NullableBoolean*)last->data;
-     NullableBoolean value = array[last->count-1];
-     ret.b = value;
+     ret.b = array[last->count-1];
+    } break;
+    case ColumnValueType::ISO8601_Time:
+    {
+     ISO8601_Time* array = (ISO8601_Time*)last->data;
+     ret.time = array[last->count-1];
+    } break;
+    case ColumnValueType::Int32:
+    {
+     NullableInt32* array = (NullableInt32*)last->data;
+     ret.s32 = array[last->count-1];
+    } break;
+    case ColumnValueType::Int64:
+    {
+     NullableInt64* array = (NullableInt64*)last->data;
+     ret.s64 = array[last->count-1];
+    } break;
+    case ColumnValueType::Double:
+    {
+     NullableDouble* array = (NullableDouble*)last->data;
+     ret._double = array[last->count-1];
+    } break;
+    case ColumnValueType::Array:
+    {
+     DataColumn** array = (DataColumn**)last->data;
+     ret.array = array[last->count-1];
     } break;
    }
 
@@ -236,6 +260,8 @@ namespace native_fhir
   NullableString8 name;
   NullableString8 description;
   NullableBoolean collection;
+
+  NullableString8 column_data_type;
 
   NullableString8 for_each;
   B32 for_each_is_null;

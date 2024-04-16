@@ -27,6 +27,7 @@ namespace native_fhir
 
   switch (val.value_type)
   {
+   default: NotImplemented;
    case ColumnValueType::String:
    {
     NullableString8* array = (NullableString8*)last->data;
@@ -36,6 +37,31 @@ namespace native_fhir
    {
     NullableBoolean* array = (NullableBoolean*)last->data;
     array[last->count] = val.b;
+   } break;
+   case ColumnValueType::ISO8601_Time:
+   {
+    ISO8601_Time* array = (ISO8601_Time*)last->data;
+    array[last->count] = val.time;
+   } break;
+   case ColumnValueType::Int32:
+   {
+    NullableInt32* array = (NullableInt32*)last->data;
+    array[last->count] = val.s32;
+   } break;
+   case ColumnValueType::Int64:
+   {
+    NullableInt64* array = (NullableInt64*)last->data;
+    array[last->count] = val.s64;
+   } break;
+   case ColumnValueType::Double:
+   {
+    NullableDouble* array = (NullableDouble*)last->data;
+    array[last->count] = val._double;
+   } break;
+   case ColumnValueType::Array:
+   {
+    DataColumn** array = (DataColumn**)last->data;
+    array[last->count] = val.array;
    } break;
   }
 
@@ -135,7 +161,6 @@ namespace native_fhir
     // For each value, repeat for row count in the other table
     for (int val_idx = 0; val_idx < node->count; val_idx++)
     {
-
      ColumnValue val = {};
      switch (node->value_type)
      {
@@ -145,6 +170,42 @@ namespace native_fhir
        val.value_type = ColumnValueType::String;
        NullableString8* array = (NullableString8*)node->data;
        val.str = array[val_idx];
+      } break;
+      case ColumnValueType::Boolean:
+      {
+       val.value_type = ColumnValueType::Boolean;
+       NullableBoolean* array = (NullableBoolean*)node->data;
+       val.b = array[val_idx];
+      } break;
+      case ColumnValueType::ISO8601_Time:
+      {
+       val.value_type = ColumnValueType::ISO8601_Time;
+       ISO8601_Time* array = (ISO8601_Time*)node->data;
+       val.time = array[val_idx];
+      } break;
+      case ColumnValueType::Int32:
+      {
+       val.value_type = ColumnValueType::Int32;
+       NullableInt32* array = (NullableInt32*)node->data;
+       val.s32 = array[val_idx];
+      } break;
+      case ColumnValueType::Int64:
+      {
+       val.value_type = ColumnValueType::Int64;
+       NullableInt64* array = (NullableInt64*)node->data;
+       val.s64 = array[val_idx];
+      } break;
+      case ColumnValueType::Double:
+      {
+       val.value_type = ColumnValueType::Double;
+       NullableDouble* array = (NullableDouble*)node->data;
+       val._double = array[val_idx];
+      } break;
+      case ColumnValueType::Array:
+      {
+       val.value_type = ColumnValueType::Array;
+       DataColumn** array = (DataColumn**)node->data;
+       val.array = array[val_idx];
       } break;
      }
 
@@ -289,73 +350,110 @@ namespace native_fhir
    case ViewType::Select:
    {
     // This whole thing could be wrapped in a forEach
+    Temp temp = ScratchBegin(&arena, 1);
 
-    DataTable column_result = {};
-    for (View *node = view->column_first; node; node = node->next)
+    Collection resources = {};
+    if (view->for_each.has_value)
     {
-     DataTable node_table = ExecuteView(arena, node, resource, context);
-
-     if (view->is_union)
-     {
-      DataTable_UnionDataTables(arena, &column_result, &node_table);
-     }
-     else
-     {
-      // Since we are select, just append a new column
-      for (DataColumnNode *col_node = node_table.first; col_node; col_node = col_node->next)
-      {
-       FP_Assert(col_node->v.num_values == 1, context, Str8Lit(""));
-       column_result.AddColumn(arena, col_node->v);
-      }
-
-     }
+     context->Set(1, &resource, view->for_each.str8);
+     resources = ExecutePieces(temp.arena, context);
+    }
+    else
+    {
+     CollectionEntry res_entry = {};
+     res_entry.type = EntryType::Resource;
+     res_entry.resource = resource;
+     CollectionPushEntry(temp.arena, &resources, res_entry);
     }
 
-    S64 num_values = 0;
-    if (view->select_first)
+    for (CollectionEntryNode *ent_node = resources.first; ent_node; ent_node = ent_node->next)
     {
-     DataTable next_table = ExecuteView(arena, view->select_first, resource, context);
-     for (DataColumnNode *col_node = next_table.first;
-      col_node;
-      col_node = col_node->next)
+     SLLStackPush(context->entry_stack_first, context->entry_stack_last, ent_node);
+     //Assert(ent_node->v.type == EntryType::Resource);
+
+     DataTable column_result = {};
+     for (View *node = view->column_first; node; node = node->next)
      {
-      if (num_values == 0)
+      DataTable node_table = ExecuteView(arena, node, ent_node->v.resource, context);
+
+      if (view->is_union)
       {
-       num_values = col_node->v.num_values;
+       DataTable_UnionDataTables(arena, &column_result, &node_table);
       }
       else
       {
-       FP_Assert(num_values == col_node->v.num_values, context, Str8Lit("Mismatch on column lengths in child select(s)"));
+       // Since we are select, just append a new column
+       for (DataColumnNode *col_node = node_table.first; col_node; col_node = col_node->next)
+       {
+        FP_Assert(col_node->v.num_values == 1, context, Str8Lit(""));
+        column_result.AddColumn(arena, col_node->v);
+       }
+
       }
-
-      result.AddColumn(arena, col_node->v);
      }
-    }
 
-    /*
-     ~ Combine select and column results.
-
-     Each Column result should only have one value
-     Repeat that value for every row required from the select(s)
-
-     The lengths of all the select(s) _should_ be the same length (I think)
-    */
-
-    for (DataColumnNode * col_node = column_result.first; col_node; col_node = col_node->next)
-    {
-     if (num_values > 0)
+     DataTable select_result = {};
+     S64 num_values = 0;
+     if (view->select_first)
      {
-      Assert(col_node->v.num_values <= num_values);
-
-      while (col_node->v.num_values < num_values)
+      DataTable next_table = ExecuteView(arena, view->select_first, ent_node->v.resource, context);
+      for (DataColumnNode *col_node = next_table.first;
+       col_node;
+       col_node = col_node->next)
       {
-       // ~ Repeat the last value
-       ColumnValue val = col_node->v.GetLastValue();
-       col_node->v.AddValue(arena, val);
+       if (num_values == 0)
+       {
+        num_values = col_node->v.num_values;
+       }
+       else
+       {
+        FP_Assert(num_values == col_node->v.num_values, context, Str8Lit("Mismatch on column lengths in child select(s)"));
+       }
+
+       select_result.AddColumn(arena, col_node->v);
       }
      }
 
-     result.AddColumn(arena, col_node->v);
+     /*
+      ~ Combine select and column results.
+
+      Each Column result should only have one value
+      Repeat that value for every row required from the select(s)
+
+      The lengths of all the select(s) _should_ be the same length (I think)
+     */
+
+     for (DataColumnNode * col_node = column_result.first; col_node; col_node = col_node->next)
+     {
+      if (num_values > 0)
+      {
+       Assert(col_node->v.num_values <= num_values);
+
+       while (col_node->v.num_values < num_values)
+       {
+        // ~ Repeat the last value
+        ColumnValue val = col_node->v.GetLastValue();
+        col_node->v.AddValue(arena, val);
+       }
+      }
+
+      select_result.AddColumn(arena, col_node->v);
+     }
+
+     // ~ Add all values to result
+     for (DataColumnNode *temp_node = select_result.first; temp_node; temp_node = temp_node->next)
+     {
+      DataColumnNode *matching_node = result.GetMatchingColumn(temp_node->v.name);
+      if (matching_node)
+      {
+       matching_node->v.AddAllValuesFromColumn(arena, temp_node->v);
+      }
+      else
+      {
+       result.AddColumn(arena, temp_node->v);
+      }
+     }
+
     }
 
     // TODO(agw): not sure if we want to do this here or at a higher level
@@ -364,6 +462,8 @@ namespace native_fhir
      DataTable next_table = ExecuteView(arena, node, resource, context);
      result = DataTable_CrossJoin(arena, &result, &next_table);
     }
+
+    ScratchEnd(temp);
 
    } break;
    case ViewType::Column:
@@ -437,6 +537,13 @@ namespace native_fhir
    for (CollectionEntryNode *node = valid_resources.first; node; node = node->next)
    {
     // TODO(agw): we don't need to evaluate the where_node path every time
+    if (node->v.resource->resourceType != vd.resource_type)
+    {
+     DLLRemove(valid_resources.first, valid_resources.last, node);
+     valid_resources.count--;
+     continue;
+    }
+
     context.Set(1, &node->v.resource, where_node->string);
 
     Collection single_res = ExecutePieces(where_temp.arena, &context);
