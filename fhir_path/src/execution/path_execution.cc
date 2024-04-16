@@ -896,6 +896,7 @@ namespace native_fhir
   Collection next_ret = { 0 };
   switch (node->type)
   {
+   default: NotImplemented;
    case Piece_Identifier:
    {
     const native_fhir::ResourceNameTypePair* pair = NF_ResourceNameTypePairFromString8(node->slice);

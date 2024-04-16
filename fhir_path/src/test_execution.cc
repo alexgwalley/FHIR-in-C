@@ -265,7 +265,8 @@ ConvertViewDefinition(Arena *arena, nf_fhir_r4::ViewDefinition *vd)
  for (int i = 0; i < vd->_where_count; i++)
  {
   nf_fhir_r4::ViewDefinition_Where *where = vd->_where[i];
-  Str8ListPush(arena, &result.where, where->_path.str8);
+  String8 full_path = PushStr8F(arena, "%S.%S", vd->_resource.str8, where->_path.str8);
+  Str8ListPush(arena, &result.where, full_path);
  }
 
  for (int i = 0; i < vd->_select_count; i++)
@@ -509,7 +510,7 @@ ExecuteTestCollection(FP_TestCollection col)
 void
 ReadAndExecuteTests(String8 test_folder)
 {
- String8 test_file_name = Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\basic.json");
+ String8 test_file_name = Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\where.json");
 
 
  Temp temp = ScratchBegin(0, 0);
