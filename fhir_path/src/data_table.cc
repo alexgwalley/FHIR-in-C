@@ -154,7 +154,6 @@ namespace native_fhir
    new_column.name = col->v.name;
    new_column.value_type = col->v.value_type;
 
-   DataColumnNode *new_column_node = ret.AddColumn(arena, new_column);
 
    for (DataChunkNode *node = col->v.first; node; node = node->next)
    {
@@ -209,7 +208,7 @@ namespace native_fhir
       } break;
      }
 
-     for (int i = 0; i < src->GetRowCount(); i++) { new_column_node->v.AddValue(arena, val); }
+     for (int i = 0; i < src->GetRowCount(); i++) { new_column.AddValue(arena, val); }
 
      // ~ Copy all values from src for each row in dst
      for (DataColumnNode *src_col = src->first; src_col; src_col = src_col->next)
@@ -225,9 +224,12 @@ namespace native_fhir
 
       dst_col->v.AddAllValuesFromColumn(arena, src_col->v);
      }
-
     }
+   }
 
+   if (new_column.num_values > 0)
+   {
+    DataColumnNode *_ = ret.AddColumn(arena, new_column);
    }
   }
 
@@ -366,10 +368,18 @@ namespace native_fhir
      CollectionPushEntry(temp.arena, &resources, res_entry);
     }
 
+    // NOTE(agw): we want to create a null column, so we will put a nil resource here
+    if (view->for_each_is_null && resources.count == 0)
+    {
+     CollectionEntry res_entry = {};
+     res_entry.type = EntryType::Resource;
+     res_entry.resource = &nil_resource;
+     CollectionPushEntry(temp.arena, &resources, res_entry);
+    }
+
     for (CollectionEntryNode *ent_node = resources.first; ent_node; ent_node = ent_node->next)
     {
      SLLStackPush(context->entry_stack_first, context->entry_stack_last, ent_node);
-     //Assert(ent_node->v.type == EntryType::Resource);
 
      DataTable column_result = {};
      for (View *node = view->column_first; node; node = node->next)

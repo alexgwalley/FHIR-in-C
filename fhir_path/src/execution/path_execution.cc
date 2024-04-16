@@ -1215,6 +1215,10 @@ namespace native_fhir
   TimeFunction;
   Collection ret = { 0 };
   Piece* node = context->root_node;
+  if (context->res_count == 0 || context->resources[0] == NULL || context->resources[0] == &nil_resource)
+  {
+   return ret;
+  }
   return ExecuteExpression(arena, context, node);
  }
 };

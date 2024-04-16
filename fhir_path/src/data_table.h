@@ -187,6 +187,8 @@ namespace native_fhir
 
   DataColumnNode* AddColumn(Arena *arena, DataColumn column)
   {
+   Assert(this->GetMatchingColumn(column.name) == NULL);
+
    // TODO(agw): we _may_ want to copy the data over explicitly
    DataColumnNode *ret = PushStruct(arena, DataColumnNode);
    ret->v = column;

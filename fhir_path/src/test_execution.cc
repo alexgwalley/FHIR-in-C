@@ -228,6 +228,25 @@ ConvertSelect(Arena *arena, nf_fhir_r4::ViewDefinition_Select *select)
   col_view->collection = column->_collection;
   col_view->column_data_type = column->_type;
 
+  if (column->_type.has_value)
+  {
+   ValueType value_type = ValueType::Unknown;
+   for (int i = 0; i < ArrayCount(native_fhir::value_type_meta); i++)
+   {
+    for (int j = 0; j < ArrayCount(native_fhir::value_type_meta[i].fhir_names); j++)
+    {
+     if (Str8Match(native_fhir::value_type_meta[i].fhir_names[j], column->_type.str8, 0))
+     {
+      value_type = native_fhir::value_type_meta[i].type;
+      break;
+     }
+    }
+    if (value_type != ValueType::Unknown) break;
+   }
+
+   // TODO(agw): convert to ColumnValueType
+  }
+
   SLLQueuePush(result->column_first, result->column_last, col_view);
   result->column_count++;
  }
@@ -476,7 +495,7 @@ ExecuteTestCollection(FP_TestCollection col)
     }
     else
     {
-     // ~ Compare each chunk
+     // ~ Compare each chunk (need to have non-exact row ordering)
      DataChunkNode *test_chunk = test_node->v.first;
      for (DataChunkNode *chunk = node->v.first;
       chunk && test_chunk;

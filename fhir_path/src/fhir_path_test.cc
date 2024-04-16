@@ -63,12 +63,12 @@ using namespace native_fhir;
 using namespace nf_fhir_r4;
 using namespace antlr4;
 
+nf_fhir_r4::Resource nil_resource = {};
 
 #include "execution/path_execution.cc"
 #include "data_table.cc"
 #include "test_execution.cc"
 
-nf_fhir_r4::Resource nil_resource = {};
 
 //////////////////
 // ARROW PARQUET TEST
