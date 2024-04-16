@@ -45,6 +45,11 @@ namespace native_fhir
  void
  DataColumn::AddAllValuesFromColumn(Arena *arena, DataColumn col)
  {
+  if (!last || last->count >= last->max_count)
+  {
+   DataChunkNode* _ = AddChunk(arena);
+  }
+
   if (col.value_type == ColumnValueType::Unknown)
   {
    ColumnValue val = {};
@@ -111,9 +116,61 @@ namespace native_fhir
 
  }
 
- local_function void
- DataTable_CrossJoin(DataTable *dst, DataTable* src)
+ local_function DataTable
+ DataTable_CrossJoin(Arena *arena, DataTable *dst, DataTable* src)
  {
+  DataTable ret = {};
+
+  // For each row in the first, add all values of the second, repeating the value in the first
+  for (DataColumnNode *col = dst->first; col; col = col->next)
+  {
+   DataColumn new_column = {};
+   new_column.name = col->v.name;
+   new_column.value_type = col->v.value_type;
+
+   DataColumnNode *new_column_node = ret.AddColumn(arena, new_column);
+
+   for (DataChunkNode *node = col->v.first; node; node = node->next)
+   {
+    // For each value, repeat for row count in the other table
+    for (int val_idx = 0; val_idx < node->count; val_idx++)
+    {
+
+     ColumnValue val = {};
+     switch (node->value_type)
+     {
+      default: NotImplemented;
+      case ColumnValueType::String:
+      {
+       val.value_type = ColumnValueType::String;
+       NullableString8* array = (NullableString8*)node->data;
+       val.str = array[val_idx];
+      } break;
+     }
+
+     for (int i = 0; i < src->GetRowCount(); i++) { new_column_node->v.AddValue(arena, val); }
+
+     // ~ Copy all values from src for each row in dst
+     for (DataColumnNode *src_col = src->first; src_col; src_col = src_col->next)
+     {
+      DataColumnNode *dst_col = ret.GetMatchingColumn(src_col->v.name);
+      if (!dst_col)
+      {
+       DataColumn matching_col = {};
+       matching_col.value_type = src_col->v.value_type;
+       matching_col.name = src_col->v.name;
+       dst_col = ret.AddColumn(arena, matching_col);
+      }
+
+      dst_col->v.AddAllValuesFromColumn(arena, src_col->v);
+     }
+
+    }
+
+   }
+  }
+
+  return ret;
  }
 
  local_function void 
@@ -254,14 +311,13 @@ namespace native_fhir
      }
     }
 
-    DataTable select_result = {};
     S64 num_values = 0;
-    for (View *node = view->select_first; node; node = node->next)
+    if (view->select_first)
     {
-     DataTable next_table = ExecuteView(arena, node, resource, context);
+     DataTable next_table = ExecuteView(arena, view->select_first, resource, context);
      for (DataColumnNode *col_node = next_table.first;
-          col_node;
-          col_node = col_node->next)
+      col_node;
+      col_node = col_node->next)
      {
       if (num_values == 0)
       {
@@ -272,7 +328,7 @@ namespace native_fhir
        FP_Assert(num_values == col_node->v.num_values, context, Str8Lit("Mismatch on column lengths in child select(s)"));
       }
 
-      select_result.AddColumn(arena, col_node->v);
+      result.AddColumn(arena, col_node->v);
      }
     }
 
@@ -303,13 +359,11 @@ namespace native_fhir
     }
 
     // TODO(agw): not sure if we want to do this here or at a higher level
-    /*
     for (View *node = view->next; node; node = node->next)
     {
-     DataTable next_table = ExecuteView(arena, view, resource, context);
-     DataTable_CrossJoin(&result, &next_table);
+     DataTable next_table = ExecuteView(arena, node, resource, context);
+     result = DataTable_CrossJoin(arena, &result, &next_table);
     }
-   */
 
    } break;
    case ViewType::Column:

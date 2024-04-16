@@ -96,7 +96,7 @@ namespace native_fhir
   DataChunkNode *last;
   int chunk_count;
 
-  S64 num_values;
+  size_t num_values;
 
   DataChunkNode *AddChunk(Arena *arena)
   {
@@ -183,6 +183,22 @@ namespace native_fhir
     }
    }
    return 0;
+  }
+
+  size_t GetRowCount()
+  {
+   size_t row_count = 0;
+   for (DataColumnNode *node = first; node; node = node->next)
+   {
+    size_t count = node->v.num_values;
+    if (row_count == 0) row_count = count;
+    else
+    {
+     Assert(row_count == count);
+    }
+   }
+
+   return row_count;
   }
 
  };
