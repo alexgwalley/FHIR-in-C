@@ -154,6 +154,7 @@ namespace native_fhir
    new_column.name = col->v.name;
    new_column.value_type = col->v.value_type;
 
+   DataColumnNode* new_column_node = ret.AddColumn(arena, new_column);
 
    for (DataChunkNode *node = col->v.first; node; node = node->next)
    {
@@ -161,9 +162,13 @@ namespace native_fhir
     for (int val_idx = 0; val_idx < node->count; val_idx++)
     {
      ColumnValue val = {};
-     switch (node->value_type)
+     switch (col->v.value_type)
      {
       default: NotImplemented;
+      case ColumnValueType::Unknown:
+      {
+       val.value_type = ColumnValueType::Null;
+      } break;
       case ColumnValueType::String:
       {
        val.value_type = ColumnValueType::String;
@@ -208,28 +213,30 @@ namespace native_fhir
       } break;
      }
 
-     for (int i = 0; i < src->GetRowCount(); i++) { new_column.AddValue(arena, val); }
+     for (int i = 0; i < src->GetRowCount(); i++) { new_column_node->v.AddValue(arena, val); }
 
      // ~ Copy all values from src for each row in dst
-     for (DataColumnNode *src_col = src->first; src_col; src_col = src_col->next)
-     {
-      DataColumnNode *dst_col = ret.GetMatchingColumn(src_col->v.name);
-      if (!dst_col)
-      {
-       DataColumn matching_col = {};
-       matching_col.value_type = src_col->v.value_type;
-       matching_col.name = src_col->v.name;
-       dst_col = ret.AddColumn(arena, matching_col);
-      }
-
-      dst_col->v.AddAllValuesFromColumn(arena, src_col->v);
-     }
     }
    }
 
-   if (new_column.num_values > 0)
+   if (new_column_node->v.num_values == 0)
    {
-    DataColumnNode *_ = ret.AddColumn(arena, new_column);
+    ret.RemoveColumn(new_column_node);
+   }
+  }
+
+  if (dst->GetRowCount() > 0)
+  {
+   for (DataColumnNode *src_col = src->first; src_col; src_col = src_col->next)
+   {
+    DataColumn col = src_col->v;
+
+    for (S64 i = 0; i < dst->GetRowCount() - 1; i++)
+    {
+     col.AddAllValuesFromColumn(arena, src_col->v);
+    }
+
+    ret.AddColumn(arena, col);
    }
   }
 
@@ -377,55 +384,103 @@ namespace native_fhir
      CollectionPushEntry(temp.arena, &resources, res_entry);
     }
 
-    for (CollectionEntryNode *ent_node = resources.first; ent_node; ent_node = ent_node->next)
+    for (CollectionEntryNode *ent_node = resources.first; !IsNilCollectionEntryNode(ent_node); ent_node = ent_node->next)
     {
-     SLLStackPush(context->entry_stack_first, context->entry_stack_last, ent_node);
+     context->ZeroOut();
 
+     CollectionEntryNode *cpy = PushStruct(temp.arena, CollectionEntryNode);
+     MemoryCopy(cpy, ent_node, sizeof(*ent_node));
+     SLLStackPush(context->entry_stack_first, cpy);
+
+
+     // ~ Calculate Columns
      DataTable column_result = {};
      for (View *node = view->column_first; node; node = node->next)
      {
       DataTable node_table = ExecuteView(arena, node, ent_node->v.resource, context);
 
-      if (view->is_union)
+      // Since we are select, just append a new column
+      for (DataColumnNode *col_node = node_table.first; col_node; col_node = col_node->next)
       {
-       DataTable_UnionDataTables(arena, &column_result, &node_table);
-      }
-      else
-      {
-       // Since we are select, just append a new column
-       for (DataColumnNode *col_node = node_table.first; col_node; col_node = col_node->next)
-       {
-        FP_Assert(col_node->v.num_values == 1, context, Str8Lit(""));
-        column_result.AddColumn(arena, col_node->v);
-       }
-
+       FP_Assert(col_node->v.num_values == 1, context, Str8Lit(""));
+       column_result.AddColumn(arena, col_node->v);
       }
      }
 
+     // ~ Calculate Select
      DataTable select_result = {};
-     S64 num_values = 0;
      if (view->select_first)
      {
-      DataTable next_table = ExecuteView(arena, view->select_first, ent_node->v.resource, context);
-      for (DataColumnNode *col_node = next_table.first;
-       col_node;
-       col_node = col_node->next)
+      for (View *v = view->select_first; v; v = v->next)
       {
-       if (num_values == 0)
+       DataTable next_table = ExecuteView(arena, v, ent_node->v.resource, context);
+       if (select_result.column_count == 0 && v == view->select_first)
        {
-        num_values = col_node->v.num_values;
+        select_result = next_table;
        }
        else
        {
-        FP_Assert(num_values == col_node->v.num_values, context, Str8Lit("Mismatch on column lengths in child select(s)"));
+        select_result = DataTable_CrossJoin(arena, &select_result, &next_table);
        }
-
-       select_result.AddColumn(arena, col_node->v);
       }
      }
 
+     // ~ Calculate Union
+     DataTable union_result = {};
+     if (view->union_first)
+     {
+      for (View *v = view->union_first; v; v = v->next)
+      {
+       DataTable next_table = ExecuteView(arena, v, ent_node->v.resource, context);
+       if (union_result.column_count == 0 && v == view->union_first)
+       {
+        union_result = next_table;
+       }
+       else
+       {
+        DataTable_UnionDataTables(arena, &union_result, &next_table);
+       }
+      }
+     }
+
+     DataTable parts = {};
+     if (parts.column_count == 0)
+     {
+      parts = column_result;
+     }
+     else
+     {
+      parts = DataTable_CrossJoin(arena, &parts, &column_result);
+     }
+
+     if (view->select_count > 0)
+     {
+      if (parts.column_count == 0)
+      {
+       parts = select_result;
+      }
+      else
+      {
+       parts = DataTable_CrossJoin(arena, &parts, &select_result);
+      }
+     }
+
+     if (view->union_count > 0)
+     {
+      if (parts.column_count == 0)
+      {
+       parts = union_result;
+      }
+      else
+      {
+       parts = DataTable_CrossJoin(arena, &parts, &union_result);
+      }
+     }
+
+
+
      /*
-      ~ Combine select and column results.
+      ~ Combine union, select, and column results.
 
       Each Column result should only have one value
       Repeat that value for every row required from the select(s)
@@ -433,13 +488,15 @@ namespace native_fhir
       The lengths of all the select(s) _should_ be the same length (I think)
      */
 
+     /*
+     size_t row_count = parts.GetRowCount();
      for (DataColumnNode * col_node = column_result.first; col_node; col_node = col_node->next)
      {
-      if (num_values > 0)
+      if (row_count > 0)
       {
-       Assert(col_node->v.num_values <= num_values);
+       Assert(col_node->v.num_values <= row_count);
 
-       while (col_node->v.num_values < num_values)
+       while (col_node->v.num_values < row_count)
        {
         // ~ Repeat the last value
         ColumnValue val = col_node->v.GetLastValue();
@@ -449,9 +506,10 @@ namespace native_fhir
 
       select_result.AddColumn(arena, col_node->v);
      }
+      */
 
      // ~ Add all values to result
-     for (DataColumnNode *temp_node = select_result.first; temp_node; temp_node = temp_node->next)
+     for (DataColumnNode *temp_node = parts.first; temp_node; temp_node = temp_node->next)
      {
       DataColumnNode *matching_node = result.GetMatchingColumn(temp_node->v.name);
       if (matching_node)
@@ -466,19 +524,14 @@ namespace native_fhir
 
     }
 
-    // TODO(agw): not sure if we want to do this here or at a higher level
-    for (View *node = view->next; node; node = node->next)
-    {
-     DataTable next_table = ExecuteView(arena, node, resource, context);
-     result = DataTable_CrossJoin(arena, &result, &next_table);
-    }
-
     ScratchEnd(temp);
-
    } break;
    case ViewType::Column:
    {
-    context->Set(1, &resource, view->path.str8);
+    // NOTE(agw): we do _not_ want to zero out the entry stack here, should be set in parent select
+    context->root_node = Antlr_ParseExpression(view->path.str8);
+    context->res_count = 1;
+    context->resources = &resource;
 
     CollectionEntry res_entry = {};
     Collection col = ExecutePieces(arena, context);
@@ -571,7 +624,20 @@ namespace native_fhir
   {
    if (node->v.type != EntryType::Resource) continue;
 
-   DataTable temp = ExecuteView(arena, vd.first, node->v.resource, &context);
+   DataTable temp = {};
+
+   for (View *v = vd.first; v; v = v->next)
+   {
+    DataTable next_table = ExecuteView(arena, v, node->v.resource, &context);
+    if (temp.column_count == 0 && v == vd.first)
+    {
+     temp = next_table;
+    }
+    else
+    {
+     temp = DataTable_CrossJoin(arena, &temp, &next_table);
+    }
+   }
 
    if (table.column_count == 0) { table = temp; }
    else { DataTable_UnionDataTables(arena, &table, &temp); }

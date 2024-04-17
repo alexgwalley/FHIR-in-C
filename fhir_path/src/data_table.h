@@ -83,6 +83,36 @@ namespace native_fhir
    // TODO(agw): other values
    DataColumn* array;
   };
+
+  B32 Equal(ColumnValue& o)
+  {
+   if (value_type != o.value_type) return false;
+   if (value_type == ColumnValueType::String)
+   {
+    if (str.has_value != o.str.has_value) return false;
+    B32 equal = Str8Match(str.str8, o.str.str8, 0);
+    return equal;
+   }
+   else if (value_type == ColumnValueType::Array)
+   {
+    NotImplemented;
+   }
+
+   B32 equal = memcmp(this, &o, sizeof(ColumnValue)) == 0;
+   return equal;
+  }
+
+  bool operator==(ColumnValue& o)
+  {
+   bool equal = Equal(o);
+   return equal;
+  }
+
+  bool operator!=(ColumnValue& o)
+  {
+   bool equal = Equal(o);
+   return !equal;
+  }
  };
 
  struct DataColumn
@@ -96,7 +126,7 @@ namespace native_fhir
   DataChunkNode *last;
   int chunk_count;
 
-  size_t num_values;
+  S64 num_values;
 
   DataChunkNode *AddChunk(Arena *arena)
   {
@@ -119,50 +149,83 @@ namespace native_fhir
 
   ColumnValue GetLastValue()
   {
+   ColumnValue val = Index(num_values-1);
+   return val;
+  }
+
+  ColumnValue
+  operator[](int i)
+  {
+   ColumnValue val = Index(i);
+   return val;
+  }
+
+  // WARNING(agw): This function is _only_ meant for testing equality in unit tests.
+  // This is not meant for iteration in a for loop, that would be wasteful.
+
+  ColumnValue
+  Index(int i)
+  {
    ColumnValue ret = {};
    if (!last || last->count == 0)
    {
     return ret;
    }
 
+   DataChunkNode *curr = first;
+   size_t curr_index = 0;
+
+   while (i > curr_index + curr->max_count)
+   {
+    curr = curr->next;
+    curr_index += curr->max_count;
+   }
+
+   size_t index_in_chunk = i % curr->max_count;
+
    ret.value_type = value_type;
    switch (value_type)
    {
     default: NotImplemented;
+    case ColumnValueType::Unknown:
+    {
+     ret.value_type = ColumnValueType::Null;
+    } break;
+    case ColumnValueType::Null: { } break;
     case ColumnValueType::String:
     {
      NullableString8* array = (NullableString8*)last->data;
-     ret.str = array[last->count-1];
+     ret.str = array[index_in_chunk];
     } break;
     case ColumnValueType::Boolean:
     {
      NullableBoolean* array = (NullableBoolean*)last->data;
-     ret.b = array[last->count-1];
+     ret.b = array[index_in_chunk];
     } break;
     case ColumnValueType::ISO8601_Time:
     {
      ISO8601_Time* array = (ISO8601_Time*)last->data;
-     ret.time = array[last->count-1];
+     ret.time = array[index_in_chunk];
     } break;
     case ColumnValueType::Int32:
     {
      NullableInt32* array = (NullableInt32*)last->data;
-     ret.s32 = array[last->count-1];
+     ret.s32 = array[index_in_chunk];
     } break;
     case ColumnValueType::Int64:
     {
      NullableInt64* array = (NullableInt64*)last->data;
-     ret.s64 = array[last->count-1];
+     ret.s64 = array[index_in_chunk];
     } break;
     case ColumnValueType::Double:
     {
      NullableDouble* array = (NullableDouble*)last->data;
-     ret._double = array[last->count-1];
+     ret._double = array[index_in_chunk];
     } break;
     case ColumnValueType::Array:
     {
      DataColumn** array = (DataColumn**)last->data;
-     ret.array = array[last->count-1];
+     ret.array = array[index_in_chunk];
     } break;
    }
 
@@ -174,6 +237,7 @@ namespace native_fhir
  struct DataColumnNode
  {
   DataColumnNode *next;
+  DataColumnNode *prev;
   DataColumn v;
  };
 
@@ -192,10 +256,17 @@ namespace native_fhir
    // TODO(agw): we _may_ want to copy the data over explicitly
    DataColumnNode *ret = PushStruct(arena, DataColumnNode);
    ret->v = column;
-   SLLQueuePush(first, last, ret);
+   DLLPushBack(first, last, ret);
    column_count++;
 
    return ret;
+  }
+
+  void
+  RemoveColumn(DataColumnNode *node)
+  {
+   DLLRemove(first, last, node);
+   column_count--;
   }
 
   // TODO(agw): this can be a hash map
@@ -211,12 +282,65 @@ namespace native_fhir
    return 0;
   }
 
-  size_t GetRowCount()
+  // NOTE(agw): this is quite slow, but is only meant for unit test
+  // checking...so I am going to keep it "simple" for now
+  B32 
+  HasMatchingRow(DataTable* o, size_t comparison_row)
   {
-   size_t row_count = 0;
+   if (o->column_count != column_count) return false;
+
+   Temp temp = ScratchBegin(0, 0);
+   ColumnValue *row = PushArray(temp.arena, ColumnValue, column_count);
+   ColumnValue *other_row = PushArray(temp.arena, ColumnValue, column_count);
+
+   // Fill Our Row
+   int column_idx = 0;
+   for (DataColumnNode* node = first; node; node = node->next, column_idx++)
+   {
+    row[column_idx] = node->v[comparison_row];
+   }
+
+   DataColumn col = o->first->v;
+   // For each row
+   for (int i = 0; i < col.num_values; i++)
+   {
+    // Fill other row
+    int other_column_idx = 0;
+    for (DataColumnNode* node = first; node; node = node->next, other_column_idx++)
+    {
+     other_row[other_column_idx] = node->v[i];
+    }
+
+    // Compare the two
+    B32 row_equal = true;
+    for (int idx = 0; idx < column_count; idx++)
+    {
+     if (row[idx] != other_row[idx])
+     {
+      row_equal = false;
+      break;
+     }
+    }
+
+    if (row_equal)
+    {
+     ScratchEnd(temp);
+     return true;
+    }
+
+   }
+
+   ScratchEnd(temp);
+   return false;
+  }
+
+
+  S64 GetRowCount()
+  {
+   S64 row_count = 0;
    for (DataColumnNode *node = first; node; node = node->next)
    {
-    size_t count = node->v.num_values;
+    S64 count = node->v.num_values;
     if (row_count == 0) row_count = count;
     else
     {
@@ -256,6 +380,10 @@ namespace native_fhir
   View *select_first;
   View *select_last;
   int select_count;
+
+  View *union_first;
+  View *union_last;
+  int union_count;
 
   // Column Info
   NullableString8 path;

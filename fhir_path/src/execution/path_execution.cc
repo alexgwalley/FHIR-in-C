@@ -38,6 +38,7 @@ namespace native_fhir
   }
 
   Assert(FALSE);
+  return EmptyBool::Empty;
  }
 
  EmptyBool
@@ -279,17 +280,18 @@ namespace native_fhir
     {
      case VALUE_TYPE_STRING_CASES:
      {
+      ent.type = EntryType::String;
       NullableString8 str = *(NullableString8*)mem_ptr;
-      if (str.has_value) { ent.str = str; ent.type = EntryType::String; }
+      if (str.has_value) { ent.str = str; }
       CollectionPushEntry(arena, &ret, ent);
      } break;
      case ValueType::ClassReference:
      { 
+      ent.type = EntryType::Resource;
       nf_fhir_r4::Resource* ptr = DEREF_STRUCT(entry.resource, mem->offset, nf_fhir_r4::Resource);
       if (ptr)
       {
        ent.resource = ptr;
-       ent.type = EntryType::Resource;
        CollectionPushEntry(arena, &ret, ent); 
       }
       else 
@@ -300,37 +302,38 @@ namespace native_fhir
      } break;
      case VALUE_TYPE_TIME_CASES:
      {
+      ent.type = EntryType::Iso8601;
       ISO8601_Time time = *(ISO8601_Time*)mem_ptr;
-      if (time.precision != Precision::Unknown) { ent.time = time; ent.type = EntryType::Iso8601; }
+      if (time.precision != Precision::Unknown) { ent.time = time;  }
       CollectionPushEntry(arena, &ret, ent);
      } break;
      case ValueType::Decimal:
      {
+      ent.type = EntryType::Number;
       NullableString8 str = *(NullableString8*)mem_ptr;
       if (str.has_value) { 
        Decimal decimal = DecimalFromString(Str8(str.str, str.size));
        ent.number.decimal = decimal;
        ent.number.type = Number_Decimal;
-       ent.type = EntryType::Number;
       }
       CollectionPushEntry(arena, &ret, ent);
      } break;
      case ValueType::Integer:
      {
+      ent.type = EntryType::Number;
       NullableInt32 int_val = *(NullableInt32*)mem_ptr;
       if (int_val.has_value) { 
        ent.number.s64 = int_val.value;
        ent.number.type = Number_Integer;
-       ent.type = EntryType::Number;
        CollectionPushEntry(arena, &ret, ent);
       }
      } break;
      case ValueType::Boolean:
      {
+      ent.type = EntryType::Boolean;
       NullableBoolean b_val = *(NullableBoolean*)mem_ptr;
       if (b_val.has_value) { 
        ent.b = b_val.value;
-       ent.type = EntryType::Boolean;
        CollectionPushEntry(arena, &ret, ent);
       }
      } break;

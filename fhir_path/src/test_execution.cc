@@ -264,8 +264,8 @@ ConvertSelect(Arena *arena, nf_fhir_r4::ViewDefinition_Select *select)
  {
   View *view = ConvertSelect(arena, select->_unionAll[i]);
   view->is_union = true;
-  SLLQueuePush(result->select_first, result->select_last, view);
-  result->select_count++;
+  SLLQueuePush(result->union_first, result->union_last, view);
+  result->union_count++;
  }
 
  // ~ For Each
@@ -453,7 +453,7 @@ ExecuteTestCollection(FP_TestCollection col)
   FP_Test test = col.tests[i];
 
   printf("==========================================\n");
-  printf("Test: %.*s\n", test.title.size, test.title.str);
+  printf("Test: %.*s\n", PRINT_STR8(test.title));
   //ColumnList columns = ParseViewDefinition(temp.arena, test.vd);
 
   Collection resources = {};
@@ -469,66 +469,30 @@ ExecuteTestCollection(FP_TestCollection col)
 
   DataTable table = ExecuteViewDefinition(temp.arena, test.vd, resources);
 
-  B32 passed = true;
+  size_t num_rows = table.first ? table.first->v.num_values : 0;
+  size_t test_num_rows = test.expectations.first ? test.expectations.first->v.num_values : 0;
+
+  B32 passed = false;
   if (test.expect_error)
   {
    passed = table.execution_error;
   }
-  else if (table.column_count != test.expectations.column_count)
+  else if (table.column_count == test.expectations.column_count && 
+           num_rows == test_num_rows)
   {
-   // Fail Test
-   passed = false;
-  }
-  else
-  {
-   for(DataColumnNode *node = table.first; node; node = node->next)
+   passed = num_rows == 0;
+   if(num_rows != 0)
    {
-    DataColumnNode *test_node = test.expectations.GetMatchingColumn(node->v.name);
-    if (node->v.num_values != test_node->v.num_values)
+    passed = true;
+    for (int i = 0; i < table.first->v.num_values; i++)
     {
-     // Fail Test
-     passed = false;
-    }
-    else if (node->v.value_type != test_node->v.value_type)
-    {
-     passed = false;
-    }
-    else
-    {
-     // ~ Compare each chunk (need to have non-exact row ordering)
-     DataChunkNode *test_chunk = test_node->v.first;
-     for (DataChunkNode *chunk = node->v.first;
-      chunk && test_chunk;
-      chunk = chunk->next, test_chunk = test_chunk->next)
+     B32 has_matching = table.HasMatchingRow(&test.expectations, i);
+     if (!has_matching)
      {
-      switch (node->v.value_type)
-      {
-       default: NotImplemented;
-       case ColumnValueType::String:
-       {
-        NullableString8* chunk_array = (NullableString8*)chunk->data;
-        NullableString8* test_array = (NullableString8*)test_chunk->data;
-        for (int i = 0; i < chunk->count; i++)
-        {
-         if (Str8Match(chunk_array[i].str8, test_array[i].str8, 0) == 0)
-         {
-          passed = false;
-         }
-        }
-       } break;
-       case ColumnValueType::Int32:
-       case ColumnValueType::Int64:
-       case ColumnValueType::Double:
-       case ColumnValueType::ISO8601_Time:
-       case ColumnValueType::Boolean:
-       {
-        B32 equal = memcmp(chunk->data, test_chunk->data, chunk->MaxDataSize()) == 0;
-        if (!equal) passed = false;
-       } break;
-      }
+      passed = false;
+      break;
      }
     }
-
    }
   }
 
@@ -549,7 +513,7 @@ ExecuteTestCollection(FP_TestCollection col)
 void
 ReadAndExecuteTests(String8 test_folder)
 {
- String8 test_file_name = Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\foreach.json");
+ String8 test_file_name = Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\where.json");
 
 
  Temp temp = ScratchBegin(0, 0);
