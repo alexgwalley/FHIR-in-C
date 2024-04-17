@@ -389,9 +389,9 @@ namespace native_fhir
   if (col.count > 0)
   {
    ColumnValue value = ColumnValueFromCollectionEntry(col.first->v, column->value_type);
-   if (value.value_type != ColumnValueType::Null)
+   if (value.value_type != ColumnValueType::Null && column->value_type == ColumnValueType::Unknown)
    {
-    column->value_type = value.value_type;
+    column->SetValueType(arena, value.value_type);
    }
    column->AddValue(arena, value);
   }

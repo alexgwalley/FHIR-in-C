@@ -363,7 +363,7 @@ namespace native_fhir
    {
     // Fill other row
     int other_column_idx = 0;
-    for (DataColumnNode* node = first; node; node = node->next, other_column_idx++)
+    for (DataColumnNode* node = o->first; node; node = node->next, other_column_idx++)
     {
      other_row[other_column_idx] = node->v[i];
     }

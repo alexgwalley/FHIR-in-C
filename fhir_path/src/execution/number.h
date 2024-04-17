@@ -55,7 +55,9 @@ namespace native_fhir
     result.type = Number_Integer;
     for (int i = 0; i < str.size; i++)
     {
-     Assert(CharIsDigit((char)str.str[i]));
+     if (!CharIsDigit((char)str.str[i]))
+      break;
+     //Assert(CharIsDigit((char)str.str[i]));
 
      parsed_int *= 10;
      parsed_int += (char)str.str[i] - '0';

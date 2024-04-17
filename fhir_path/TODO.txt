@@ -8,8 +8,8 @@ UNIT TESTS:
 [ ] fn_boundary.json
 [ ] fn_empty.json
 [ ] fn_extension.json
-[ ] fn_first.json
-[ ] fn_join.json
+[X] fn_first.json
+[X] fn_join.json
 [ ] fn_oftype.json
 [ ] fn_reference_keys.json
 [X] foreach.json
