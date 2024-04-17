@@ -144,6 +144,19 @@ namespace native_fhir
    return ret;
   }
 
+  void
+  SetValueType(Arena *arena, ColumnValueType type)
+  {
+   Assert(value_type == ColumnValueType::Unknown);
+   int count = last ? last->count : 0;
+
+   first = 0; last = 0; chunk_count = 0;
+
+   value_type = type;
+   this->AddChunk(arena);
+   last->count = count;
+  }
+
   void AddValue(Arena *arena, ColumnValue val);
   void AddAllValuesFromColumn(Arena *arena, DataColumn col);
 

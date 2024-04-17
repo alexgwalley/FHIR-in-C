@@ -367,7 +367,7 @@ DeserializeTest(Arena *arena, simdjson::ondemand::object base)
     {
      if (matching_column->v.value_type == ColumnValueType::Unknown && node->v.value_type != ColumnValueType::Unknown)
      {
-      matching_column->v.value_type = node->v.value_type;
+      matching_column->v.SetValueType(arena, node->v.value_type);
      }
 
      matching_column->v.AddAllValuesFromColumn(arena, node->v);
@@ -527,7 +527,7 @@ ExecuteTestCollection(FP_TestCollection col)
 void
 ReadAndExecuteTests(String8 test_folder)
 {
- String8 test_file_name = Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\union.json");
+ String8 test_file_name = Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\foreach.json");
 
 
  Temp temp = ScratchBegin(0, 0);
