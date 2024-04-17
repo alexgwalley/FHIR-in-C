@@ -199,12 +199,31 @@ namespace native_fhir
  }
 
  local_function DataTable
- DataTable_CrossJoin(Arena *arena, DataTable *dst, DataTable* src)
+ DataTable_CrossJoin(Arena *arena, DataTable *old, DataTable* _new, B32 put_new_first)
  {
   DataTable ret = {};
 
+  if (put_new_first)
+  {
+   // ~ Add new columns
+   if (old->GetRowCount() > 0)
+   {
+    for (DataColumnNode *src_col = _new->first; src_col; src_col = src_col->next)
+    {
+     DataColumn col = src_col->v;
+
+     for (S64 i = 0; i < old->GetRowCount() - 1; i++)
+     {
+      col.AddAllValuesFromColumn(arena, src_col->v);
+     }
+
+     ret.AddColumn(arena, col);
+    }
+   }
+  }
+
   // For each row in the first, add all values of the second, repeating the value in the first
-  for (DataColumnNode *col = dst->first; col; col = col->next)
+  for (DataColumnNode *col = old->first; col; col = col->next)
   {
    DataColumn new_column = {};
    new_column.name = col->v.name;
@@ -269,7 +288,7 @@ namespace native_fhir
       } break;
      }
 
-     for (int i = 0; i < src->GetRowCount(); i++) { new_column_node->v.AddValue(arena, val); }
+     for (int i = 0; i < _new->GetRowCount(); i++) { new_column_node->v.AddValue(arena, val); }
 
      // ~ Copy all values from src for each row in dst
     }
@@ -281,20 +300,25 @@ namespace native_fhir
    }
   }
 
-  if (dst->GetRowCount() > 0)
+  if (!put_new_first)
   {
-   for (DataColumnNode *src_col = src->first; src_col; src_col = src_col->next)
+   // ~ Add new columns
+   if (old->GetRowCount() > 0)
    {
-    DataColumn col = src_col->v;
-
-    for (S64 i = 0; i < dst->GetRowCount() - 1; i++)
+    for (DataColumnNode *src_col = _new->first; src_col; src_col = src_col->next)
     {
-     col.AddAllValuesFromColumn(arena, src_col->v);
-    }
+     DataColumn col = src_col->v;
 
-    ret.AddColumn(arena, col);
+     for (S64 i = 0; i < old->GetRowCount() - 1; i++)
+     {
+      col.AddAllValuesFromColumn(arena, src_col->v);
+     }
+
+     ret.AddColumn(arena, col);
+    }
    }
   }
+
 
   return ret;
  }
@@ -480,7 +504,7 @@ namespace native_fhir
        }
        else
        {
-        select_result = DataTable_CrossJoin(arena, &select_result, &next_table);
+        select_result = DataTable_CrossJoin(arena, &select_result, &next_table, 0);
        }
       }
      }
@@ -508,10 +532,6 @@ namespace native_fhir
      {
       parts = column_result;
      }
-     else
-     {
-      parts = DataTable_CrossJoin(arena, &parts, &column_result);
-     }
 
      if (view->select_count > 0)
      {
@@ -521,7 +541,7 @@ namespace native_fhir
       }
       else
       {
-       parts = DataTable_CrossJoin(arena, &parts, &select_result);
+       parts = DataTable_CrossJoin(arena, &parts, &select_result, 1);
       }
      }
 
@@ -533,7 +553,7 @@ namespace native_fhir
       }
       else
       {
-       parts = DataTable_CrossJoin(arena, &parts, &union_result);
+       parts = DataTable_CrossJoin(arena, &parts, &union_result, 0);
       }
      }
 
@@ -700,7 +720,7 @@ namespace native_fhir
     }
     else
     {
-     temp = DataTable_CrossJoin(arena, &temp, &next_table);
+     temp = DataTable_CrossJoin(arena, &temp, &next_table, 0);
     }
    }
 
