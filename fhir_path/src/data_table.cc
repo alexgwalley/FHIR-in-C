@@ -378,10 +378,21 @@ namespace native_fhir
 
   if (column->value_type == ColumnValueType::Array)
   {
-   DataColumn *col = PushStruct(arena, DataColumn);
+   DataColumn *new_col = PushStruct(arena, DataColumn);
    ColumnValue value = {};
+   for (CollectionEntryNode *node = col.first; node; node = node->next)
+   {
+    ColumnValue value = ColumnValueFromCollectionEntry(node->v, new_col->value_type);
+    if (value.value_type != ColumnValueType::Null && new_col->value_type == ColumnValueType::Unknown)
+    {
+     new_col->SetValueType(arena, value.value_type);
+    }
+
+    new_col->AddValue(arena, value);
+   }
+
    value.value_type = ColumnValueType::Array;
-   value.array = col;
+   value.array = new_col;
    column->AddValue(arena, value);
    return;
   }
