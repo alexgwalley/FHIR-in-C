@@ -80,9 +80,13 @@ namespace native_fhir
   {
    ColumnValue val = {};
    val.value_type = ColumnValueType::Null;
-   this->AddValue(arena, val);
+   for (int i = 0; i < col.num_values; i++)
+   {
+    this->AddValue(arena, val);
+   }
    return;
   }
+
   Assert(col.value_type == value_type);
 
   for (DataChunkNode *node = col.first; node; node = node->next)
@@ -129,15 +133,26 @@ namespace native_fhir
  }
 
  local_function void
- DataTable_UnionDataTables(Arena *arena, DataTable *dst, DataTable* src)
+ DataTable_UnionDataTables(Arena *arena, DataTable *dst, DataTable* src, FP_ExecutionContext *context)
  {
-  // ~ Add columns that if not present,
-  for (DataColumnNode *node = src->first; node; node = node->next)
+  if (src->column_count == 0) return;
+  if (dst->column_count == 0)
   {
-   DataColumnNode *matching_node = dst->GetMatchingColumn(node->v.name);
-   if (!matching_node) { throw; }
+   for (DataColumnNode *node = src->first; node; node = node->next)
+   {
+    dst->AddColumn(arena, node->v);
+   }
+   return;
+  }
 
-   matching_node->v.AddAllValuesFromColumn(arena, node->v);
+  FP_Assert(dst->column_count == src->column_count, context, Str8Lit("UnionAll column count mismatch"));
+  // ~ Add columns that if not present,
+  DataColumnNode *dst_node = dst->first;
+  for (DataColumnNode *node = src->first; node; node = node->next, dst_node = dst_node->next)
+  {
+   FP_Assert(Str8Match(dst_node->v.name, node->v.name, 0), context, Str8Lit("UnionAll column name mismatch (order?)"));
+
+   dst_node->v.AddAllValuesFromColumn(arena, node->v);
   }
 
  }
@@ -438,7 +453,7 @@ namespace native_fhir
        }
        else
        {
-        DataTable_UnionDataTables(arena, &union_result, &next_table);
+        DataTable_UnionDataTables(arena, &union_result, &next_table, context);
        }
       }
      }
@@ -640,7 +655,7 @@ namespace native_fhir
    }
 
    if (table.column_count == 0) { table = temp; }
-   else { DataTable_UnionDataTables(arena, &table, &temp); }
+   else { DataTable_UnionDataTables(arena, &table, &temp, &context); }
   }
 
   return table;

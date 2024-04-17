@@ -24,6 +24,13 @@ AddTestArrayToColumn(Arena *arena, simdjson::ondemand::array array, DataColumn* 
   simdjson::ondemand::value value = field.value();
   switch (value.type())
   {
+   default: NotImplemented;
+   case simdjson::ondemand::json_type::null:
+   {
+    ColumnValue value = {};
+    value.value_type = ColumnValueType::Null;
+    col->AddValue(arena, value);
+   } break;
 			case simdjson::ondemand::json_type::string:
    {
 				std::string_view str_view;
@@ -116,6 +123,13 @@ DeserializeTestResult(Arena *arena, simdjson::ondemand::object base)
   simdjson::ondemand::value value = field.value();
   switch (value.type())
 		{
+   default: NotImplemented;
+   case simdjson::ondemand::json_type::null:
+   {
+    ColumnValue value = {};
+    value.value_type = ColumnValueType::Null;
+    col.AddValue(arena, value);
+   } break;
 			case simdjson::ondemand::json_type::string:
 			{
     col.value_type = ColumnValueType::String;
@@ -513,7 +527,7 @@ ExecuteTestCollection(FP_TestCollection col)
 void
 ReadAndExecuteTests(String8 test_folder)
 {
- String8 test_file_name = Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\where.json");
+ String8 test_file_name = Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\union.json");
 
 
  Temp temp = ScratchBegin(0, 0);
