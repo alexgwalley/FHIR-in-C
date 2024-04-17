@@ -64,7 +64,6 @@ namespace native_fhir
   }
  };
 
-
  struct DataColumn;
 
  struct ColumnValue
@@ -84,35 +83,10 @@ namespace native_fhir
    DataColumn* array;
   };
 
-  B32 Equal(ColumnValue& o)
-  {
-   if (value_type != o.value_type) return false;
-   if (value_type == ColumnValueType::String)
-   {
-    if (str.has_value != o.str.has_value) return false;
-    B32 equal = Str8Match(str.str8, o.str.str8, 0);
-    return equal;
-   }
-   else if (value_type == ColumnValueType::Array)
-   {
-    NotImplemented;
-   }
+  B32 Equal(ColumnValue& o);
 
-   B32 equal = memcmp(this, &o, sizeof(ColumnValue)) == 0;
-   return equal;
-  }
-
-  bool operator==(ColumnValue& o)
-  {
-   bool equal = Equal(o);
-   return equal;
-  }
-
-  bool operator!=(ColumnValue& o)
-  {
-   bool equal = Equal(o);
-   return !equal;
-  }
+  bool operator==(ColumnValue& o);
+  bool operator!=(ColumnValue& o);
  };
 
  struct DataColumn
@@ -243,6 +217,76 @@ namespace native_fhir
    }
 
    return ret;
+  }
+
+  bool
+  Equal(DataColumn const& other) const
+  {
+   if (value_type != other.value_type) return false;
+
+   DataChunkNode *other_node = other.first;
+   for (DataChunkNode* node = first; 
+        node;
+        node = node->next, other_node = other_node->next)
+   {
+    if (node->count != other_node->count) return false;
+    switch (value_type)
+    {
+     default: NotImplemented;
+     case ColumnValueType::Null:
+     {
+      if (node->count != other_node->count) 
+       return false;
+     } break;
+     case ColumnValueType::String:
+     {
+      for (int i = 0; i < node->count; i++)
+      {
+       NullableString8* strs = (NullableString8*)node->data;
+       NullableString8* other_strs = (NullableString8*)other_node->data;
+       if (strs[i].has_value != other_strs[i].has_value) return false;
+       if (!Str8Match(strs[i].str8, other_strs[i].str8, 0)) return false;
+      }
+     } break;
+     case ColumnValueType::Boolean:
+     case ColumnValueType::Int32:
+     case ColumnValueType::Int64:
+     case ColumnValueType::Double:
+     case ColumnValueType::ISO8601_Time:
+     {
+      B32 equal = memcmp(node->data, other_node->data, node->MaxDataSize()) == 0;
+      if (!equal) return false;
+     } break;
+     case ColumnValueType::Array:
+     {
+
+      for (int i = 0; i < node->count; i++)
+      {
+       DataColumn** strs = (DataColumn**)node->data;
+       DataColumn** other_strs = (DataColumn**)other_node->data;
+       if (*strs[i] != *other_strs[i]) return false;
+      }
+
+     } break;
+    }
+   }
+
+   return true;
+  }
+
+
+  bool
+  operator!=(DataColumn const& other) const
+  {
+   B32 equal = Equal(other);
+   return !equal;
+  }
+
+  bool
+  operator==(DataColumn const& other) const
+  {
+   B32 equal = Equal(other);
+   return equal;
   }
 
  };

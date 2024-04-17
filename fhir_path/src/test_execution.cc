@@ -1,3 +1,4 @@
+#include <any>
 namespace native_fhir
 {
  // TODO(agw): should be in header
@@ -33,6 +34,7 @@ AddTestArrayToColumn(Arena *arena, simdjson::ondemand::array array, DataColumn* 
    } break;
 			case simdjson::ondemand::json_type::string:
    {
+    col->value_type = ColumnValueType::String;
 				std::string_view str_view;
 				auto res = value.get(str_view);
 				Assert(res == simdjson::error_code::SUCCESS);
@@ -61,6 +63,7 @@ AddTestArrayToColumn(Arena *arena, simdjson::ondemand::array array, DataColumn* 
     ColumnValue value = {};
     if (num.type == Number_Integer)
     {
+     col->value_type = ColumnValueType::Int64;
      value.value_type = ColumnValueType::Int64;
      NullableInt64 n_i = {};
      n_i.has_value = true;
@@ -69,6 +72,7 @@ AddTestArrayToColumn(Arena *arena, simdjson::ondemand::array array, DataColumn* 
     }
     else
     {
+     col->value_type = ColumnValueType::Int32;
      value.value_type = ColumnValueType::Int64;
      NullableDouble n = {};
      n.has_value = true;
@@ -80,6 +84,7 @@ AddTestArrayToColumn(Arena *arena, simdjson::ondemand::array array, DataColumn* 
 			} break;
 			case simdjson::ondemand::json_type::boolean: // copy into dest
 			{
+    col->value_type = ColumnValueType::Boolean;
 				bool _boolean;
 				auto res = value.get(_boolean);
 				Assert(res == simdjson::error_code::SUCCESS);
@@ -106,7 +111,7 @@ AddTestArrayToColumn(Arena *arena, simdjson::ondemand::array array, DataColumn* 
  value.value_type = ColumnValueType::Array;
  value.array = col;
 
- col->AddValue(arena, value);
+ column->AddValue(arena, value);
 }
 
 DataTable
@@ -305,8 +310,10 @@ ConvertViewDefinition(Arena *arena, nf_fhir_r4::ViewDefinition *vd)
  // ~ Resource Type
  String8 res_name = vd->_resource.str8;
  const ResourceNameTypePair *pair = NF_ResourceNameTypePairFromString8(res_name);
- Assert(pair);
- result.resource_type = (nf_fhir_r4::ResourceType)pair->type;
+ if (pair)
+ {
+  result.resource_type = (nf_fhir_r4::ResourceType)pair->type;
+ }
 
  // ~ Where
  for (int i = 0; i < vd->_where_count; i++)
@@ -458,6 +465,24 @@ DeserializeTestCollection(Arena *arena, String8 file_name)
  return col;
 }
 
+enum class ViewDefinitionValidationError
+{
+ Unknown,
+ Success,
+ NoResourceType,
+ Count
+};
+
+ViewDefinitionValidationError ValidateViewDefinition(native_fhir::ViewDefinition vd)
+{
+ if (vd.resource_type == nf_fhir_r4::ResourceType::Unknown)
+ {
+  return ViewDefinitionValidationError::NoResourceType;
+ }
+
+ return ViewDefinitionValidationError::Success;
+}
+
 void
 ExecuteTestCollection(FP_TestCollection col)
 {
@@ -470,6 +495,22 @@ ExecuteTestCollection(FP_TestCollection col)
   printf("Test: %.*s\n", PRINT_STR8(test.title));
   //ColumnList columns = ParseViewDefinition(temp.arena, test.vd);
 
+  B32 passed = false;
+
+  ViewDefinitionValidationError valid = ValidateViewDefinition(test.vd);
+  if(valid != ViewDefinitionValidationError::Success)
+  {
+   if (test.expect_error)
+   {
+    printf("PASSED: \"%.*s\"\n", PRINT_STR8(test.title));
+   }
+    else
+   {
+    printf("FAILED: \"%.*s\"\n", PRINT_STR8(test.title));
+    }
+   continue;
+  }
+
   Collection resources = {};
   for (int i = 0; i < col.res_count; i++)
   {
@@ -481,12 +522,20 @@ ExecuteTestCollection(FP_TestCollection col)
    CollectionPushEntry(temp.arena, &resources, ent);
   }
 
-  DataTable table = ExecuteViewDefinition(temp.arena, test.vd, resources);
+  DataTable table = {};
+  try
+  {
+   table = ExecuteViewDefinition(temp.arena, test.vd, resources);
+  } 
+  // TODO(agw): proper throw catch for custom errors
+  catch (std::bad_any_cast a)
+  {
+   table.execution_error = true;
+  }
 
   size_t num_rows = table.first ? table.first->v.num_values : 0;
   size_t test_num_rows = test.expectations.first ? test.expectations.first->v.num_values : 0;
 
-  B32 passed = false;
   if (test.expect_error)
   {
    passed = table.execution_error;
@@ -527,7 +576,7 @@ ExecuteTestCollection(FP_TestCollection col)
 void
 ReadAndExecuteTests(String8 test_folder)
 {
- String8 test_file_name = Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\foreach.json");
+ String8 test_file_name = Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\collection.json");
 
 
  Temp temp = ScratchBegin(0, 0);

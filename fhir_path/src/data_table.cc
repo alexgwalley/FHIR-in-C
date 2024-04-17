@@ -132,6 +132,47 @@ namespace native_fhir
   this->num_values += col.num_values;
  }
 
+ B32
+ ColumnValue::Equal(ColumnValue& o)
+ {
+  if (value_type != o.value_type) return false;
+  if (value_type == ColumnValueType::String)
+  {
+   if (str.has_value != o.str.has_value) return false;
+   B32 equal = Str8Match(str.str8, o.str.str8, 0);
+   return equal;
+  }
+  else if (value_type == ColumnValueType::Array)
+  {
+   DataColumn* other_column = o.array;
+   if ((o.array == NULL && array != NULL) ||
+    (array == NULL && o.array != NULL))
+   {
+    return false;
+   }
+
+   B32 equal = (*o.array) == (*array);
+   return equal;
+  }
+
+  B32 equal = memcmp(this, &o, sizeof(ColumnValue)) == 0;
+  return equal;
+ }
+
+ bool 
+ ColumnValue::operator==(ColumnValue& o)
+ {
+  bool equal = Equal(o);
+  return equal;
+ }
+
+ bool 
+ ColumnValue::operator!=(ColumnValue& o)
+ {
+  bool equal = Equal(o);
+  return !equal;
+ }
+
  local_function void
  DataTable_UnionDataTables(Arena *arena, DataTable *dst, DataTable* src, FP_ExecutionContext *context)
  {
@@ -258,23 +299,73 @@ namespace native_fhir
   return ret;
  }
 
- local_function void 
- DataColumn_AddCollectionEntry(Arena *arena, FP_ExecutionContext *context, DataColumn *column, CollectionEntry ent)
+ ColumnValue
+ ColumnValueFromCollectionEntry(CollectionEntry ent, ColumnValueType column_type)
  {
-  if (column->value_type == ColumnValueType::Unknown)
+  ColumnValue ret = {};
+  switch (ent.type)
   {
-   switch (ent.type)
+   default: NotImplemented; break;
+   case EntryType::Boolean: 
+   { 
+    ret.value_type = ColumnValueType::Boolean;
+    NullableBoolean value = {};
+    value.has_value = true;
+    value.value = ent.b;
+    ret.b = value;
+   } break;
+   case EntryType::String: 
    {
-    case EntryType::String: { column->value_type = ColumnValueType::String; } break;
-    case EntryType::Boolean: { column->value_type = ColumnValueType::Boolean; } break;
-    case EntryType::Iso8601: { column->value_type = ColumnValueType::ISO8601_Time; } break;
-    case EntryType::Number: {
-     if(ent.number.type == Number_Integer) { column->value_type = ColumnValueType::Int64; }
-     else if(ent.number.type == Number_Decimal) { column->value_type = ColumnValueType::Double; }
-    } break;
-    default: FP_Assert(false, context, PushStr8F(context->arena, "Unknown Value Type for column \"%S\"", column->name) );
-   }
+    ret.value_type = ColumnValueType::String;
+    ret.str = ent.str;
+   } break;
+   case EntryType::Iso8601:
+   {
+    ret.value_type = ColumnValueType::ISO8601_Time;
+    ret.time = ent.time;
+   } break;
+   case EntryType::Number:
+   {
+    switch (column_type)
+    {
+     default: NotImplemented;
+     case ColumnValueType::Int32:
+     {
+      if (ent.number.type != Number_Integer || ent.number.s64 > INT_MAX) { throw; }
+      S32 s32 = (S32)ent.number.s64;
+
+      ret.value_type = ColumnValueType::Int32;
+      NullableInt32 ni = {};
+      ni.has_value = true;
+      ni.value = s32;
+      ret.s32 = ni;
+     } break;
+     case ColumnValueType::Int64:
+     {
+      ret.value_type = ColumnValueType::Int64;
+      NullableInt64 ni = {};
+      ni.has_value = true;
+      ni.value = ent.number.s64;
+      ret.s64 = ni;
+     } break;
+     case ColumnValueType::Double:
+     {
+      F64 double_value = DoubleFromDecimal(ent.number.decimal);
+      ret.value_type = ColumnValueType::Double;
+      NullableDouble nd = {};
+      nd.has_value = true;
+      nd.value = double_value;
+      ret._double = nd;
+     } break;
+    }
+   } break;
   }
+  return ret;
+ }
+
+ local_function void 
+ DataColumn_AddCollection(Arena *arena, FP_ExecutionContext *context, DataColumn *column, Collection col)
+ {
 
   DataChunkNode *chunk_node = column->last;
   if (!chunk_node)
@@ -285,81 +376,24 @@ namespace native_fhir
    chunk_node = column->AddChunk(arena);
   }
 
-  column->num_values++;
-
-  switch (ent.type)
+  if (column->value_type == ColumnValueType::Array)
   {
-   default: NotImplemented; break;
-   case EntryType::Boolean: 
-   { 
-    FP_Assert(column->value_type == ColumnValueType::Boolean, context, 
-              PushStr8F(context->arena,
-                        "Trying to assign a boolean value to column %S, when the column's type is not boolean",
-                        column->name));
+   DataColumn *col = PushStruct(arena, DataColumn);
+   ColumnValue value = {};
+   value.value_type = ColumnValueType::Array;
+   value.array = col;
+   column->AddValue(arena, value);
+   return;
+  }
 
-    NullableBoolean* bool_ptr = (NullableBoolean*)chunk_node->data;
-    NullableBoolean value = {};
-    value.has_value = true;
-    value.value = ent.b;
-    bool_ptr[chunk_node->count] = value;
-    chunk_node->count++;
-
-   } break;
-   case EntryType::String: 
+  if (col.count > 0)
+  {
+   ColumnValue value = ColumnValueFromCollectionEntry(col.first->v, column->value_type);
+   if (value.value_type != ColumnValueType::Null)
    {
-    FP_Assert(column->value_type == ColumnValueType::String, context, 
-              PushStr8F(context->arena,
-                        "Trying to assign a string value to column %S, when the column's type is not string",
-                        column->name));
-
-    NullableString8* string_ptr = (NullableString8*)chunk_node->data;
-    string_ptr[chunk_node->count] = ent.str;
-    chunk_node->count++;
-
-   } break;
-   case EntryType::Iso8601:
-   {
-    FP_Assert(column->value_type == ColumnValueType::ISO8601_Time, context, 
-              PushStr8F(context->arena,
-                        "Trying to assign a Date/Time value to column %S, when the column's type is not Date/Time",
-                        column->name));
-
-    ISO8601_Time* string_ptr = (ISO8601_Time*)chunk_node->data;
-    string_ptr[chunk_node->count] = ent.time;
-    chunk_node->count++;
-
-   } break;
-   case EntryType::Number:
-   {
-    switch (column->value_type)
-    {
-     case ColumnValueType::Int32:
-     {
-      if (ent.number.type != Number_Integer || ent.number.s64 > INT_MAX) { throw; }
-      S32 s32 = (S32)ent.number.s64;
-
-      S32* string_ptr = (S32*)chunk_node->data;
-      string_ptr[chunk_node->count] = s32;
-      chunk_node->count++;
-
-     } break;
-     case ColumnValueType::Int64:
-     {
-      S64* string_ptr = (S64*)chunk_node->data;
-      string_ptr[chunk_node->count] = ent.number.s64;
-      chunk_node->count++;
-     } break;
-     case ColumnValueType::Double:
-     {
-      F64* string_ptr = (F64*)chunk_node->data;
-      F64 double_value = DoubleFromDecimal(ent.number.decimal);
-      string_ptr[chunk_node->count] = double_value;
-
-      chunk_node->count++;
-     } break;
-    }
-
-   } break;
+    column->value_type = value.value_type;
+   }
+   column->AddValue(arena, value);
   }
 
  }
@@ -554,12 +588,17 @@ namespace native_fhir
     DataColumn column = {};
     column.name = view->name.str8;
     column.value_type = view->data_type;
-
-    for (CollectionEntryNode *node = col.first; node; node = node->next)
+    if (view->collection.has_value && view->collection.value)
     {
-     CollectionEntry ent = node->v;
-     DataColumn_AddCollectionEntry(arena, context, &column, ent);
+     column.value_type = ColumnValueType::Array;
     }
+    else if (view->collection.has_value && view->collection.value == false)
+    {
+     FP_Assert(col.count == 1, context, 
+               PushStr8F(context->arena, "Collection generated for column %S, but collection = false", column.name));
+    }
+
+    DataColumn_AddCollection(arena, context, &column, col);
 
     if (col.count == 0)
     {
