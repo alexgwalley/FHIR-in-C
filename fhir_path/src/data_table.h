@@ -5,13 +5,6 @@ namespace native_fhir
 {
  #define CHUNK_SIZE 64
 
- // ~ Data Table
- struct DataRow
- {
-  int count;
-  String8List column_names;
-  Collection *data;
- };
 
  enum class ColumnValueType
  {
@@ -87,6 +80,13 @@ namespace native_fhir
 
   bool operator==(ColumnValue& o);
   bool operator!=(ColumnValue& o);
+ };
+
+ // ~ Data Table
+ struct DataRow
+ {
+  int count;
+  ColumnValue *v;
  };
 
  struct DataColumn
@@ -226,8 +226,8 @@ namespace native_fhir
 
    DataChunkNode *other_node = other.first;
    for (DataChunkNode* node = first; 
-        node;
-        node = node->next, other_node = other_node->next)
+    node;
+    node = node->next, other_node = other_node->next)
    {
     if (node->count != other_node->count) return false;
     switch (value_type)
@@ -319,6 +319,22 @@ namespace native_fhir
    return ret;
   }
 
+  DataRow
+  GetRow(Arena *arena, int idx)
+  {
+   DataRow res = {};
+   res.count = column_count;
+   res.v = PushArray(arena, ColumnValue, res.count);
+
+   int column_idx = 0;
+   for (DataColumnNode* node = first; node; node = node->next, column_idx++)
+   {
+    res.v[column_idx] = node->v[idx];
+   }
+
+   return res;
+  }
+
   void
   RemoveColumn(DataColumnNode *node)
   {
@@ -406,6 +422,31 @@ namespace native_fhir
    }
 
    return row_count;
+  }
+
+ };
+
+ struct DataTableNode
+ {
+  DataTableNode *next;
+  DataTable table;
+ };
+
+ struct DataTableList
+ {
+  DataTableNode *first;
+  DataTableNode *last;
+  int count;
+
+  // TODO(agw): can add free lists here
+
+
+  void AddTable(Arena *arena, DataTable table)
+  {
+   DataTableNode* node = PushStruct(arena, DataTableNode);
+   node->table = table;
+   SLLQueuePush(first, last, node);
+   count++;
   }
 
  };

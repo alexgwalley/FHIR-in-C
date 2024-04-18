@@ -234,6 +234,7 @@ ArenaPushNoZero(Arena *arena, U64 size)
   U64 cmt_new_clamped = Min(cmt_new_aligned, current->reserve_size);
   U64 cmt_new_size    = cmt_new_clamped - current->commit_pos;
   ArenaImpl_Commit((U8*)current + current->commit_pos, cmt_new_size);
+  arena->commit_pos += cmt_new_size;
 
   result = (U8*)current + mem_pos;
   current->pos = new_pos;

@@ -18,3 +18,18 @@ UNIT TESTS:
 [ ] validate.json // TODO(agw): read errors from deserializer
 [X] view_resource.json
 [X] where.json
+
+
+let table_list = [{}];
+let new_rows = null;
+
+table_list.forEach(table => {
+  new_rows = [];
+  table.forEachRow((table_row)=> {
+    rows.forEach(row => {
+      new_rows.push(merge(table_row,row))
+    })
+  })
+  table = new_rows;
+});
+return rows;

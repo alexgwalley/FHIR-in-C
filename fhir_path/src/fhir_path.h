@@ -1,7 +1,7 @@
 #ifndef NF_FHIR_PATH_H
 #define NF_FHIR_PATH_H
 
-#define FP_AssertAll(cond, context, msg, _break) if (!(cond)) { (context)->error_message = msg; if ((_break)) { OS_DebugBreak; } longjmp((context)->error_buf, -1); }
+#define FP_AssertAll(cond, context, msg, _break) if (!(cond)) { (context)->error_message = msg; if ((!_break)) { OS_DebugBreak; } longjmp((context)->error_buf, -1); }
 
 #define NotImplemented OS_DebugBreak
 #define FP_Assert(cond, context, msg) FP_AssertAll(cond, context, msg, 0)

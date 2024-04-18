@@ -588,11 +588,10 @@ namespace native_fhir
 
  // NOTE(agw): indices are inclusive
  local_function Collection
- ExecuteSubsetting(Arena *arena, FP_ExecutionContext *context, Piece *node, S64 min_index, S64 max_index, NF_SubsettingFlags flags)
+ ExecuteSubsetting(Arena *arena, FP_ExecutionContext *context, Collection left_col, S64 min_index, S64 max_index, NF_SubsettingFlags flags)
  {
   Collection ret = { 0 };
   Temp temp = ScratchBegin(&arena, 1);
-  Collection left_col = ExecuteExpression(temp.arena, context, node->child[0]);
 
   if (min_index >= left_col.count)
   {
@@ -616,7 +615,7 @@ namespace native_fhir
   int index = 0;
   while (index < min)
   {
-   FP_Assert(node, context, Str8Lit("Error Evaluating Subset, entry node is null"));
+   FP_Assert(entry_node, context, Str8Lit("Error Evaluating Subset, entry node is null"));
    entry_node = entry_node->next;
    index++;
   }
@@ -637,7 +636,7 @@ namespace native_fhir
  }
 
  local_function Collection
- ExecuteFunction(Arena *arena, FP_ExecutionContext *context, Piece* node)
+ ExecuteFunction(Arena *arena, FP_ExecutionContext *context, Collection left_col, Piece* func_node)
  {
   Collection ret = { 0 };
 
@@ -647,14 +646,13 @@ namespace native_fhir
   Function function_type = Function::Unknown;
   for (int i = 0; i < ArrayCount(pe_functions); i++)
   {
-   if (Str8Match(pe_functions[i].name, node->child[1]->slice, 0))
+   if (Str8Match(pe_functions[i].name, func_node->slice, 0))
    {
     function_type = pe_functions[i].func;
    }
   }
 
   // ~ Execute Function
-  Piece *func_node = node->child[1];
   switch (function_type)
   {
    case Function::Count:
@@ -663,7 +661,6 @@ namespace native_fhir
    {
     Temp temp = ScratchBegin(&arena, 1);
 
-    Collection left_col = ExecuteExpression(temp.arena, context, node->child[0]);
     if (function_type == Function::Empty)
     {
      ret = CollectionFromBoolean(arena, left_col.count == 0);
@@ -682,8 +679,6 @@ namespace native_fhir
    case Function::Join:
    {
     Temp temp = ScratchBegin(&arena, 1);
-    Collection left_col = ExecuteExpression(temp.arena, context, node->child[0]);
-
     FP_Assert(left_col.first->v.type == EntryType::String, context, Str8Lit("Join() only works on string types"));
 
     String8List str_list = {};
@@ -696,10 +691,10 @@ namespace native_fhir
 
     StringJoin join_params = {};
 
-    if (node->child[1]->params.count > 0)
+    if (func_node->params.count > 0)
     {
-     FP_Assert(node->child[1]->params.first->v->type == Piece_String, context, Str8Lit("Expected string separator in function join()"));
-     join_params.sep = node->child[1]->params.first->v->value.str.str8;
+     FP_Assert(func_node->params.first->v->type == Piece_String, context, Str8Lit("Expected string separator in function join()"));
+     join_params.sep = func_node->params.first->v->value.str.str8;
     }
 
     String8 str = Str8ListJoin(arena, str_list, &join_params);
@@ -714,7 +709,6 @@ namespace native_fhir
    case Function::Not:
    {
     Temp temp = ScratchBegin(&arena, 1);
-    Collection left_col = ExecuteExpression(temp.arena, context, node->child[0]);
 
     if (left_col.count != 0)
     {
@@ -726,7 +720,6 @@ namespace native_fhir
    } break;
    case Function::Where:
    {
-    Collection left_col = ExecuteExpression(arena, context, node->child[0]);
     FP_Assert(func_node->params.first, context, Str8Lit("Where must have parameters"));
 
     for (CollectionEntryNode *n = left_col.first; !IsNilCollectionEntryNode(n); n = n->next)
@@ -762,7 +755,6 @@ namespace native_fhir
     Assert(func_node->params.first);
 
     Temp temp = ScratchBegin(&arena, 1);
-    Collection left_col = ExecuteExpression(temp.arena, context, node->child[0]);
 
     for (CollectionEntryNode *n = left_col.first; !IsNilCollectionEntryNode(n); n = n->next)
     {
@@ -811,11 +803,19 @@ namespace native_fhir
      value_type = ValueType::ClassReference;
     }
 
-    Collection left_col = ExecuteExpression(temp.arena, context, node->child[0]);
     EntryType correct_entry_type = EntryType::Unknown;
 
     switch (value_type)
     {
+     default: NotImplemented;
+     case ValueType::Boolean:
+     {
+      for (CollectionEntryNode *n = left_col.first; !IsNilCollectionEntryNode(n); n = n->next)
+      {
+       B32 correct_type = n->v.type == EntryType::Boolean;
+       if (correct_type) { CollectionPushEntry(arena, &ret, n->v); }
+      }
+     } break;
      case VALUE_TYPE_STRING_CASES: 
      {
       for (CollectionEntryNode *n = left_col.first; !IsNilCollectionEntryNode(n); n = n->next)
@@ -856,10 +856,10 @@ namespace native_fhir
     ScratchEnd(temp);
 
    } break;
-   case Function::First:  { ret = ExecuteSubsetting(arena, context, node, 0, 0, 0); } break;
-   case Function::Last:   { ret = ExecuteSubsetting(arena, context, node, -1, -1, 0); } break;
-   case Function::Tail:   { ret = ExecuteSubsetting(arena, context, node, 1, -1, 0); } break;
-   case Function::Single: { ret = ExecuteSubsetting(arena, context, node, 0, -1, NF_Subsetting_FailOnMultiple); } break;
+   case Function::First:  { ret = ExecuteSubsetting(arena, context, left_col, 0, 0, 0); } break;
+   case Function::Last:   { ret = ExecuteSubsetting(arena, context, left_col, -1, -1, 0); } break;
+   case Function::Tail:   { ret = ExecuteSubsetting(arena, context, left_col, 1, -1, 0); } break;
+   case Function::Single: { ret = ExecuteSubsetting(arena, context, left_col, 0, -1, NF_Subsetting_FailOnMultiple); } break;
 
    case Function::Skip:
    case Function::Take:
@@ -879,7 +879,7 @@ namespace native_fhir
     // "If num is less than or equal to 0,
     // or if the input collection is empty ({ }) take returns an empty collection."
     if (num <= 0 && function_type == Function::Take) ret = { 0 };
-    else ret = ExecuteSubsetting(arena, context, node, min, max, 0);
+    else ret = ExecuteSubsetting(arena, context, left_col, min, max, 0);
    } break;
    default:
    {
@@ -981,7 +981,15 @@ namespace native_fhir
      return ret;
     }
    } break;
-
+   case Piece_FunctionInvocation:
+   {
+    FP_Assert(context->entry_stack_first, context, Str8Lit("Function Invocation requires a resource to act upon"));
+    Temp temp = ScratchBegin(&arena, 1);
+    Collection left_col = CollectionFromEntry(temp.arena, context->entry_stack_first->v);
+    Collection ret = ExecuteFunction(arena, context, left_col, node);
+    ScratchEnd(temp);
+    return ret;
+   } break;
    case Piece_Dot:
    {
     FP_Assert(!IsNilPiece(node->child[1]) && node->child[1]->type != Piece_Unknown, context, Str8Lit("Must have right hand side"));
@@ -997,7 +1005,10 @@ namespace native_fhir
     }
     else
     {
-     Collection ret = ExecuteFunction(arena, context, node);
+     Temp temp = ScratchBegin(&arena, 1);
+     Collection left_col = ExecuteExpression(temp.arena, context, node->child[0]);
+     Collection ret = ExecuteFunction(arena, context, left_col, node->child[1]);
+     ScratchEnd(temp);
      return ret;
     }
 
