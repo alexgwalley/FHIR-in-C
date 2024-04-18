@@ -63,17 +63,17 @@ AddTestArrayToColumn(Arena *arena, simdjson::ondemand::array array, DataColumn* 
     ColumnValue value = {};
     if (num.type == Number_Integer)
     {
-     col->value_type = ColumnValueType::Int64;
-     value.value_type = ColumnValueType::Int64;
-     NullableInt64 n_i = {};
+     col->value_type = ColumnValueType::Int32;
+     value.value_type = ColumnValueType::Int32;
+     NullableInt32 n_i = {};
      n_i.has_value = true;
-     n_i.value = num.s64;
-     value.s64 = n_i;
+     n_i.value = (S32)num.s64;
+     value.s32 = n_i;
     }
     else
     {
-     col->value_type = ColumnValueType::Int32;
-     value.value_type = ColumnValueType::Int64;
+     col->value_type = ColumnValueType::Double;
+     value.value_type = ColumnValueType::Double;
      NullableDouble n = {};
      n.has_value = true;
      n.value = DoubleFromDecimal(num.decimal);
@@ -167,13 +167,12 @@ DeserializeTestResult(Arena *arena, simdjson::ondemand::object base)
     ColumnValue value = {};
     if (num.type == Number_Integer)
     {
-     col.value_type = ColumnValueType::Int64;
-     value.value_type = ColumnValueType::Int64;
-     NullableInt64 n = {};
+     col.value_type = ColumnValueType::Int32;
+     value.value_type = ColumnValueType::Int32;
+     NullableInt32 n = {};
      n.has_value = true;
-     n.value = num.s64;
-     value.s64 = n;
-
+     n.value = (S32)num.s64;
+     value.s32 = n;
     }
     else
     {
@@ -264,6 +263,16 @@ ConvertSelect(Arena *arena, nf_fhir_r4::ViewDefinition_Select *select)
    }
 
    // TODO(agw): convert to ColumnValueType
+   switch (value_type)
+   {
+    default: NotImplemented;
+    case VALUE_TYPE_STRING_CASES: { col_view->data_type = ColumnValueType::String; } break;
+    case VALUE_TYPE_TIME_CASES:   { col_view->data_type = ColumnValueType::ISO8601_Time; } break;
+    case ValueType::Integer:      { col_view->data_type = ColumnValueType::Int32; } break;
+    case ValueType::Integer64:    { col_view->data_type = ColumnValueType::Int64; } break;
+    case ValueType::Decimal: { col_view->data_type = ColumnValueType::Double; } break;
+    case ValueType::Boolean: { col_view->data_type = ColumnValueType::Boolean; } break;
+   }
   }
 
   SLLQueuePush(result->column_first, result->column_last, col_view);
@@ -575,7 +584,7 @@ ExecuteTestCollection(FP_TestCollection col)
 void
 ReadAndExecuteTests(String8 test_folder)
 {
- String8 test_file_name = Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\logic.json");
+ String8 test_file_name = Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fn_oftype.json");
 
 
  Temp temp = ScratchBegin(0, 0);
