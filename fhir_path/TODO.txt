@@ -1,5 +1,5 @@
 UNIT TESTS:
-[ ] basic.json
+[X] basic.json
 [ ] collection.json
 [ ] combinations.json
 [ ] constant.json
@@ -14,7 +14,7 @@ UNIT TESTS:
 [ ] fn_reference_keys.json
 [ ] foreach.json
 [ ] logic.json
-[ ] union.json
+[X] union.json
 [ ] validate.json // TODO(agw): read errors from deserializer
 [ ] view_resource.json
 [ ] where.json

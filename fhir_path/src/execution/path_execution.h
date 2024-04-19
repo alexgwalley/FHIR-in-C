@@ -60,63 +60,6 @@ enum class EmptyBool
 };
 
 // ~ Execution
-enum class EntryType
-{
-	Unknown,
-	Resource,
-	Boolean,
-	ResourceType,
-	String,
-	Number,
-	Iso8601,
-};
-
-typedef struct CollectionEntry CollectionEntry;
-struct CollectionEntry
-{
-	EntryType type;
-
-	union
-	{
-		nf_fhir_r4::Resource *resource;
-		nf_fhir_r4::ResourceType resource_type;
-		NullableString8 str;
-		ISO8601_Time time;
-		Number number;
-		B32 b;
-	};
-};
-
-typedef struct CollectionEntryNode CollectionEntryNode;
-struct CollectionEntryNode
-{
-	CollectionEntryNode *next;
-	CollectionEntryNode *prev;
-	CollectionEntry v;
-};
-
-typedef struct Collection Collection;
-struct Collection
-{
-	CollectionEntryNode *first;
-	CollectionEntryNode *last;
-	S64 count;
-};
-
-typedef struct CollectionNode CollectionNode;
-struct CollectionNode
-{
- CollectionNode *next;
- Collection v;
-};
-
-typedef struct CollectionList CollectionList;
-struct CollectionList
-{
- CollectionNode *first;
- CollectionNode *last;
- int count;
-};
 
 CollectionEntryNode nil_entry_node = { 0 };
 
@@ -140,6 +83,8 @@ struct FP_ExecutionContext
 	CollectionEntry *free_entry_first;
 	CollectionEntry *free_entry_last;
 
+ std::unordered_map<std::string, Constant> constants;
+
 	jmp_buf error_buf;
 	String8 error_message;
 
@@ -157,6 +102,8 @@ struct FP_ExecutionContext
   this->resources = resources;
   root_node = Antlr_ParseExpression(path);
  }
+
+
 };
 
 };

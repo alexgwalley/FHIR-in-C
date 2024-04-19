@@ -9,15 +9,21 @@
 namespace native_fhir
 {
 
-	#ifdef USE_R128
+ #ifdef USE_R128
 
-	typedef struct Decimal Decimal;
-	struct Decimal
-	{
-		R128 v;
-		// NOTE(agw): number of decimal places after period
-		int precision;
-	};
+ typedef struct Decimal Decimal;
+ struct Decimal
+ {
+  R128 v;
+  // NOTE(agw): number of decimal places after period
+  int precision;
+ };
+
+ struct NullableDecimal
+ {
+  B32 has_value;
+  Decimal value;
+ };
 
 	Decimal DecimalFromString(String8 str);
 	String8 Str8FromDecimal(Arena *arena, Decimal str);

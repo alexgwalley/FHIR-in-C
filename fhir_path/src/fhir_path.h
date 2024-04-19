@@ -9,6 +9,75 @@
 namespace native_fhir
 {
 
+enum class EntryType
+{
+	Unknown,
+	Resource,
+	Boolean,
+	ResourceType,
+	String,
+	Number,
+	Iso8601,
+};
+
+typedef struct CollectionEntry CollectionEntry;
+struct CollectionEntry
+{
+	EntryType type;
+
+ // NOTE(agw): I am upset this has to be here...
+ // I believe it is because Number uses operator overloading (?)
+ CollectionEntry() {}
+
+	union
+	{
+		nf_fhir_r4::Resource *resource;
+		nf_fhir_r4::ResourceType resource_type;
+		NullableString8 str;
+		ISO8601_Time time;
+		Number number;
+		B32 b;
+	};
+};
+
+typedef struct CollectionEntryNode CollectionEntryNode;
+struct CollectionEntryNode
+{
+	CollectionEntryNode *next;
+	CollectionEntryNode *prev;
+	CollectionEntry v;
+};
+
+typedef struct Collection Collection;
+struct Collection
+{
+	CollectionEntryNode *first;
+	CollectionEntryNode *last;
+	S64 count;
+};
+
+typedef struct CollectionNode CollectionNode;
+struct CollectionNode
+{
+ CollectionNode *next;
+ Collection v;
+};
+
+typedef struct CollectionList CollectionList;
+struct CollectionList
+{
+ CollectionNode *first;
+ CollectionNode *last;
+ int count;
+};
+
+ struct Constant
+ {
+  ValueType type;
+  String8 name;
+  CollectionEntry v;
+ };
+
 	enum PieceType {
 		Piece_Unknown,
 		Piece_Plus,
@@ -54,6 +123,8 @@ namespace native_fhir
   Piece_Identifier,
 
 		Piece_FunctionParameter,
+
+  Piece_Constant
 	};
 
 	typedef U32 PieceFlags;

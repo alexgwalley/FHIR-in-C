@@ -13,6 +13,13 @@ namespace native_fhir
   context.entry_stack_first = context.entry_stack_last = &nil_entry_node;
   context.meta_file = g_meta_file;
 
+  for (int i = 0; i < vd.constant_count; i++)
+  {
+   Constant c = vd.constants[i];
+   std::string name((char*)c.name.str, c.name.size);
+   context.constants.insert( { name, c });
+  }
+
   // ~ Set on-error
   if (setjmp(context.error_buf) != 0)
   {

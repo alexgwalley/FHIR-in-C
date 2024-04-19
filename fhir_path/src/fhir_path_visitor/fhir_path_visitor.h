@@ -64,6 +64,10 @@ namespace native_fhir
   std::any visitBooleanLiteral(fhirpathParser::BooleanLiteralContext *ctx);
 
 
+  // Constant
+  std::any visitExternalConstantTerm(fhirpathParser::ExternalConstantTermContext *ctx);
+
+
  };
 
 }

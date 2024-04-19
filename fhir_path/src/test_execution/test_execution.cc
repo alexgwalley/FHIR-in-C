@@ -96,6 +96,10 @@ ColumnValueFromValue(Arena *arena, simdjson::ondemand::value value)
    {
     simdjson::ondemand::value v = field.value();
     ColumnValue arr_val = ColumnValueFromValue(arena, v);
+    if ((col->value_type == ColumnValueType::Unknown || col->value_type == ColumnValueType::Null) && arr_val.value_type != col->value_type)
+    {
+     col->SetValueType(arena, arr_val.value_type);
+    }
     col->AddValue(arena, arr_val);
    }
 
@@ -122,7 +126,7 @@ DeserializeTestResult(Arena *arena, simdjson::ondemand::object base)
   ColumnValue val = ColumnValueFromValue(arena, value);
   if ((col.value_type == ColumnValueType::Unknown || col.value_type == ColumnValueType::Null) && val.value_type != col.value_type)
   {
-   col.value_type = val.value_type;
+   col.SetValueType(arena, val.value_type);
   }
 
   col.AddValue(arena, val);
@@ -249,6 +253,91 @@ ConvertViewDefinition(Arena *arena, nf_fhir_r4::ViewDefinition *vd)
   SLLQueuePush(result.first, result.last, view);
  }
 
+
+ result.constant_count = vd->_constant_count;
+ if (result.constant_count > 0)
+ { 
+  result.constants = PushArray(arena, Constant, result.constant_count);
+ }
+ for (int i = 0; i < vd->_constant_count; i++)
+ {
+  nf_fhir_r4::ViewDefinition_Constant* constant = vd->_constant[i];
+  Constant *c = &(result.constants[i]);
+  Assert(constant->_name.has_value);
+  c->name = PushStr8Copy(arena, constant->_name.str8);
+  switch (constant->_value_type)
+  {
+   default: NotImplemented;
+    // Strings
+   case nf_fhir_r4::ViewDefinition_Constant::_valueType::Base64Binary: 
+   case nf_fhir_r4::ViewDefinition_Constant::_valueType::Canonical: 
+   case nf_fhir_r4::ViewDefinition_Constant::_valueType::Code:
+   case nf_fhir_r4::ViewDefinition_Constant::_valueType::Id:
+   case nf_fhir_r4::ViewDefinition_Constant::_valueType::Oid:
+   case nf_fhir_r4::ViewDefinition_Constant::_valueType::String:
+   case nf_fhir_r4::ViewDefinition_Constant::_valueType::Uri:
+   case nf_fhir_r4::ViewDefinition_Constant::_valueType::Url:
+   case nf_fhir_r4::ViewDefinition_Constant::_valueType::Uuid:
+   {
+    if (constant->_value._valueString.has_value)
+    {
+     c->v = CollectionEntryFromString(constant->_value._valueString.str8);
+    }
+   } break;
+
+   case nf_fhir_r4::ViewDefinition_Constant::_valueType::Boolean: {
+    if (constant->_value._valueBoolean.has_value)
+    {
+     c->v = CollectionEntryFromBoolean(constant->_value._valueBoolean.value);
+    }
+   } break;
+   case nf_fhir_r4::ViewDefinition_Constant::_valueType::Date:
+   case nf_fhir_r4::ViewDefinition_Constant::_valueType::DateTime:
+   case nf_fhir_r4::ViewDefinition_Constant::_valueType::Instant:
+   case nf_fhir_r4::ViewDefinition_Constant::_valueType::Time:
+   {
+    if (constant->_value._valueDate.precision > Precision::Unknown)
+    {
+     c->v = CollectionEntryFromDate(constant->_value._valueDate);
+    }
+   } break;
+   case nf_fhir_r4::ViewDefinition_Constant::_valueType::Integer64:
+   {
+    if (constant->_value._valueInteger64.has_value)
+    {
+     Number num = {};
+     num.type = NumberType::Integer;
+     num.s64 = constant->_value._valueInteger64.value;
+     c->v = CollectionEntryFromNumber(num);
+    }
+   } break;
+   case nf_fhir_r4::ViewDefinition_Constant::_valueType::Integer:
+   case nf_fhir_r4::ViewDefinition_Constant::_valueType::PositiveInt:
+   case nf_fhir_r4::ViewDefinition_Constant::_valueType::UnsignedInt:
+   {
+    if (constant->_value._valueInteger.has_value)
+    {
+     Number num = {};
+     num.type = NumberType::Integer;
+     num.s64 = constant->_value._valueInteger.value;
+     c->v = CollectionEntryFromNumber(num);
+    }
+   } break;
+
+   case nf_fhir_r4::ViewDefinition_Constant::_valueType::Decimal: {
+    c->type = ValueType::Decimal;
+    if (constant->_value._valueDecimal.has_value)
+    {
+     Number num = {};
+     num.type = NumberType::Decimal;
+     num.decimal = DecimalFromString(constant->_value._valueDecimal.str8);;
+     c->v = CollectionEntryFromNumber(num);
+    }
+   } break;
+  }
+
+ }
+
  return result;
 }
 
@@ -266,7 +355,7 @@ DeserializeTest(Arena *arena, simdjson::ondemand::object base)
  std::string_view view = view_obj.raw_json();
  String8 str = {};
  str.size = view.size() + 64;
- str.str = (U8*)view.data();
+ str.str = (U8 *)view.data();
 
  str.str = PushArray(arena, U8, str.size);
  MemoryCopy(str.str, view.data(), str.size);
@@ -314,6 +403,15 @@ DeserializeTest(Arena *arena, simdjson::ondemand::object base)
   bool b = false;
   value.get(b);
   test.expect_error = b;
+ }
+
+ for (DataColumnNode *n = test.expectations.first; n; n = n->next)
+ {
+  if (n->v.num_values == 0)
+  {
+   DLLRemove(test.expectations.first, test.expectations.last, n);
+   test.expectations.column_count--;
+  }
  }
 
  return test;
@@ -405,16 +503,17 @@ ViewDefinitionValidationError ValidateViewDefinition(native_fhir::ViewDefinition
  return ViewDefinitionValidationError::Success;
 }
 
-void
+B32
 ExecuteTestCollection(FP_TestCollection col)
 {
+ B32 test_passed = true;
  for (int i = 0; i < col.test_count; i++)
  {
   Temp temp = ScratchBegin(0, 0);
   FP_Test test = col.tests[i];
 
-  printf("==========================================\n");
-  printf("Test: %.*s\n", PRINT_STR8(test.title));
+  //printf("==========================================\n");
+  //printf("Test: %.*s\n", PRINT_STR8(test.title));
   //ColumnList columns = ParseViewDefinition(temp.arena, test.vd);
 
   B32 passed = false;
@@ -424,11 +523,12 @@ ExecuteTestCollection(FP_TestCollection col)
   {
    if (test.expect_error)
    {
-    printf("PASSED: \"%.*s\"\n", PRINT_STR8(test.title));
+    //printf("PASSED: \"%.*s\"\n", PRINT_STR8(test.title));
    }
    else
    {
     printf("FAILED: \"%.*s\"\n", PRINT_STR8(test.title));
+    test_passed = false;
    }
    continue;
   }
@@ -487,41 +587,78 @@ ExecuteTestCollection(FP_TestCollection col)
 
   if (passed)
   {
-   printf("PASSED: \"%.*s\"\n", PRINT_STR8(test.title));
+   //printf("PASSED: \"%.*s\"\n", PRINT_STR8(test.title));
   }
    else
   {
    printf("FAILED: \"%.*s\"\n", PRINT_STR8(test.title));
+   test_passed = false;
   }
 
   ScratchEnd(temp);
  }
 
+ return test_passed;
 }
 
 void
 ReadAndExecuteTests(String8 test_folder)
 {
- String8 test_file_name = Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\union.json");
+ //String8 test_file_name = Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\union.json");
+
+ String8 tests[] = {
+  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\basic.json"),
+  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\collection.json"),
+  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\combinations.json"),
+  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\constant.json"),
+  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fhirpath.json"),
+  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fhirpath_numbers.json"),
+  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fn_boundary.json"),
+  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fn_empty.json"),
+  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fn_extension.json"),
+  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fn_first.json"),
+  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fn_join.json"),
+  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fn_oftype.json"),
+  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fn_reference_keys.json"),
+  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\foreach.json"),
+  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\logic.json"),
+  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\union.json"),
+  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\where.json")
+ };
 
 
- Temp temp = ScratchBegin(0, 0);
- FP_TestCollection test_col = DeserializeTestCollection(temp.arena, test_file_name);
-
- ExecuteTestCollection(test_col);
-
- // TODO(agw): would love if these were all in one arena
- for (int i = 0; i < test_col.test_count; i++)
+ for (int tidx = 0; tidx < ArrayCount(tests); tidx++)
  {
-  ND_FreeContext(test_col.tests[i].ctx);
- }
+  Temp temp = ScratchBegin(0, 0);
+  FP_TestCollection test_col = DeserializeTestCollection(temp.arena, tests[tidx]);
 
- for (ND_ContextNode* node = test_col.ctx_first; node; node = node->next)
- {
-  ND_FreeContext(node);
- }
+  B32 passed = ExecuteTestCollection(test_col);
+  if (passed)
+  {
+   printf("-------------------------------------------------------\n");
+   printf("PASSED: %.*s\n", PRINT_STR8(tests[tidx]));
+   printf("-------------------------------------------------------\n");
+  }
+  else if (!passed)
+  {
+   printf("-------------------------------------------------------\n");
+   printf("FAILED: %.*s\n", PRINT_STR8(tests[tidx]));
+   printf("-------------------------------------------------------\n");
+  }
 
- ScratchEnd(temp);
+  // TODO(agw): would love if these were all in one arena
+  for (int i = 0; i < test_col.test_count; i++)
+  {
+   ND_FreeContext(test_col.tests[i].ctx);
+  }
+
+  for (ND_ContextNode* node = test_col.ctx_first; node; node = node->next)
+  {
+   ND_FreeContext(node);
+  }
+
+  ScratchEnd(temp);
+ }
 }
 
 };

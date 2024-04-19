@@ -79,6 +79,7 @@ namespace native_fhir
   return ret;
  }
 
+
  CollectionEntry
  CollectionEntryFromString(String8 str)
  {
@@ -128,12 +129,19 @@ namespace native_fhir
   return CollectionFromEntry(arena, entry);
  }
 
- Collection
- CollectionFromDate(Arena *arena, ISO8601_Time time)
+ CollectionEntry
+ CollectionEntryFromDate(ISO8601_Time time)
  {
   CollectionEntry entry = {};
   entry.type = EntryType::Iso8601;
   entry.time = time;
+  return entry;
+ }
+
+ Collection
+ CollectionFromDate(Arena *arena, ISO8601_Time time)
+ {
+  CollectionEntry entry = CollectionEntryFromDate(time);
   return CollectionFromEntry(arena, entry);
  }
 
@@ -844,6 +852,15 @@ namespace native_fhir
   switch (node->type)
   {
    default: NotImplemented;
+   case Piece_Constant:
+   {
+    String8 constant_name = node->slice;
+    std::string str((char*)constant_name.str, constant_name.size);
+    B32 has_value = context->constants.find(str) != context->constants.end();
+    FP_Assert(has_value, context, PushStr8F(context->arena, "Undefined Constant: %S\n", constant_name));
+    Constant c = context->constants[str];
+    return CollectionFromEntry(arena, c.v);
+   } break;
    case Piece_Identifier:
    {
     const native_fhir::ResourceNameTypePair* pair = NF_ResourceNameTypePairFromString8(node->slice);

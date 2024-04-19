@@ -9,22 +9,22 @@ namespace native_fhir
  String8
  String8FromIdentifier(Arena *arena, fhirpathParser::IdentifierContext *identifier)
  {
-   antlr4::tree::TerminalNode* id = identifier->IDENTIFIER();
-   antlr4::tree::TerminalNode* delim_id = identifier->DELIMITEDIDENTIFIER();
-   if (id != NULL)
-   {
-    std::string str = id->getText();
-    String8 str8 = Str8C((char*)str.c_str());
-    return PushStr8Copy(arena, str8);
-   }
-   else if (delim_id != NULL)
-   {
-    std::string str = delim_id->getText();
-    String8 str8 = Str8C((char*)str.c_str());
-    return PushStr8Copy(arena, str8);
-   }
+  antlr4::tree::TerminalNode* id = identifier->IDENTIFIER();
+  antlr4::tree::TerminalNode* delim_id = identifier->DELIMITEDIDENTIFIER();
+  if (id != NULL)
+  {
+   std::string str = id->getText();
+   String8 str8 = Str8C((char*)str.c_str());
+   return PushStr8Copy(arena, str8);
+  }
+  else if (delim_id != NULL)
+  {
+   std::string str = delim_id->getText();
+   String8 str8 = Str8C((char*)str.c_str());
+   return PushStr8Copy(arena, str8);
+  }
 
-   return {};
+  return {};
  }
 
  std::any
@@ -450,18 +450,18 @@ namespace native_fhir
 
   CHECK_LESS(len_remaining, 2)
 
-  time.timezone_hour += (U8)CharToInt(*ptr) * 10; ptr++; len_remaining--;
-  time.timezone_hour += (U8)CharToInt(*ptr);      ptr++; len_remaining--;
-  time.precision = Precision::TimezoneHour;
+   time.timezone_hour += (U8)CharToInt(*ptr) * 10; ptr++; len_remaining--;
+   time.timezone_hour += (U8)CharToInt(*ptr);      ptr++; len_remaining--;
+   time.precision = Precision::TimezoneHour;
 
-  SKIP(':', ptr, len_remaining);
-  CHECK_LESS(len_remaining, 2)
+   SKIP(':', ptr, len_remaining);
+   CHECK_LESS(len_remaining, 2)
 
-  time.timezone_minute += (U8)CharToInt(*ptr) * 10; ptr++; len_remaining--;
-  time.timezone_minute += (U8)CharToInt(*ptr);      ptr++; len_remaining--;
-  time.precision = Precision::TimezoneMinute;
+    time.timezone_minute += (U8)CharToInt(*ptr) * 10; ptr++; len_remaining--;
+    time.timezone_minute += (U8)CharToInt(*ptr);      ptr++; len_remaining--;
+    time.precision = Precision::TimezoneMinute;
 
-  return time;
+    return time;
  }
 
  local_function ISO8601_Time
@@ -476,57 +476,57 @@ namespace native_fhir
 
   CHECK_LESS(len_remaining, 2)
 
-  time.hour += (U8)CharToInt(*ptr) * 10; ptr++; len_remaining--;
-  time.hour += (U8)CharToInt(*ptr);      ptr++; len_remaining--;
+   time.hour += (U8)CharToInt(*ptr) * 10; ptr++; len_remaining--;
+   time.hour += (U8)CharToInt(*ptr);      ptr++; len_remaining--;
 
-  {
-   time.precision = Precision::Hour;
-   if (len_remaining == 0) return time;
-   if (*ptr == 'Z' || *ptr == '+' || *ptr == '-') return Deserialize_TimeZoneSection(&time, Str8((U8*)(ptr), len_remaining));
-  }
-
-  SKIP(':', ptr, len_remaining);
-  CHECK_LESS(len_remaining, 2)
-
-  time.minute += (U8)CharToInt(*ptr) * 10; ptr++; len_remaining--;
-  time.minute += (U8)CharToInt(*ptr);      ptr++; len_remaining--;
-
-  {
-   time.precision = Precision::Minute;
-   if (len_remaining == 0) return time;
-   if (*ptr == 'Z' || *ptr == '+' || *ptr == '-') return Deserialize_TimeZoneSection(&time, Str8((U8*)(ptr), len_remaining));
-  }
-
-  SKIP(':', ptr, len_remaining);
-  CHECK_LESS(len_remaining, 2)
-
-  time.second += (U8)CharToInt(*ptr) * 10; ptr++; len_remaining--;
-  time.second += (U8)CharToInt(*ptr);      ptr++; len_remaining--;
-
-  {
-   time.precision = Precision::Second;
-   if (len_remaining == 0) return time;
-   if (*ptr == 'Z' || *ptr == '+' || *ptr == '-') return Deserialize_TimeZoneSection(&time, Str8((U8*)(ptr), len_remaining));
-  }
-
-  if (*ptr == '.')
-  {
-   SKIP('.', ptr, len_remaining);
-
-   while (*ptr != 'Z' && *ptr != '+' && *ptr != '-' && len_remaining > 0)
    {
-    time.millisecond *= 10;
-    time.millisecond += (U16)CharToInt(*ptr);
-
-    ptr++; len_remaining--;
+    time.precision = Precision::Hour;
+    if (len_remaining == 0) return time;
+    if (*ptr == 'Z' || *ptr == '+' || *ptr == '-') return Deserialize_TimeZoneSection(&time, Str8((U8*)(ptr), len_remaining));
    }
 
-   time.precision = Precision::Millisecond;
-  }
+   SKIP(':', ptr, len_remaining);
+   CHECK_LESS(len_remaining, 2)
 
-  if (*ptr == 'Z' || *ptr == '+' || *ptr == '-') return Deserialize_TimeZoneSection(&time, Str8((U8*)(ptr), len_remaining));
+    time.minute += (U8)CharToInt(*ptr) * 10; ptr++; len_remaining--;
+    time.minute += (U8)CharToInt(*ptr);      ptr++; len_remaining--;
 
-  return time;
+    {
+     time.precision = Precision::Minute;
+     if (len_remaining == 0) return time;
+     if (*ptr == 'Z' || *ptr == '+' || *ptr == '-') return Deserialize_TimeZoneSection(&time, Str8((U8*)(ptr), len_remaining));
+    }
+
+    SKIP(':', ptr, len_remaining);
+    CHECK_LESS(len_remaining, 2)
+
+     time.second += (U8)CharToInt(*ptr) * 10; ptr++; len_remaining--;
+     time.second += (U8)CharToInt(*ptr);      ptr++; len_remaining--;
+
+     {
+      time.precision = Precision::Second;
+      if (len_remaining == 0) return time;
+      if (*ptr == 'Z' || *ptr == '+' || *ptr == '-') return Deserialize_TimeZoneSection(&time, Str8((U8*)(ptr), len_remaining));
+     }
+
+     if (*ptr == '.')
+     {
+      SKIP('.', ptr, len_remaining);
+
+      while (*ptr != 'Z' && *ptr != '+' && *ptr != '-' && len_remaining > 0)
+      {
+       time.millisecond *= 10;
+       time.millisecond += (U16)CharToInt(*ptr);
+
+       ptr++; len_remaining--;
+      }
+
+      time.precision = Precision::Millisecond;
+     }
+
+     if (*ptr == 'Z' || *ptr == '+' || *ptr == '-') return Deserialize_TimeZoneSection(&time, Str8((U8*)(ptr), len_remaining));
+
+     return time;
  }
 
  ISO8601_Time
@@ -542,42 +542,42 @@ namespace native_fhir
   ISO8601_Time time = {};
   CHECK_LESS(len_remaining, 4)
 
-  time.year += (U16)CharToInt(*ptr) * 1000; ptr++; len_remaining--;
-  time.year += (U16)CharToInt(*ptr) * 100;  ptr++; len_remaining--;
-  time.year += (U16)CharToInt(*ptr) * 10;   ptr++; len_remaining--;
-  time.year += (U16)CharToInt(*ptr);        ptr++; len_remaining--;
+   time.year += (U16)CharToInt(*ptr) * 1000; ptr++; len_remaining--;
+   time.year += (U16)CharToInt(*ptr) * 100;  ptr++; len_remaining--;
+   time.year += (U16)CharToInt(*ptr) * 10;   ptr++; len_remaining--;
+   time.year += (U16)CharToInt(*ptr);        ptr++; len_remaining--;
 
-  {
-   time.precision = Precision::Year;
-   if (*ptr == 'T') return Deserialize_TimeSection(&time, Str8((U8*)(ptr + 1), len_remaining - 1));
-   if (len_remaining == 0) return time;
-  }
+   {
+    time.precision = Precision::Year;
+    if (*ptr == 'T') return Deserialize_TimeSection(&time, Str8((U8*)(ptr + 1), len_remaining - 1));
+    if (len_remaining == 0) return time;
+   }
 
-  SKIP('-', ptr, len_remaining);
-  CHECK_LESS(len_remaining, 2)
+   SKIP('-', ptr, len_remaining);
+   CHECK_LESS(len_remaining, 2)
 
-  time.month += (U8)CharToInt(*ptr) * 10; ptr++; len_remaining--;
-  time.month += (U8)CharToInt(*ptr);      ptr++; len_remaining--;
+    time.month += (U8)CharToInt(*ptr) * 10; ptr++; len_remaining--;
+    time.month += (U8)CharToInt(*ptr);      ptr++; len_remaining--;
 
-  {
-   time.precision = Precision::Month;
-   if (*ptr == 'T') return Deserialize_TimeSection(&time, Str8((U8*)(ptr + 1), len_remaining - 1));
-   if (len_remaining == 0) return time;
-  }
+    {
+     time.precision = Precision::Month;
+     if (*ptr == 'T') return Deserialize_TimeSection(&time, Str8((U8*)(ptr + 1), len_remaining - 1));
+     if (len_remaining == 0) return time;
+    }
 
-  SKIP('-', ptr, len_remaining);
-  CHECK_LESS(len_remaining, 2)
+    SKIP('-', ptr, len_remaining);
+    CHECK_LESS(len_remaining, 2)
 
-  time.day += (U8)CharToInt(*ptr) * 10; ptr++; len_remaining--;
-  time.day += (U8)CharToInt(*ptr);      ptr++; len_remaining--;
+     time.day += (U8)CharToInt(*ptr) * 10; ptr++; len_remaining--;
+     time.day += (U8)CharToInt(*ptr);      ptr++; len_remaining--;
 
-  {
-   time.precision = Precision::Day;
-   if (*ptr == 'T') return Deserialize_TimeSection(&time, Str8((U8*)(ptr + 1), len_remaining - 1));
-   if (len_remaining == 0) return time;
-  }
+     {
+      time.precision = Precision::Day;
+      if (*ptr == 'T') return Deserialize_TimeSection(&time, Str8((U8*)(ptr + 1), len_remaining - 1));
+      if (len_remaining == 0) return time;
+     }
 
-  return time;
+     return time;
  }
 
  #undef SKIP
@@ -638,6 +638,31 @@ namespace native_fhir
   std::string text = ctx->getText();
   B32 value = text == "true";
   piece->value.b = value;
+  return piece;
+ }
+
+
+ std::any
+ FhirPathVisitor::visitExternalConstantTerm(fhirpathParser::ExternalConstantTermContext *ctx)
+ {
+  Piece* piece = PushStruct(this->arena, Piece);
+  piece->type = Piece_Constant;
+  fhirpathParser::ExternalConstantContext *c = ctx->externalConstant();
+
+  antlr4::tree::TerminalNode *terminal = c->STRING();
+  if (terminal)
+  {
+   std::string str = terminal->getText();
+   String8 str8 = Str8C((char*)str.c_str());
+   piece->slice = str8;
+  }
+  fhirpathParser::IdentifierContext* id = c->identifier();
+  if (id)
+  {
+   String8 str = String8FromIdentifier(this->arena, id);
+   piece->slice = str;
+  }
+
   return piece;
  }
 

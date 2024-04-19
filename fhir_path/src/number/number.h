@@ -25,7 +25,6 @@ namespace native_fhir
   };
 
   static Number FromString(String8 str);
-
   static Decimal AsDecimal(Number const& num);
 
   /*
