@@ -61,6 +61,13 @@ namespace native_fhir
   return ret;
  }
 
+ S64 
+ IntFromDecimal(Decimal d)
+ {
+  R128_S64 i = r128ToInt(&d.v);
+  return i;
+ }
+
  F64
  DoubleFromDecimal(Decimal d)
  {

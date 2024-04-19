@@ -79,7 +79,15 @@ namespace native_fhir
      default: NotImplemented;
      case ColumnValueType::Int32:
      {
-      if (ent.number.type != NumberType::Integer || ent.number.s64 > INT_MAX) { throw; }
+      if (ent.number.type == NumberType::Decimal)
+      {
+       // Convert
+       S64 s64 = IntFromDecimal(ent.number.decimal);
+       ent.number.s64 = s64;
+       ent.number.type = NumberType::Integer;
+      }
+      if (ent.number.s64 > INT_MAX) { throw; }
+
       S32 s32 = (S32)ent.number.s64;
 
       ret.value_type = ColumnValueType::Int32;

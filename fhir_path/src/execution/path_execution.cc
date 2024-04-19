@@ -628,6 +628,27 @@ namespace native_fhir
 
     ScratchEnd(temp);
    } break;
+   case Function::Extension:
+   {
+
+    Temp temp = ScratchBegin(&arena, 1);
+
+    Collection extensions = GetMembersFromCollection(temp.arena, context, left_col, Str8Lit("extension"));
+    String8 valid_extension = func_node->params.first->v->value.str.str8;
+    for (CollectionEntryNode *node = extensions.first; node; node = node->next)
+    {
+     Collection res = CollectionFromEntry(temp.arena, node->v);
+     Collection urls = GetMembersFromCollection(temp.arena, context, res, Str8Lit("url"));
+
+     if (urls.first->v.type != EntryType::String) continue;
+     if (Str8Match(valid_extension, urls.first->v.str.str8, 0))
+     {
+      CollectionPushEntry(arena, &ret, node->v);
+     }
+    }
+
+    ScratchEnd(temp);
+   } break;
    case Function::Join:
    {
     if (left_col.count == 0) { return ret; }

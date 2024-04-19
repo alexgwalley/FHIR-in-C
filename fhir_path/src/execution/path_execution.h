@@ -23,6 +23,7 @@ namespace native_fhir
 		OfType,
 		Not,
 		Join,
+		Extension,
 		Function_Count,
 	};
 
@@ -48,7 +49,8 @@ namespace native_fhir
 		{ Str8LitComp("where"),   Function::Where },
 		{ Str8LitComp("ofType"),  Function::OfType },
 		{ Str8LitComp("not"),     Function::Not },
-		{ Str8LitComp("join"),    Function::Join }
+		{ Str8LitComp("join"),    Function::Join },
+		{ Str8LitComp("extension"),    Function::Extension }
 	};
 
 

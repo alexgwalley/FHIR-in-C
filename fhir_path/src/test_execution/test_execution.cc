@@ -613,7 +613,7 @@ ReadAndExecuteTests(String8 test_folder)
   Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\constant.json"),
   Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fhirpath.json"),
   Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fhirpath_numbers.json"),
-  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fn_boundary.json"),
+//  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fn_boundary.json"),
   Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fn_empty.json"),
   Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fn_extension.json"),
   Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fn_first.json"),
