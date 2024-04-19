@@ -1,8 +1,6 @@
 #include <any>
 namespace native_fhir
 {
- // TODO(agw): should be in header
-Piece* Antlr_ParseExpression(String8 str);
 
 Collection ExecutePieces(Arena *arena, FP_ExecutionContext* context);
 void PrintCollection(Collection col);
@@ -16,102 +14,96 @@ String8FromStringView(Arena* arena, std::string_view view)
  return PushStr8Copy(arena, str);
 }
 
-void
-AddTestArrayToColumn(Arena *arena, simdjson::ondemand::array array, DataColumn* column)
+ColumnValue
+ColumnValueFromValue(Arena *arena, simdjson::ondemand::value value)
 {
- DataColumn *col = PushStruct(arena, DataColumn);
- for (auto field : array)
+ ColumnValue ret = {};
+ switch (value.type())
  {
-  simdjson::ondemand::value value = field.value();
-  switch (value.type())
+  default: NotImplemented;
+  case simdjson::ondemand::json_type::null:
   {
-   default: NotImplemented;
-   case simdjson::ondemand::json_type::null:
+   ret.value_type = ColumnValueType::Null;
+  } break;
+  case simdjson::ondemand::json_type::string:
+  {
+   std::string_view str_view;
+   auto res = value.get(str_view);
+   Assert(res == simdjson::error_code::SUCCESS);
+
+   String8 str8 = String8FromStringView(arena, str_view);
+   NullableString8 n_str = {};
+   n_str.has_value = true;
+   n_str.str8 = str8;
+
+   ret.value_type = ColumnValueType::String;
+   ret.str = n_str;
+  } break;
+  case simdjson::ondemand::json_type::number:
+  {
+   auto raw_value = value.raw_json();
+   Assert(raw_value.error() == simdjson::error_code::SUCCESS);
+
+   std::string_view view = raw_value.value_unsafe();
+
+   String8 str = String8FromStringView(arena, view);
+   Number num = Number::FromString(str);
+
+   if (num.type == NumberType::Integer)
    {
-    ColumnValue value = {};
-    value.value_type = ColumnValueType::Null;
-    col->AddValue(arena, value);
-   } break;
-			case simdjson::ondemand::json_type::string:
+    ret.value_type = ColumnValueType::Int32;
+    NullableInt32 n = {};
+    n.has_value = true;
+    n.value = (S32)num.s64;
+    ret.s32 = n;
+   }
+   else
    {
-    col->value_type = ColumnValueType::String;
-				std::string_view str_view;
-				auto res = value.get(str_view);
-				Assert(res == simdjson::error_code::SUCCESS);
+    ret.value_type = ColumnValueType::Double;
 
-    String8 str8 = String8FromStringView(arena, str_view);
-    NullableString8 n_str = {};
-    n_str.has_value = true;
-    n_str.str8 = str8;
+    NullableDouble n = {};
+    n.has_value = true;
+    n.value = DoubleFromDecimal(num.decimal);
+    ret._double = n;
+   }
 
-    ColumnValue value = {};
-    value.value_type = ColumnValueType::String;
-    value.str = n_str;
+  } break;
+  case simdjson::ondemand::json_type::boolean: // copy into dest
+  {
+   bool _boolean;
+   auto res = value.get(_boolean);
+   Assert(res == simdjson::error_code::SUCCESS);
 
-    col->AddValue(arena, value);
-			} break;
-			case simdjson::ondemand::json_type::number:
-			{
-    auto raw_value = field.value().raw_json();
-    Assert(raw_value.error() == simdjson::error_code::SUCCESS);
+   ret.value_type = ColumnValueType::Boolean;
+   NullableBoolean n_bool = {};
+   n_bool.has_value = true;
+   n_bool.value = _boolean;
+   ret.b = n_bool;
+  } break;
+  case simdjson::ondemand::json_type::object: // copy into dest
+  {
+   NotImplemented;
+  } break;
+  case simdjson::ondemand::json_type::array:
+  {
+   ret.value_type = ColumnValueType::Array;
 
-    std::string_view view = raw_value.value_unsafe();
+   simdjson::ondemand::array arr;
+   auto res = value.get(arr);
 
-    String8 str = String8FromStringView(arena, view);
-    Number num = Number::FromString(str);
-
-    ColumnValue value = {};
-    if (num.type == Number_Integer)
-    {
-     col->value_type = ColumnValueType::Int32;
-     value.value_type = ColumnValueType::Int32;
-     NullableInt32 n_i = {};
-     n_i.has_value = true;
-     n_i.value = (S32)num.s64;
-     value.s32 = n_i;
-    }
-    else
-    {
-     col->value_type = ColumnValueType::Double;
-     value.value_type = ColumnValueType::Double;
-     NullableDouble n = {};
-     n.has_value = true;
-     n.value = DoubleFromDecimal(num.decimal);
-     value._double = n;
-    }
-
-    col->AddValue(arena, value);
-			} break;
-			case simdjson::ondemand::json_type::boolean: // copy into dest
-			{
-    col->value_type = ColumnValueType::Boolean;
-				bool _boolean;
-				auto res = value.get(_boolean);
-				Assert(res == simdjson::error_code::SUCCESS);
-
-    ColumnValue value = {};
-    value.value_type = ColumnValueType::Boolean;
-    NullableBoolean n_bool = {};
-    n_bool.has_value = true;
-    n_bool.value = _boolean;
-    value.b = n_bool;
-
-    col->AddValue(arena, value);
-			} break;
-
-   case simdjson::ondemand::json_type::array:
-   case simdjson::ondemand::json_type::object:
+   DataColumn *col = PushStruct(arena, DataColumn);
+   for (auto field : arr)
    {
-    NotImplemented;
-   } break;
-  }
+    simdjson::ondemand::value v = field.value();
+    ColumnValue arr_val = ColumnValueFromValue(arena, v);
+    col->AddValue(arena, arr_val);
+   }
+
+   ret.array = col;
+  } break;
  }
 
- ColumnValue value = { };
- value.value_type = ColumnValueType::Array;
- value.array = col;
-
- column->AddValue(arena, value);
+ return ret;
 }
 
 DataTable
@@ -126,99 +118,14 @@ DeserializeTestResult(Arena *arena, simdjson::ondemand::object base)
   col.name = key;
 
   simdjson::ondemand::value value = field.value();
-  switch (value.type())
-		{
-   default: NotImplemented;
-   case simdjson::ondemand::json_type::null:
-   {
-    ColumnValue value = {};
-    value.value_type = ColumnValueType::Null;
-    col.AddValue(arena, value);
-   } break;
-			case simdjson::ondemand::json_type::string:
-			{
-    col.value_type = ColumnValueType::String;
 
-				std::string_view str_view;
-				auto res = value.get(str_view);
-				Assert(res == simdjson::error_code::SUCCESS);
+  ColumnValue val = ColumnValueFromValue(arena, value);
+  if ((col.value_type == ColumnValueType::Unknown || col.value_type == ColumnValueType::Null) && val.value_type != col.value_type)
+  {
+   col.value_type = val.value_type;
+  }
 
-    String8 str8 = String8FromStringView(arena, str_view);
-    NullableString8 n_str = {};
-    n_str.has_value = true;
-    n_str.str8 = str8;
-
-    ColumnValue value = {};
-    value.value_type = ColumnValueType::String;
-    value.str = n_str;
-
-    col.AddValue(arena, value);
-			} break;
-			case simdjson::ondemand::json_type::number:
-			{
-    auto raw_value = field.value().raw_json();
-    Assert(raw_value.error() == simdjson::error_code::SUCCESS);
-
-    std::string_view view = raw_value.value_unsafe();
-
-    String8 str = String8FromStringView(arena, view);
-    Number num = Number::FromString(str);
-
-    ColumnValue value = {};
-    if (num.type == Number_Integer)
-    {
-     col.value_type = ColumnValueType::Int32;
-     value.value_type = ColumnValueType::Int32;
-     NullableInt32 n = {};
-     n.has_value = true;
-     n.value = (S32)num.s64;
-     value.s32 = n;
-    }
-    else
-    {
-     col.value_type = ColumnValueType::Double;
-     value.value_type = ColumnValueType::Double;
-
-     NullableDouble n = {};
-     n.has_value = true;
-     n.value = DoubleFromDecimal(num.decimal);
-     value._double = n;
-    }
-
-    col.AddValue(arena, value);
-
-			} break;
-			case simdjson::ondemand::json_type::boolean: // copy into dest
-			{
-    col.value_type = ColumnValueType::Boolean;
-
-				bool _boolean;
-				auto res = value.get(_boolean);
-				Assert(res == simdjson::error_code::SUCCESS);
-
-    ColumnValue value = {};
-    value.value_type = ColumnValueType::Boolean;
-    NullableBoolean n_bool = {};
-    n_bool.has_value = true;
-    n_bool.value = _boolean;
-    value.b = n_bool;
-
-    col.AddValue(arena, value);
-			} break;
-			case simdjson::ondemand::json_type::object: // copy into dest
-			{
-    NotImplemented;
-			} break;
-			case simdjson::ondemand::json_type::array:
-			{
-    col.value_type = ColumnValueType::Array;
-
-				simdjson::ondemand::array arr;
-				auto res = value.get(arr);
-
-    AddTestArrayToColumn(arena, arr, &col);
-			} break;
-		}
+  col.AddValue(arena, val);
 
   table.AddColumn(arena, col);
  }
@@ -226,20 +133,20 @@ DeserializeTestResult(Arena *arena, simdjson::ondemand::object base)
  return table;
 }
 
-View*
+ViewElem*
 ConvertSelect(Arena *arena, nf_fhir_r4::ViewDefinition_Select *select)
 {
- View *result = PushStruct(arena, View);
- result->type = ViewType::Select;
+ ViewElem *result = PushStruct(arena, ViewElem);
+ result->type = ViewElemType::Select;
 
  // ~ Columns
  for (int i = 0; i < select->_column_count; i++)
  {
   nf_fhir_r4::ViewDefinition_Select_Column* column = select->_column[i];
 
-  View *col_view = PushStruct(arena, View);
+  ViewElem *col_view = PushStruct(arena, ViewElem);
 
-  col_view->type = ViewType::Column;
+  col_view->type = ViewElemType::Column;
   col_view->path = column->_path;
   col_view->name = column->_name;
   col_view->description = column->_description;
@@ -262,7 +169,6 @@ ConvertSelect(Arena *arena, nf_fhir_r4::ViewDefinition_Select *select)
     if (value_type != ValueType::Unknown) break;
    }
 
-   // TODO(agw): convert to ColumnValueType
    switch (value_type)
    {
     default: NotImplemented;
@@ -273,6 +179,11 @@ ConvertSelect(Arena *arena, nf_fhir_r4::ViewDefinition_Select *select)
     case ValueType::Decimal: { col_view->data_type = ColumnValueType::Double; } break;
     case ValueType::Boolean: { col_view->data_type = ColumnValueType::Boolean; } break;
    }
+
+   if (column->_collection.has_value && column->_collection.value)
+   {
+    col_view->data_type = ColumnValueType::Array;
+   }
   }
 
   SLLQueuePush(result->column_first, result->column_last, col_view);
@@ -282,7 +193,7 @@ ConvertSelect(Arena *arena, nf_fhir_r4::ViewDefinition_Select *select)
  // ~ Select
  for (int i = 0; i < select->_select_count; i++)
  {
-  View *view = ConvertSelect(arena, select->_select[i]);
+  ViewElem *view = ConvertSelect(arena, select->_select[i]);
   SLLQueuePush(result->select_first, result->select_last, view);
   result->select_count++;
  }
@@ -290,7 +201,7 @@ ConvertSelect(Arena *arena, nf_fhir_r4::ViewDefinition_Select *select)
  // ~ UnionAll
  for (int i = 0; i < select->_unionAll_count; i++)
  {
-  View *view = ConvertSelect(arena, select->_unionAll[i]);
+  ViewElem *view = ConvertSelect(arena, select->_unionAll[i]);
   view->is_union = true;
   SLLQueuePush(result->union_first, result->union_last, view);
   result->union_count++;
@@ -334,7 +245,7 @@ ConvertViewDefinition(Arena *arena, nf_fhir_r4::ViewDefinition *vd)
 
  for (int i = 0; i < vd->_select_count; i++)
  {
-  View *view = ConvertSelect(arena, vd->_select[i]);
+  ViewElem *view = ConvertSelect(arena, vd->_select[i]);
   SLLQueuePush(result.first, result.last, view);
  }
 
@@ -367,6 +278,9 @@ DeserializeTest(Arena *arena, simdjson::ondemand::object base)
 
  Assert(res->resourceType == nf_fhir_r4::ResourceType::ViewDefinition);
  test.vd = ConvertViewDefinition(arena, (nf_fhir_r4::ViewDefinition*)res);
+
+ DataTable columns = GetColumnOrder(arena, test.vd);
+ test.expectations = columns;
 
  if (base["expect"].error() == simdjson::SUCCESS)
  {
@@ -506,16 +420,16 @@ ExecuteTestCollection(FP_TestCollection col)
   B32 passed = false;
 
   ViewDefinitionValidationError valid = ValidateViewDefinition(test.vd);
-  if(valid != ViewDefinitionValidationError::Success)
+  if (valid != ViewDefinitionValidationError::Success)
   {
    if (test.expect_error)
    {
     printf("PASSED: \"%.*s\"\n", PRINT_STR8(test.title));
    }
-    else
+   else
    {
     printf("FAILED: \"%.*s\"\n", PRINT_STR8(test.title));
-    }
+   }
    continue;
   }
 
@@ -534,9 +448,13 @@ ExecuteTestCollection(FP_TestCollection col)
   try
   {
    table = ExecuteViewDefinition(temp.arena, test.vd, resources);
-  } 
+  }
   // TODO(agw): proper throw catch for custom errors
   catch (std::bad_any_cast a)
+  {
+   table.execution_error = true;
+  }
+  catch(int err)
   {
    table.execution_error = true;
   }
@@ -584,7 +502,7 @@ ExecuteTestCollection(FP_TestCollection col)
 void
 ReadAndExecuteTests(String8 test_folder)
 {
- String8 test_file_name = Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fn_oftype.json");
+ String8 test_file_name = Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\union.json");
 
 
  Temp temp = ScratchBegin(0, 0);

@@ -82,6 +82,12 @@ namespace native_fhir
   bool operator!=(ColumnValue& o);
  };
 
+ struct ColumnValueNamePair
+ {
+  String8 name;
+  ColumnValue v;
+ };
+
  // ~ Data Table
  struct DataRow
  {
@@ -319,6 +325,29 @@ namespace native_fhir
    return ret;
   }
 
+  DataColumnNode* AddColumnWithoutValues(Arena *arena, DataColumn column)
+  {
+   DataColumnNode *ret = PushStruct(arena, DataColumnNode);
+   ret->v = column;
+   ret->v.chunk_count = 0;
+   ret->v.first = ret->v.last = NULL;
+   DLLPushBack(first, last, ret);
+   column_count++;
+
+   return ret;
+  }
+
+  void AddAllColumnsWithoutValues(Arena *arena, DataTable table)
+  {
+   for (DataColumnNode *n = table.first; n; n = n->next)
+   {
+    if (this->GetMatchingColumn(n->v.name) == NULL)
+    {
+     AddColumnWithoutValues(arena, n->v);
+    }
+   }
+  }
+
   DataRow
   GetRow(Arena *arena, int idx)
   {
@@ -363,14 +392,15 @@ namespace native_fhir
    if (o->column_count != column_count) return false;
 
    Temp temp = ScratchBegin(0, 0);
-   ColumnValue *row = PushArray(temp.arena, ColumnValue, column_count);
-   ColumnValue *other_row = PushArray(temp.arena, ColumnValue, column_count);
+   ColumnValueNamePair *row = PushArray(temp.arena, ColumnValueNamePair, column_count);
+   ColumnValueNamePair *other_row = PushArray(temp.arena, ColumnValueNamePair, column_count);
 
    // Fill Our Row
    int column_idx = 0;
    for (DataColumnNode* node = first; node; node = node->next, column_idx++)
    {
-    row[column_idx] = node->v[comparison_row];
+    row[column_idx].v = node->v[comparison_row];
+    row[column_idx].name = node->v.name;
    }
 
    DataColumn col = o->first->v;
@@ -381,14 +411,24 @@ namespace native_fhir
     int other_column_idx = 0;
     for (DataColumnNode* node = o->first; node; node = node->next, other_column_idx++)
     {
-     other_row[other_column_idx] = node->v[i];
+     other_row[other_column_idx].v = node->v[i];
+     other_row[other_column_idx].name = node->v.name;
     }
 
     // Compare the two
     B32 row_equal = true;
     for (int idx = 0; idx < column_count; idx++)
     {
-     if (row[idx] != other_row[idx])
+     B32 has_matching_value = false;
+     for (int j = 0; j < column_count; j++)
+     {
+      if (row[idx].v == other_row[j].v && Str8Match(row[idx].name, other_row[j].name, 0))
+      {
+       has_matching_value = true;
+      }
+     }
+
+     if (!has_matching_value)
      {
       row_equal = false;
       break;
@@ -452,35 +492,35 @@ namespace native_fhir
  };
 
  // ~ Correlates with View Definition
- enum class ViewType
+ enum class ViewElemType
  {
   Unknown,
   Select,
   Column,
  };
 
- struct View
+ struct ViewElem
  {
-  ViewType type;
+  ViewElemType type;
   ColumnValueType data_type;
   B32 is_union;
 
-  View *parent;
+  ViewElem *parent;
 
   // Siblings
-  View *next;
+  ViewElem *next;
 
   // Children
-  View *column_first;
-  View *column_last;
+  ViewElem *column_first;
+  ViewElem *column_last;
   int column_count;
 
-  View *select_first;
-  View *select_last;
+  ViewElem *select_first;
+  ViewElem *select_last;
   int select_count;
 
-  View *union_first;
-  View *union_last;
+  ViewElem *union_first;
+  ViewElem *union_last;
   int union_count;
 
   // Column Info
@@ -495,46 +535,7 @@ namespace native_fhir
   B32 for_each_is_null;
  };
 
- struct Constant
- {
-  ValueType type;
-  union
-  {
-   NullableString8 base64_binary;
-   NullableBoolean boolean;
-   NullableString8 canonical;
-   NullableString8 code;
-   ISO8601_Time date;
-   ISO8601_Time dateTime;
-   Decimal decimal;
-   NullableString8 id;
-   ISO8601_Time instant;
-   NullableInt32 integer;
-   NullableInt64 integer64;
-   NullableString8 oid;
-   NullableString8 string;
-   NullableInt32 positive_int;
-   ISO8601_Time time;
-   NullableInt32 unsigned_int;
-   NullableString8 uri;
-   NullableString8 url;
-   NullableString8 uuid;
-  };
- };
 
- struct ViewDefinition
- {
-  View *first;
-  View *last;
-  int count;
-
-  nf_fhir_r4::ResourceType resource_type;
-
-  String8List where;
-
-  int constant_count;
-  Constant *constants;
- };
 
 };
 

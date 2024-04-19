@@ -1,32 +1,9 @@
-#ifndef FP_NUMBER_H
-#define FP_NUMBER_H
 
 namespace native_fhir
 {
-
- enum NumberType
+ Number
+ Number::FromString(String8 str)
  {
-  Number_Unknown,
-  Number_Integer,
-  Number_Decimal,
- };
-
- typedef struct Number Number;
- struct Number
- {
-  NumberType type;
-  String8 quantity;
-  String8 unit;
-
-  union
-  {
-   S64 s64;
-   Decimal decimal;
-  };
-
-  static Number
-  FromString(String8 str)
-  {
    Number result = {};
    // TODO(agw): parse string to number
    S64 parsed_int = 0;
@@ -42,7 +19,7 @@ namespace native_fhir
 
    if (is_decimal)
    {
-    result.type = Number_Decimal;
+    result.type = NumberType::Decimal;
     Temp temp = ScratchBegin(0, 0);
 
     Decimal decimal = DecimalFromString(str);
@@ -52,7 +29,7 @@ namespace native_fhir
    }
    else
    {
-    result.type = Number_Integer;
+    result.type = NumberType::Integer;
     for (int i = 0; i < str.size; i++)
     {
      if (!CharIsDigit((char)str.str[i]))
@@ -67,12 +44,13 @@ namespace native_fhir
    }
 
    return result;
-  }
+ }
 
-  static Decimal
-  AsDecimal(Number const& num)
+ 
+  Decimal
+  Number::AsDecimal(Number const& num)
   {
-   if (num.type == Number_Integer)
+   if (num.type == NumberType::Integer)
    {
     return DecimalFromInt(num.s64);
    }
@@ -85,9 +63,9 @@ namespace native_fhir
   conversion from a Decimal to an Integer
   */
 
-  bool operator==(Number const& num)
+  bool Number::operator==(Number const& num)
   {
-   if (this->type == num.type && this->type == Number_Integer)
+   if (this->type == num.type && this->type == NumberType::Integer)
    {
     return this->s64 == num.s64;
    }
@@ -95,9 +73,9 @@ namespace native_fhir
    return DecimalEqual(AsDecimal(*this), AsDecimal(num));
   }
 
-  bool operator>(Number const& num)
+  bool Number::operator>(Number const& num)
   {
-   if (this->type == num.type && this->type == Number_Integer)
+   if (this->type == num.type && this->type == NumberType::Integer)
    {
     return this->s64 > num.s64;
    }
@@ -105,97 +83,91 @@ namespace native_fhir
    return DecimalCompare(AsDecimal(*this), AsDecimal(num)) > 0;
   }
 
-  Number operator+(Number const& num)
+  Number Number::operator+(Number const& num)
   {
    Number ret = {};
 
-   if (this->type == num.type && this->type == Number_Integer)
+   if (this->type == num.type && this->type == NumberType::Integer)
    {
-    ret.type = Number_Integer;
+    ret.type = NumberType::Integer;
      ret.s64 = this->s64 + num.s64;
    }
    else
    {
-    ret.type = Number_Decimal;
+    ret.type = NumberType::Decimal;
     ret.decimal = DecimalAdd(AsDecimal(*this), AsDecimal(num));
    }
 
    return ret;
   }
 
-  Number operator-(Number const& num)
+  Number Number::operator-(Number const& num)
   {
    Number ret = {};
-   if (this->type == num.type && this->type == Number_Integer)
+   if (this->type == num.type && this->type == NumberType::Integer)
    {
-    ret.type = Number_Integer;
+    ret.type = NumberType::Integer;
      ret.s64 = this->s64 - num.s64;
    }
    else
    {
-    ret.type = Number_Decimal;
+    ret.type = NumberType::Decimal;
     ret.decimal = DecimalSub(AsDecimal(*this), AsDecimal(num));
    }
 
    return ret;
   }
 
-  Number operator*(Number const& num)
+  Number Number::operator*(Number const& num)
   {
    Number ret = {};
-   if (this->type == num.type && this->type == Number_Integer)
+   if (this->type == num.type && this->type == NumberType::Integer)
    {
-    ret.type = Number_Integer;
+    ret.type = NumberType::Integer;
     ret.s64 = this->s64 * num.s64;
    }
    else
    {
-    ret.type = Number_Decimal;
+    ret.type = NumberType::Decimal;
     ret.decimal = DecimalMul(AsDecimal(*this), AsDecimal(num));
    }
 
    return ret;
   }
 
-  Number operator/(Number const& num)
+  Number Number::operator/(Number const& num)
   {
    Number ret = {};
 
-   if (this->type == num.type && this->type == Number_Integer)
+   if (this->type == num.type && this->type == NumberType::Integer)
    {
-    ret.type = Number_Integer;
+    ret.type = NumberType::Integer;
     ret.s64 = this->s64 / num.s64;
    }
    else
    {
-    ret.type = Number_Decimal;
+    ret.type = NumberType::Decimal;
     ret.decimal = DecimalDiv(AsDecimal(*this), AsDecimal(num));
    }
 
    return ret;
   }
 
-  Number operator%(Number const& num)
+  Number Number::operator%(Number const& num)
   {
    Number ret = {};
 
-   if (this->type == num.type && this->type == Number_Integer)
+   if (this->type == num.type && this->type == NumberType::Integer)
    {
-    ret.type = Number_Integer;
+    ret.type = NumberType::Integer;
     ret.s64 = this->s64 % num.s64;
    }
    else
    {
-    ret.type = Number_Decimal;
+    ret.type = NumberType::Decimal;
     ret.decimal = DecimalMul(AsDecimal(*this), AsDecimal(num));
    }
 
    return ret;
   }
-
-
- };
-
 };
-
-#endif

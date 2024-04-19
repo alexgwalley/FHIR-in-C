@@ -1,7 +1,7 @@
 #ifndef NF_FHIR_PATH_H
 #define NF_FHIR_PATH_H
 
-#define FP_AssertAll(cond, context, msg, _break) if (!(cond)) { (context)->error_message = msg; if ((!_break)) { OS_DebugBreak; } longjmp((context)->error_buf, -1); }
+#define FP_AssertAll(cond, context, msg, _break) if (!(cond)) { (context)->error_message = msg; if ((_break)) { OS_DebugBreak; } throw -1; }
 
 #define NotImplemented OS_DebugBreak
 #define FP_Assert(cond, context, msg) FP_AssertAll(cond, context, msg, 0)
@@ -14,19 +14,9 @@ namespace native_fhir
 		Piece_Plus,
 		Piece_Minus,
 		Piece_Multiply,
-		Piece_ForwardSlash,
-		Piece_Percent,
 		Piece_Union,
 		Piece_Ampersand,
 		Piece_Dot,
-		Piece_Comma,
-		Piece_BackTick,
-
-		Piece_OpenParen,
-		Piece_CloseParen,
-
-		Piece_OpenBracket,
-		Piece_CloseBracket,
 
   Piece_And,
   Piece_Or,
@@ -42,7 +32,6 @@ namespace native_fhir
 		Piece_Greater,
 		Piece_GreaterEqual,
 
-		// NOTE(agw): not sure if we just want to clump all of this together?
 		Piece_Literal,
 		Piece_String,
 		Piece_Date,
@@ -152,6 +141,9 @@ namespace native_fhir
 	{
 		return piece == NULL || piece == &nil_piece;
 	}
+
+
+ Piece* Antlr_ParseExpression(String8 str);
 
 };
 #endif

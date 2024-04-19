@@ -2,8 +2,6 @@
 
 namespace native_fhir
 {
- // TODO(agw): needs to be in header file
- Piece* Antlr_ParseExpression(String8 str);
 
  /////////////////////
  // ~ Column Value Impl
@@ -81,7 +79,7 @@ namespace native_fhir
      default: NotImplemented;
      case ColumnValueType::Int32:
      {
-      if (ent.number.type != Number_Integer || ent.number.s64 > INT_MAX) { throw; }
+      if (ent.number.type != NumberType::Integer || ent.number.s64 > INT_MAX) { throw; }
       S32 s32 = (S32)ent.number.s64;
 
       ret.value_type = ColumnValueType::Int32;
@@ -186,7 +184,7 @@ namespace native_fhir
    DataChunkNode* _ = AddChunk(arena);
   }
 
-  if (col.value_type == ColumnValueType::Unknown)
+  if (col.value_type == ColumnValueType::Unknown || col.value_type == ColumnValueType::Null)
   {
    ColumnValue val = {};
    val.value_type = ColumnValueType::Null;
@@ -284,6 +282,12 @@ namespace native_fhir
     column->SetValueType(arena, value.value_type);
    }
    column->AddValue(arena, value);
+  }
+  else
+  {
+   ColumnValue null_value = {};
+   null_value.value_type = ColumnValueType::Null;
+   column->AddValue(arena, null_value);
   }
 
  }
@@ -390,13 +394,13 @@ namespace native_fhir
  }
 
  local_function DataTable
- ExecuteView(Arena *arena, View* view, nf_fhir_r4::Resource* resource, FP_ExecutionContext* context)
+ ExecuteView(Arena *arena, ViewElem* view, nf_fhir_r4::Resource* resource, FP_ExecutionContext* context)
  {
   DataTable result = {};
 
   switch (view->type)
   {
-   case ViewType::Select:
+   case ViewElemType::Select:
    {
     // This whole thing could be wrapped in a forEach
     Temp temp = ScratchBegin(&arena, 1);
@@ -437,7 +441,7 @@ namespace native_fhir
      ///////////////////////
      // ~ Calculate Columns
      DataTable column_result = {};
-     for (View *node = view->column_first; node; node = node->next)
+     for (ViewElem *node = view->column_first; node; node = node->next)
      {
       DataTable node_table = ExecuteView(arena, node, ent_node->v.resource, context);
 
@@ -454,7 +458,7 @@ namespace native_fhir
      ///////////////////////
      // ~ Calculate Select
      DataTable select_result = {};
-     for (View *v = view->select_first; v; v = v->next)
+     for (ViewElem *v = view->select_first; v; v = v->next)
      {
       DataTable next_table = ExecuteView(arena, v, ent_node->v.resource, context);
       table_list.AddTable(arena, next_table);
@@ -465,7 +469,7 @@ namespace native_fhir
      if (view->union_first)
      {
       DataTable union_result = {};
-      for (View *v = view->union_first; v; v = v->next)
+      for (ViewElem *v = view->union_first; v; v = v->next)
       {
        DataTable next_table = ExecuteView(arena, v, ent_node->v.resource, context);
        if (union_result.column_count == 0 && v == view->union_first)
@@ -489,7 +493,7 @@ namespace native_fhir
 
     ScratchEnd(temp);
    } break;
-   case ViewType::Column:
+   case ViewElemType::Column:
    {
     // NOTE(agw): we do _not_ want to zero out the entry stack here, should be set in parent select
     context->root_node = Antlr_ParseExpression(view->path.str8);
@@ -514,13 +518,6 @@ namespace native_fhir
 
     DataColumn_AddCollection(arena, context, &column, col);
 
-    if (col.count == 0)
-    {
-     ColumnValue null_value = {};
-     null_value.value_type = ColumnValueType::Null;
-     column.AddValue(arena, null_value);
-    }
-
     result.AddColumn(arena, column);
    } break;
   }
@@ -528,49 +525,52 @@ namespace native_fhir
   return result;
  }
 
- String8List
- GetViewOrder(Arena *arena, View *view)
+ DataTable
+ GetViewOrder(Arena *arena, ViewElem *view)
  {
-  String8List res = {};
+  DataTable res = {};
   switch (view->type)
   {
-   case ViewType::Select:
+   case ViewElemType::Select:
    {
-    for (View* v = view->column_first; v; v = v->next)
+    for (ViewElem* v = view->column_first; v; v = v->next)
     {
-     String8List v_list = GetViewOrder(arena, v);
-     Str8ListConcatInPlace(&res, &v_list);
+     DataTable v_list = GetViewOrder(arena, v);
+     res.AddAllColumnsWithoutValues(arena, v_list);
     }
 
-    for (View* v = view->select_first; v; v = v->next)
+    for (ViewElem* v = view->select_first; v; v = v->next)
     {
-     String8List v_list = GetViewOrder(arena, v);
-     Str8ListConcatInPlace(&res, & v_list);
+     DataTable v_list = GetViewOrder(arena, v);
+     res.AddAllColumnsWithoutValues(arena, v_list);
     }
 
-    for (View* v = view->union_first; v; v = v->next)
+    for (ViewElem* v = view->union_first; v; v = v->next)
     {
-     String8List v_list = GetViewOrder(arena, v);
-     Str8ListConcatInPlace(&res, &v_list);
+     DataTable v_list = GetViewOrder(arena, v);
+     res.AddAllColumnsWithoutValues(arena, v_list);
     }
    } break;
-   case ViewType::Column:
+   case ViewElemType::Column:
    {
-    Str8ListPush(arena, &res, view->name.str8);
+    DataColumn col = {};
+    col.name = view->name.str8;
+    col.value_type = view->data_type;
+    res.AddColumnWithoutValues(arena, col);
    } break;
   }
 
   return res;
  }
 
- String8List
+ DataTable
  GetColumnOrder(Arena *arena, native_fhir::ViewDefinition vd)
  {
-  String8List res = {};
-  for (View *view = vd.first; view; view = view->next)
+  DataTable res = {};
+  for (ViewElem *view = vd.first; view; view = view->next)
   {
-   String8List view_order = GetViewOrder(arena, view);
-   Str8ListConcatInPlace(&res, &view_order);
+   DataTable view_order = GetViewOrder(arena, view);
+   res.AddAllColumnsWithoutValues(arena, view_order);
   }
 
   return res;
@@ -581,12 +581,12 @@ namespace native_fhir
  {
   Temp temp = ScratchBegin(0, 0);
 
-  String8List order = GetColumnOrder(temp.arena, vd);
+  DataTable order = GetColumnOrder(temp.arena, vd);
 
   String8List order_reversed = {};
-  for (String8Node *node = order.first; node; node = node->next)
+  for (DataColumnNode *node = order.first; node; node = node->next)
   {
-   Str8ListPushFront(temp.arena, &order_reversed, node->string);
+   Str8ListPushFront(temp.arena, &order_reversed, node->v.name);
   }
 
   for (String8Node *node = order_reversed.first; node; node = node->next)
@@ -600,95 +600,6 @@ namespace native_fhir
   }
 
   ScratchEnd(temp);
- }
-
- DataTable
- ExecuteViewDefinition(Arena *arena,
-                       native_fhir::ViewDefinition vd,
-                       Collection resources)
- {
-  DataTable table = {};
-
-  FP_ExecutionContext context = { 0 };
-  context.arena = ArenaAlloc(Megabytes(64));
-  context.entry_stack_first = context.entry_stack_last = &nil_entry_node;
-  context.meta_file = g_meta_file;
-
-  // ~ Set on-error
-  if (setjmp(context.error_buf) != 0)
-  {
-   if (context.error_message.size > 0)
-   {
-    printf("ERROR: %.*s\n", PRINT_STR8(context.error_message));
-   }
-
-   DataTable data_table = {};
-   data_table.execution_error = true;
-   ArenaRelease(context.arena);
-   return data_table;
-  }
-
-  // ~ Make a copy of the resources collection
-  Collection valid_resources = {};
-  for (CollectionEntryNode *node = resources.first; node; node = node->next)
-  {
-   CollectionPushEntry(arena, &valid_resources, node->v);
-  }
-
-  // ~ Filter out resources using where statements
-  Temp where_temp = ScratchBegin(0, 0);
-  for (String8Node *where_node = vd.where.first; where_node; where_node = where_node->next)
-  {
-   for (CollectionEntryNode *node = valid_resources.first; node; node = node->next)
-   {
-    // TODO(agw): we don't need to evaluate the where_node path every time
-    if (node->v.resource->resourceType != vd.resource_type)
-    {
-     DLLRemove(valid_resources.first, valid_resources.last, node);
-     valid_resources.count--;
-     continue;
-    }
-
-    context.Set(1, &node->v.resource, where_node->string);
-
-    CollectionEntryNode *cpy = PushStruct(where_temp.arena, CollectionEntryNode);
-    MemoryCopy(cpy, node, sizeof(*node));
-    SLLStackPush(context.entry_stack_first, cpy);
-
-    Collection single_res = ExecutePieces(where_temp.arena, &context);
-    if (single_res.count == 0 || !single_res.first->v.b)
-    {
-     DLLRemove(valid_resources.first, valid_resources.last, node);
-     valid_resources.count--;
-    }
-   }
-  }
-  ScratchEnd(where_temp);
-
-  // for each resource
-  for (CollectionEntryNode *node = valid_resources.first; node; node = node->next)
-  {
-   if (node->v.type != EntryType::Resource) continue;
-
-   DataTableList table_list = {};
-   for (View *v = vd.first; v; v = v->next)
-   {
-    DataTable next_table = ExecuteView(arena, v, node->v.resource, &context);
-    table_list.AddTable(arena, next_table);
-   }
-
-   DataTable temp = RowProduct(arena, table_list);
-
-   if (table.column_count == 0) { table = temp; }
-   else if(table.column_count == temp.column_count)
-   { 
-    DataTable_UnionDataTables(arena, &table, &temp, &context); 
-   }
-  }
-
-  SortColumns(&table, vd);
-
-  return table;
  }
 
 };

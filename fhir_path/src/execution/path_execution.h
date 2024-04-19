@@ -118,7 +118,6 @@ struct CollectionList
  int count;
 };
 
-
 CollectionEntryNode nil_entry_node = { 0 };
 
 typedef struct FP_ExecutionContext FP_ExecutionContext;

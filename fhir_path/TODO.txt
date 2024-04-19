@@ -1,6 +1,6 @@
 UNIT TESTS:
-[X] basic.json
-[X] collection.json
+[ ] basic.json
+[ ] collection.json
 [ ] combinations.json
 [ ] constant.json
 [ ] fhirpath.json
@@ -10,26 +10,11 @@ UNIT TESTS:
 [ ] fn_extension.json
 [X] fn_first.json
 [X] fn_join.json
-[ ] fn_oftype.json
+[X] fn_oftype.json
 [ ] fn_reference_keys.json
-[X] foreach.json
+[ ] foreach.json
 [ ] logic.json
-[X] union.json
+[ ] union.json
 [ ] validate.json // TODO(agw): read errors from deserializer
-[X] view_resource.json
-[X] where.json
-
-
-let table_list = [{}];
-let new_rows = null;
-
-table_list.forEach(table => {
-  new_rows = [];
-  table.forEachRow((table_row)=> {
-    rows.forEach(row => {
-      new_rows.push(merge(table_row,row))
-    })
-  })
-  table = new_rows;
-});
-return rows;
+[ ] view_resource.json
+[ ] where.json

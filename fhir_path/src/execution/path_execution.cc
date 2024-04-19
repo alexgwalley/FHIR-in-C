@@ -123,7 +123,7 @@ namespace native_fhir
  {
   CollectionEntry entry = {};
   entry.type = EntryType::Number;
-  entry.number.type = Number_Integer;
+  entry.number.type = NumberType::Integer;
   entry.number.s64 = num;
   return CollectionFromEntry(arena, entry);
  }
@@ -314,7 +314,7 @@ namespace native_fhir
       if (str.has_value) { 
        Decimal decimal = DecimalFromString(Str8(str.str, str.size));
        ent.number.decimal = decimal;
-       ent.number.type = Number_Decimal;
+       ent.number.type = NumberType::Decimal;
       }
       CollectionPushEntry(arena, &ret, ent);
      } break;
@@ -324,7 +324,7 @@ namespace native_fhir
       NullableInt32 int_val = *(NullableInt32*)mem_ptr;
       if (int_val.has_value) { 
        ent.number.s64 = int_val.value;
-       ent.number.type = Number_Integer;
+       ent.number.type = NumberType::Integer;
        CollectionPushEntry(arena, &ret, ent);
       }
      } break;
@@ -510,27 +510,6 @@ namespace native_fhir
   return result;
  }
 
-
- local_function Collection
- CollectionFromLiteralPiece(Arena *arena, FP_ExecutionContext *context,  Piece* expr)
- {
-  Collection ret = { 0 };
-  switch (expr->type)
-  {
-   case Piece_Literal:
-   {
-    CollectionEntry entry {};
-    const ResourceNameTypePair* pair = NF_ResourceNameTypePairFromString8(expr->slice);
-    FP_Assert(pair, context, PushStr8F(context->arena, "Could not find resource with name: %S", expr->slice));
-    entry.type = EntryType::ResourceType;
-    entry.resource_type = (ResourceType)pair->type;
-    CollectionPushEntry(arena, &ret, entry);
-   } break;
-  }
-  return ret;
- }
-
-
  local_function Collection
  CollectionFromResourceMember(Arena *arena, FP_ExecutionContext* context,  CollectionEntry *ent, String8 member_name)
  {
@@ -543,41 +522,6 @@ namespace native_fhir
   Collection ret = GetMembersFromCollection(arena, context, temp_col, member_name);
   ScratchEnd(temp);
   return ret;
- }
-
- local_function EmptyBool
- ExecuteBooleanExpressionOnCollectionEntry(Arena* arena, FP_ExecutionContext* context, CollectionEntry *ent, Piece* expr)
- {
-  EmptyBool result = EmptyBool::False;
-
-  Collection left_col = ExecuteExpression(arena, context, expr->child[0]);
-  Collection right_col = ExecuteExpression(arena, context, expr->child[1]);
-
-  Assert(left_col.count == 1);
-  Assert(right_col.count == 1);
-
-  switch (expr->type) {
-   case Piece_EqualCompare:
-   {
-    result = EqualCompareCollectionEntries(context, &left_col.first->v,  &right_col.first->v, expr->meta.equal_compare_data);
-   } break;
-   case Piece_QuantityCompare:
-   {
-    result = QuantityCompareCollectionEntries(context, &left_col.first->v,  &right_col.first->v, expr->meta.quantity_compare_data);
-   } break;
-   case Piece_Is:
-   {
-    ResourceType col_first_type = ResourceType::Unknown;
-    if(right_col.first->v.type == EntryType::Resource) col_first_type = right_col.first->v.resource->resourceType;
-    else if (right_col.first->v.type == EntryType::ResourceType) col_first_type = right_col.first->v.resource_type;
-    else Assert(false);
-
-    result = EmptyBoolFromBool(col_first_type == ent->resource->resourceType);
-   } break;
-   default: Assert(false);
-  }
-
-  return result;
  }
 
  typedef U8 NF_SubsettingFlags;
@@ -678,9 +622,10 @@ namespace native_fhir
    } break;
    case Function::Join:
    {
-    Temp temp = ScratchBegin(&arena, 1);
+    if (left_col.count == 0) { return ret; }
     FP_Assert(left_col.first->v.type == EntryType::String, context, Str8Lit("Join() only works on string types"));
 
+    Temp temp = ScratchBegin(&arena, 1);
     String8List str_list = {};
     for (CollectionEntryNode *n = left_col.first;
      !IsNilCollectionEntryNode(n);
@@ -734,7 +679,6 @@ namespace native_fhir
      FP_Assert(col.count == 0 || col.first->v.type == EntryType::Boolean, context, Str8Lit("Where expression needs a boolean to test upon."));
      
      EmptyBool result = (col.count == 0) ? EmptyBool::Empty : EmptyBoolFromBool(col.first->v.b);
-//     EmptyBool result = ExecuteBooleanExpressionOnCollectionEntry(temp.arena, context, &n->v, func_node->params.first->v);
 
      if (result != EmptyBool::True)
      {
@@ -838,7 +782,7 @@ namespace native_fhir
      {
       for (CollectionEntryNode *n = left_col.first; !IsNilCollectionEntryNode(n); n = n->next)
       {
-       NumberType num_type = value_type == ValueType::Decimal ? Number_Decimal : Number_Integer;
+       NumberType num_type = value_type == ValueType::Decimal ? NumberType::Decimal : NumberType::Integer;
        B32 correct_type = n->v.type == EntryType::Number && n->v.number.type == num_type;
        if (correct_type) { CollectionPushEntry(arena, &ret, n->v); }
       }
@@ -867,7 +811,7 @@ namespace native_fhir
     FP_Assert(func_node->params.count > 0, context, Str8Lit("Skip/Take function requires a parameter of type integer"));
     FP_Assert(func_node->params.first, context, Str8Lit("Skip/Take function first parameter is null"));
     FP_Assert(func_node->params.first->v->type == Piece_Number, context, Str8Lit("Skip/Take function parameter must be an integer"));
-    FP_Assert(func_node->params.first->v->value.num.type == Number_Integer, context, Str8Lit("Skip/Take function parameter must be an integer"));
+    FP_Assert(func_node->params.first->v->value.num.type == NumberType::Integer, context, Str8Lit("Skip/Take function parameter must be an integer"));
 
     S64 num = func_node->params.first->v->value.num.s64;
 
@@ -1021,7 +965,7 @@ namespace native_fhir
     Collection right = ExecuteExpression(temp.arena, context, node->child[1]);
 
     FP_Assert(right.first->v.type == EntryType::Number, context, Str8Lit("Must use an integer literal to index collection"));
-    FP_Assert(right.first->v.number.type == Number_Integer, context, Str8Lit("Must use an integer literal to index collection"));
+    FP_Assert(right.first->v.number.type == NumberType::Integer, context, Str8Lit("Must use an integer literal to index collection"));
 
     S64 index = right.first->v.number.s64;
 
@@ -1138,11 +1082,11 @@ namespace native_fhir
     FP_Assert(col.first->v.type == EntryType::Number, context, Str8Lit("Negate Polarity Expression works on a number"));
 
     CollectionEntry entry = col.first->v;
-    if (entry.number.type == Number_Integer)
+    if (entry.number.type == NumberType::Integer)
     {
      entry.number.s64 *= -1;
     }
-    else if(entry.number.type == Number_Decimal)
+    else if(entry.number.type == NumberType::Decimal)
     {
      entry.number.decimal = DecimalMul(entry.number.decimal, DecimalFromString(Str8Lit("-1")));
     }

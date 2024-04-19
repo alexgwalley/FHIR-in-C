@@ -34,7 +34,7 @@
 //////////////////
 // ~ OURS
 #include "native_fhir_inc.h"
-#include "execution/number.h"
+#include "number/number.h"
 
 #include "fhir_r4_types.h"
 #include "generated/fhir_class_definitions.h"
@@ -44,20 +44,18 @@
 #include "manual_deserialization.h"
 #include "native_deserializer.h"
 
-namespace native_fhir
-{
- Piece* Antlr_ParseExpression(String8 str);
-};
-
 #include "execution/path_execution.h"
 #include "fhir_class/fhir_class.h"
-#include "fhir_path_visitor.h"
+#include "fhir_path_visitor/fhir_path_visitor.h"
 
-#include "data_table.h"
-#include "test_execution.h"
+#include "data_table/data_table.h"
+#include "view_definition/view_definition.h"
+#include "test_execution/test_execution.h"
 
 #include "native_fhir_inc.cc"
-#include "fhir_path_visitor.cc"
+#include "number/number.cc"
+#include "fhir_path_visitor/fhir_path_visitor.cc"
+#include "fhir_path.cc"
 
 using namespace native_fhir;
 using namespace nf_fhir_r4;
@@ -66,8 +64,9 @@ using namespace antlr4;
 nf_fhir_r4::Resource nil_resource = {};
 
 #include "execution/path_execution.cc"
-#include "data_table.cc"
-#include "test_execution.cc"
+#include "data_table/data_table.cc"
+#include "view_definition/view_definition.cc"
+#include "test_execution/test_execution.cc"
 
 
 //////////////////
@@ -100,28 +99,12 @@ std::shared_ptr<arrow::Table> generate_table() {
 
 namespace native_fhir
 {
- Piece*
- Antlr_ParseExpression(String8 str)
- {
-  ANTLRInputStream input((const char*)str.str, str.size);
-  fhirpathLexer lexer(&input);
-  CommonTokenStream tokens(&lexer);
-  fhirpathParser parser(&tokens);
-
-  native_fhir::FhirPathVisitor visitor;
-  fhirpathParser::EntireExpressionContext* entireExpression = parser.entireExpression();
-  std::any visit_result = visitor.visitEntireExpression(entireExpression);
-  Piece* root = std::any_cast < Piece* > (visit_result);
-  return root;
- }
-
  // builders
  // append data
  // make schema
  // make table
 
  // write table to file
-
 
 
  //////////////////
@@ -341,11 +324,11 @@ namespace native_fhir
     {
      switch (node->v.number.type)
      {
-      case Number_Integer:
+      case NumberType::Integer:
       {
        printf("%lld\n", node->v.number.s64);
       } break;
-      case Number_Decimal:
+      case NumberType::Decimal:
       {
        Temp temp = ScratchBegin(0, 0);
        String8 str = Str8FromDecimal(temp.arena, node->v.number.decimal);
@@ -454,14 +437,6 @@ main(void)
 
 	while (true)
 	{
-		if (setjmp(context.error_buf) != 0)
-		{
-			if (context.error_message.size > 0)
-			{
-				printf("ERROR: %.*s\n", PRINT_STR8(context.error_message));
-			}
-			fgets(&line[0], ArrayCount(line), stdin);
-		}
 
 		String8 line_str = Str8C(line);
 
@@ -477,14 +452,24 @@ main(void)
    Piece *tok = Antlr_ParseExpression(line_str);
    context.root_node = tok;
 
-   Collection collection = ExecutePieces(context.arena, &context);
+   try
+   {
+    Collection collection = ExecutePieces(context.arena, &context);
 
-   PrintCollection(collection);
+    PrintCollection(collection);
 
-   EndAndPrintProfile();
+    EndAndPrintProfile();
 
-   double gb2 = context.arena->commit_pos / (double)Gigabytes(1);
-   printf("context arena: %f GB\n", gb2);
+    double gb2 = context.arena->commit_pos / (double)Gigabytes(1);
+    printf("context arena: %f GB\n", gb2);
+   }
+   catch (int err)
+   {
+    if (context.error_message.size > 0)
+    {
+     printf("ERROR: %.*s\n", PRINT_STR8(context.error_message));
+    }
+   }
   }
 
 		fgets(&line[0], ArrayCount(line), stdin);
