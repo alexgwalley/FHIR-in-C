@@ -97,12 +97,12 @@ struct FP_ExecutionContext
   ArenaPopTo(arena, 0);
  }
 
- void Set(size_t num_resources, nf_fhir_r4::Resource** resources, String8 path)
+ void Set(size_t num_resources, nf_fhir_r4::Resource** resources, Piece *node)
  {
   this->ZeroOut();
   res_count = num_resources;
   this->resources = resources;
-  root_node = Antlr_ParseExpression(path);
+  root_node = node;
  }
 
 

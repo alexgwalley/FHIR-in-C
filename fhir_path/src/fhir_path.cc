@@ -4,6 +4,7 @@ namespace native_fhir
  Piece*
  Antlr_ParseExpression(String8 str)
  {
+  TimeFunction;
   ANTLRInputStream input((const char*)str.str, str.size);
   fhirpathLexer lexer(&input);
   CommonTokenStream tokens(&lexer);

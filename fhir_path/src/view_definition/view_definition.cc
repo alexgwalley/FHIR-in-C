@@ -38,7 +38,10 @@ namespace native_fhir
   Collection valid_resources = {};
   for (CollectionEntryNode *node = resources.first; node; node = node->next)
   {
-   CollectionPushEntry(arena, &valid_resources, node->v);
+   if (node->v.type == EntryType::Resource && node->v.resource && node->v.resource->resourceType == vd.resource_type)
+   {
+    CollectionPushEntry(arena, &valid_resources, node->v);
+   }
   }
 
   // ~ Filter out resources using where statements
@@ -55,7 +58,8 @@ namespace native_fhir
      continue;
     }
 
-    context.Set(1, &node->v.resource, where_node->string);
+    Piece* root_piece = Antlr_ParseExpression(where_node->string);
+    context.Set(1, &node->v.resource, root_piece);
 
     CollectionEntryNode *cpy = PushStruct(where_temp.arena, CollectionEntryNode);
     MemoryCopy(cpy, node, sizeof(*node));

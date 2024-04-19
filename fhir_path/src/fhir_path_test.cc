@@ -24,6 +24,9 @@
 #include <parquet/arrow/writer.h>
 #include <parquet/exception.h>
 
+#include <parquet/arrow/writer.h>
+#include <arrow/util/type_fwd.h>
+
 
 //////////////////
 // ~ ARROW - Parquet Gen
@@ -71,30 +74,73 @@ nf_fhir_r4::Resource nil_resource = {};
 
 //////////////////
 // ARROW PARQUET TEST
-std::shared_ptr<arrow::Table> generate_table() {
- arrow::Int64Builder i64builder;
+std::shared_ptr<arrow::Table> 
+ArrowTableFromDataTable(DataTable table) 
+{
+ TimeFunction;
+
+ Temp temp = ScratchBegin(0, 0);
+
+ std::vector<std::shared_ptr < arrow::Array> > arrays;
+ arrow::FieldVector fields;
+
+ for (DataColumnNode *col = table.first; col; col = col->next)
+ {
+  std::string name((char*)col->v.name.str, col->v.name.size);
+  switch (col->v.value_type)
+  {
+   default: NotImplemented;
+   case ColumnValueType::String:
+   {
+    auto field = arrow::field(name, arrow::utf8());
+    fields.push_back(field);
+    arrow::StringBuilder builder;
+    for (int i = 0; i < col->v.num_values; i++)
+    {
+     // TODO(agw): slow
+     ColumnValue val = col->v[i];
+     std::string str((char*)val.str.str, val.str.size);
+     PARQUET_THROW_NOT_OK(builder.Append(str));
+    }
+
+    std::shared_ptr < arrow::Array > arr;
+    PARQUET_THROW_NOT_OK(builder.Finish(&arr));
+    arrays.push_back(arr);
+   } break;
+   case ColumnValueType::ISO8601_Time:
+   {
+   } break;
+  }
+ }
+
+ std::shared_ptr<arrow::Schema> schema = arrow::schema(fields);
+ return arrow::Table::Make(schema, arrays);
+}
+
+arrow::Status
+WriteTable(String8 file_path, std::shared_ptr <arrow::Table> table)
+{
+ TimeFunction;
+ using parquet::ArrowWriterProperties;
+ using parquet::WriterProperties;
 
 
- PARQUET_THROW_NOT_OK(i64builder.AppendValues({1, 2, 3, 4, 5}));
+ // Choose compression
+ std::shared_ptr <WriterProperties> props =
+  WriterProperties::Builder().compression(arrow::Compression::UNCOMPRESSED)->build();
 
+ // Opt to store Arrow schema for easier reads back into Arrow
+ std::shared_ptr <ArrowWriterProperties> arrow_props =
+  ArrowWriterProperties::Builder().store_schema()->build();
 
- std::shared_ptr<arrow::Array> i64array;
- PARQUET_THROW_NOT_OK(i64builder.Finish(&i64array));
+ std::shared_ptr < arrow::io::FileOutputStream > outfile;
+ std::string path_to_file((char*)file_path.str, file_path.size);
+ ARROW_ASSIGN_OR_RAISE(outfile, arrow::io::FileOutputStream::Open(path_to_file));
 
- arrow::StringBuilder strbuilder;
- PARQUET_THROW_NOT_OK(strbuilder.Append("some"));
- PARQUET_THROW_NOT_OK(strbuilder.Append("string"));
- PARQUET_THROW_NOT_OK(strbuilder.Append("content"));
- PARQUET_THROW_NOT_OK(strbuilder.Append("in"));
- PARQUET_THROW_NOT_OK(strbuilder.Append("rows"));
-
- std::shared_ptr<arrow::Array> strarray;
- PARQUET_THROW_NOT_OK(strbuilder.Finish(&strarray));
-
- std::shared_ptr<arrow::Schema> schema = arrow::schema(
-  {arrow::field("int", arrow::int64()), arrow::field("str", arrow::utf8())});
-
- return arrow::Table::Make(schema, {i64array, strarray});
+ ARROW_RETURN_NOT_OK(parquet::arrow::WriteTable(*table.get(),
+                                                arrow::default_memory_pool(), outfile,
+                                                /*chunk_size=*/3, props, arrow_props));
+ return arrow::Status::OK();
 }
 
 namespace native_fhir
@@ -362,6 +408,47 @@ DeserializeFile(const char* fn, nf_fhir_r4::Resource** res)
 	return ND_DeserializeFile((char*)fn, res);
 }
 
+DataTable
+CreateDataTableFromViewDefinition(Arena *arena, native_fhir::ViewDefinition vd, Collection resources)
+{
+  TimeFunction;
+  DataTable table = ExecuteViewDefinition(arena, vd, resources);
+  return table;
+}
+
+ViewDefinitionList
+LoadViewDefinitions(Arena *arena, String8 file_name)
+{
+ TimeFunction;
+ ViewDefinitionList result = {};
+
+ nf_fhir_r4::Resource* res = 0;
+
+ String8 null_str = PushStr8Copy(arena, file_name);
+ ND_ContextNode *context = ND_DeserializeFile((const char*)null_str.str, &res);
+
+ Assert(res->resourceType == nf_fhir_r4::ResourceType::Bundle);
+
+ nf_fhir_r4::Bundle* bundle = (nf_fhir_r4::Bundle*)res;
+ for (int i = 0; i < bundle->_entry_count; i++)
+ {
+  Bundle_Entry* entry = bundle->_entry[i];
+  if (entry->_resource && entry->_resource->resourceType == ResourceType::ViewDefinition)
+  {
+   nf_fhir_r4::ViewDefinition* vd = (nf_fhir_r4::ViewDefinition*)entry->_resource;
+   native_fhir::ViewDefinition converted = ConvertViewDefinition(arena, vd);
+   ViewDefinitionNode *node = PushStruct(arena, ViewDefinitionNode);
+   node->v = converted;
+   SLLQueuePush(result.first, result.last, node);
+   result.count++;
+  }
+ }
+
+ ND_FreeContext(context);
+
+ return result;
+}
+
 
 int 
 main(void)
@@ -428,7 +515,42 @@ main(void)
   }
  }
 
- ReadAndExecuteTests(Str8Lit(""));
+// ReadAndExecuteTests(Str8Lit(""));
+
+ BeginProfile();
+
+ ViewDefinitionList list = LoadViewDefinitions(temp.arena, Str8Lit("C:/Users/awalley/Code/FHIR-in-C/fhir_path/view_definitions.json"));
+ if (list.count > 0)
+ {
+  Collection resources = {};
+  for (int i = 0; i < context.res_count; i++)
+  {
+   if (!context.resources[i] || context.resources[i] == &nil_resource) continue;
+   nf_fhir_r4::Resource *r = context.resources[i];
+   if (r->resourceType == ResourceType::Bundle)
+   {
+    nf_fhir_r4::Bundle* b = (nf_fhir_r4::Bundle*)r;
+    for (int j = 0; j < b->_entry_count; j++)
+    {
+     Bundle_Entry *entry = b->_entry[j];
+     if (entry->_resource)
+     {
+      CollectionEntry ent = {};
+      ent.type = EntryType::Resource;
+      ent.resource = entry->_resource;
+      CollectionPushEntry(temp.arena, &resources, ent);
+     }
+    }
+   }
+  }
+
+  DataTable table = CreateDataTableFromViewDefinition(temp.arena, list.first->v, resources);
+  auto t = ArrowTableFromDataTable(table);
+  auto res = WriteTable(Str8Lit("./output.parquet"), t);
+
+  EndAndPrintProfile();
+ }
+
 
 	char line[4096];
 	Assert(expr.size < sizeof(line));

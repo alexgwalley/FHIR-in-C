@@ -187,37 +187,37 @@ namespace native_fhir
     case ColumnValueType::Null: { } break;
     case ColumnValueType::String:
     {
-     NullableString8* array = (NullableString8*)last->data;
+     NullableString8* array = (NullableString8*)curr->data;
      ret.str = array[index_in_chunk];
     } break;
     case ColumnValueType::Boolean:
     {
-     NullableBoolean* array = (NullableBoolean*)last->data;
+     NullableBoolean* array = (NullableBoolean*)curr->data;
      ret.b = array[index_in_chunk];
     } break;
     case ColumnValueType::ISO8601_Time:
     {
-     ISO8601_Time* array = (ISO8601_Time*)last->data;
+     ISO8601_Time* array = (ISO8601_Time*)curr->data;
      ret.time = array[index_in_chunk];
     } break;
     case ColumnValueType::Int32:
     {
-     NullableInt32* array = (NullableInt32*)last->data;
+     NullableInt32* array = (NullableInt32*)curr->data;
      ret.s32 = array[index_in_chunk];
     } break;
     case ColumnValueType::Int64:
     {
-     NullableInt64* array = (NullableInt64*)last->data;
+     NullableInt64* array = (NullableInt64*)curr->data;
      ret.s64 = array[index_in_chunk];
     } break;
     case ColumnValueType::Double:
     {
-     NullableDouble* array = (NullableDouble*)last->data;
+     NullableDouble* array = (NullableDouble*)curr->data;
      ret._double = array[index_in_chunk];
     } break;
     case ColumnValueType::Array:
     {
-     DataColumn** array = (DataColumn**)last->data;
+     DataColumn** array = (DataColumn**)curr->data;
      ret.array = array[index_in_chunk];
     } break;
    }
@@ -525,6 +525,7 @@ namespace native_fhir
 
   // Column Info
   NullableString8 path;
+  Piece *root_piece;
   NullableString8 name;
   NullableString8 description;
   NullableBoolean collection;
@@ -532,6 +533,7 @@ namespace native_fhir
   NullableString8 column_data_type;
 
   NullableString8 for_each;
+  Piece *for_each_piece;
   B32 for_each_is_null;
  };
 

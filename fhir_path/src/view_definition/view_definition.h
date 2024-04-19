@@ -19,6 +19,20 @@ namespace native_fhir
   Constant *constants;
  };
 
+ struct ViewDefinitionNode
+ {
+  ViewDefinitionNode *next;
+  ViewDefinition v;
+ };
+
+ struct ViewDefinitionList
+ {
+  ViewDefinitionNode *first;
+  ViewDefinitionNode *last;
+  int count;
+ };
+
+
  DataTable
  ExecuteViewDefinition(Arena *arena, ViewDefinition vd, Collection resources);
 };

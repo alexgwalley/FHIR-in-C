@@ -251,6 +251,7 @@ namespace native_fhir
  local_function void 
  DataColumn_AddCollection(Arena *arena, FP_ExecutionContext *context, DataColumn *column, Collection col)
  {
+  TimeFunction;
 
   DataChunkNode *chunk_node = column->last;
   if (!chunk_node)
@@ -307,6 +308,7 @@ namespace native_fhir
  local_function void
  DataTable_UnionDataTables(Arena *arena, DataTable *dst, DataTable* src, FP_ExecutionContext *context)
  {
+  TimeFunction;
   if (src->column_count == 0) return;
   if (dst->column_count == 0)
   {
@@ -333,6 +335,7 @@ namespace native_fhir
  DataTable
  RowProduct(Arena *arena, DataTableList table_list)
  {
+  TimeFunction;
   // TODO(agw): make sure when you do this that the values are copied into arena
   DataTable res = {};
 
@@ -404,6 +407,7 @@ namespace native_fhir
  local_function DataTable
  ExecuteView(Arena *arena, ViewElem* view, nf_fhir_r4::Resource* resource, FP_ExecutionContext* context)
  {
+  TimeFunction;
   DataTable result = {};
 
   switch (view->type)
@@ -416,7 +420,7 @@ namespace native_fhir
     Collection resources = {};
     if (view->for_each.has_value)
     {
-     context->Set(1, &resource, view->for_each.str8);
+     context->Set(1, &resource, view->for_each_piece);
      resources = ExecutePieces(temp.arena, context);
     }
     else
@@ -504,7 +508,7 @@ namespace native_fhir
    case ViewElemType::Column:
    {
     // NOTE(agw): we do _not_ want to zero out the entry stack here, should be set in parent select
-    context->root_node = Antlr_ParseExpression(view->path.str8);
+    context->root_node = view->root_piece;
     context->res_count = 1;
     context->resources = &resource;
 

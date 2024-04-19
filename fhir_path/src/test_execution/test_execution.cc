@@ -152,6 +152,10 @@ ConvertSelect(Arena *arena, nf_fhir_r4::ViewDefinition_Select *select)
 
   col_view->type = ViewElemType::Column;
   col_view->path = column->_path;
+  if (column->_path.has_value)
+  {
+   col_view->root_piece = Antlr_ParseExpression(column->_path.str8);
+  }
   col_view->name = column->_name;
   col_view->description = column->_description;
   col_view->collection = column->_collection;
@@ -214,11 +218,13 @@ ConvertSelect(Arena *arena, nf_fhir_r4::ViewDefinition_Select *select)
  // ~ For Each
  if (select->_forEach.has_value)
  {
+  result->for_each_piece = Antlr_ParseExpression(select->_forEach.str8);
   result->for_each = select->_forEach;
  }
 
  if (select->_forEachOrNull.has_value)
  {
+  result->for_each_piece = Antlr_ParseExpression(select->_forEachOrNull.str8);
   result->for_each = select->_forEachOrNull;
   result->for_each_is_null = true;
  }
@@ -623,6 +629,8 @@ ReadAndExecuteTests(String8 test_folder)
   Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\foreach.json"),
   Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\logic.json"),
   Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\union.json"),
+  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\validate.json"),
+  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\view_resource.json"),
   Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\where.json")
  };
 
