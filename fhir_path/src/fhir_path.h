@@ -25,9 +25,12 @@ struct CollectionEntry
 {
 	EntryType type;
 
- // NOTE(agw): I am upset this has to be here...
+ // TODO(agw): I am upset this has to be here...
  // I believe it is because Number uses operator overloading (?)
- CollectionEntry() {}
+ // this is dumb
+ CollectionEntry() {
+  MemorySet(this, 0, sizeof(*this));
+ }
 
 	union
 	{
