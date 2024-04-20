@@ -28,7 +28,9 @@ DLL_Scratch_Begin(ND_Context* context, Arena **conflicts, U64 conflict_count);
 #define USE_SIMDJSON
 #define USE_PROFILER
 #include "third_party/simdjson.cpp"
+#include "base/profiler.cc"
 #include "manual_deserialization_simdjson.cc"
+
 
 
 extern "C"

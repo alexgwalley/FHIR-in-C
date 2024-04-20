@@ -11,7 +11,10 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 set(CMAKE_VERBOSE_MAKEFILE on)
 
 set(ANTLR4_WITH_STATIC_CRT OFF)
-set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDebugDLL")
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+message("${CMAKE_MSVC_RUNTIME_LIBRARY}")
+
+message("test")
 
 include_directories(src .)
 include_directories(fhir_path/src/third_party/antlr .)
@@ -30,9 +33,9 @@ add_executable(fhir_path_test fhir_path/src/fhir_path_test.cc)
 #link_directories(${CMAKE_SOURCE_DIR}/fhir_path/src/third_party/antlr)
 
 # Find ANTLR and link it
-find_library(ANTLR_LIB NAMES antlr4_runtime_static PATHS ${CMAKE_SOURCE_DIR}/fhir_path/src/third_party/antlr)
-find_library(ARROW_LIB NAMES arrow PATHS ${CMAKE_SOURCE_DIR}/fhir_path/src/third_party/arrow)
-find_library(PARQUET_LIB NAMES parquet PATHS ${CMAKE_SOURCE_DIR}/fhir_path/src/third_party/arrow)
+find_library(ANTLR_LIB NAMES antlr4_runtime$<$<CMAKE_BUILD_TYPE:Release>_release> PATHS ${CMAKE_SOURCE_DIR}/libs)
+find_library(ARROW_LIB NAMES arrow$<$<CMAKE_BUILD_TYPE:Release>_release> PATHS ${CMAKE_SOURCE_DIR}/libs)
+find_library(PARQUET_LIB NAMES parquet$<$<CMAKE_BUILD_TYPE:Release>_release> PATHS ${CMAKE_SOURCE_DIR}/libs)
 target_link_libraries(fhir_path_test deserialization_dll ${ARROW_LIB} ${PARQUET_LIB} ${ANTLR_LIB})
 
 

@@ -1,4 +1,3 @@
-#include "base/profiler.cc"
 #include "base/core.c"
 #include "base/arena.c"
 #include "base/string8.cc"

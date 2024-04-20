@@ -9,8 +9,8 @@ arising from the use of this software.
 Please see https://computerenhance.com for more information
    
 ======================================================================== */
-typedef U64 u64;
-typedef U32 u32;
+typedef unsigned long long int u64;
+typedef unsigned int u32;
 typedef double f64;
 
 #if _WIN32

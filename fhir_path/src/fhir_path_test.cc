@@ -39,6 +39,7 @@
 //////////////////
 // ~ OURS
 #include "native_fhir/native_fhir_inc.h"
+#include "base/profiler.cc"
 #include "number/number.h"
 
 #include "fhir_r4_types.h"
@@ -86,37 +87,50 @@ ArrowTableFromDataTable(DataTable table)
  std::vector<std::shared_ptr < arrow::Array> > arrays;
  arrow::FieldVector fields;
 
- for (DataColumnNode *col = table.first; col; col = col->next)
+ TimeBlock("ARROW - Copying Values")
  {
-  std::string name((char*)col->v.name.str, col->v.name.size);
-  switch (col->v.value_type)
+  for (DataColumnNode *col = table.first; col; col = col->next)
   {
-   default: NotImplemented;
-   case ColumnValueType::String:
+   std::string name((char*)col->v.name.str, col->v.name.size);
+   switch (col->v.value_type)
    {
-    auto field = arrow::field(name, arrow::utf8());
-    fields.push_back(field);
-    arrow::StringBuilder builder;
-    for (int i = 0; i < col->v.num_values; i++)
+    default: NotImplemented;
+    case ColumnValueType::String:
     {
-     // TODO(agw): slow
-     ColumnValue val = col->v[i];
-     std::string str((char*)val.str.str, val.str.size);
-     PARQUET_THROW_NOT_OK(builder.Append(str));
-    }
+     auto field = arrow::field(name, arrow::utf8());
+     fields.push_back(field);
+     arrow::StringBuilder builder;
+     for (int i = 0; i < col->v.num_values; i++)
+     {
+      // TODO(agw): slow
+      ColumnValue val = col->v[i];
+      std::string str((char*)val.str.str, val.str.size);
+      PARQUET_THROW_NOT_OK(builder.Append(str));
+     }
 
-    std::shared_ptr < arrow::Array > arr;
-    PARQUET_THROW_NOT_OK(builder.Finish(&arr));
-    arrays.push_back(arr);
-   } break;
-   case ColumnValueType::ISO8601_Time:
-   {
-   } break;
+     std::shared_ptr < arrow::Array > arr;
+     PARQUET_THROW_NOT_OK(builder.Finish(&arr));
+     arrays.push_back(arr);
+    } break;
+    case ColumnValueType::ISO8601_Time:
+    {
+    } break;
+   }
   }
  }
 
- std::shared_ptr<arrow::Schema> schema = arrow::schema(fields);
- return arrow::Table::Make(schema, arrays);
+  std::shared_ptr < arrow::Schema > schema;
+  std::shared_ptr < arrow::Table > ret;
+  TimeBlock("ARROW - Making Schema")
+  {
+   schema = arrow::schema(fields);
+  }
+
+  TimeBlock("ARROW - Making Table")
+  {
+   ret = arrow::Table::Make(schema, arrays);
+  }
+  return ret;
 }
 
 arrow::Status
