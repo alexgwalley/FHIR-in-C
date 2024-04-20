@@ -1,4 +1,3 @@
-
 namespace native_fhir
 {
  Number

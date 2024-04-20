@@ -1,7 +1,7 @@
 #ifndef COLLECTION_H
 #define COLLECTION_H
 
-using namespace native_fhir::nf_fhir_r4;
+using namespace native_fhir::FHIR_VERSION;
 namespace native_fhir
 {
 
@@ -74,7 +74,7 @@ struct FP_ExecutionContext
 	Arena *arena;
 
  int res_count;
-	nf_fhir_r4::Resource **resources;
+	FHIR_VERSION::Resource **resources;
 	Piece *root_node;
 
 	MetadataFile *meta_file;
@@ -97,7 +97,7 @@ struct FP_ExecutionContext
   ArenaPopTo(arena, 0);
  }
 
- void Set(size_t num_resources, nf_fhir_r4::Resource** resources, Piece *node)
+ void Set(size_t num_resources, FHIR_VERSION::Resource** resources, Piece *node)
  {
   this->ZeroOut();
   res_count = num_resources;

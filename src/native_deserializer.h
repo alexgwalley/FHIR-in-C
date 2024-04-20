@@ -3,7 +3,7 @@
 
 namespace native_fhir
 {
-	namespace nf_fhir_r4
+	namespace FHIR_VERSION
 	{
 
 		#if _WIN32
@@ -60,7 +60,7 @@ namespace native_fhir
    void __cdecl ND_Cleanup(void);
    ND_ContextNode* __cdecl ND_DeserializeFile(const char* file_name, Resource **out);
    ND_ContextNode* __cdecl ND_DeserializeString(char* bytes, size_t length, Resource **out);
-   ND_ContextNode* ND_DeserializeStringOfType(char* bytes, size_t length, nf_fhir_r4::Resource **out, nf_fhir_r4::ResourceType type);
+   ND_ContextNode* ND_DeserializeStringOfType(char* bytes, size_t length, FHIR_VERSION::Resource **out, FHIR_VERSION::ResourceType type);
    void __cdecl ND_FreeContext(ND_ContextNode *node);
    const native_fhir::MemberNameAndOffset* NF_ClassMemberLookup(ResourceType resourceType, String8 member_name);
    const native_fhir::ResourceNameTypePair * __cdecl NF_ResourceNameTypePairFromString8(String8 str); 

@@ -283,7 +283,7 @@ namespace native_fhir
 		           &class_def.members,
 		           resource_type_member);
 
-		HashTable members = HashTable_Create(arena, 4096);
+  std::unordered_set<std::string> members;
 		for (ResourceMemberNode *ptr = res->members.first;
 			ptr;
 			ptr = ptr->next)
@@ -294,7 +294,9 @@ namespace native_fhir
 				mem_node;
 				mem_node = mem_node->next)
 			{
-				if (HashTable_Has(&members, mem_node->mem.clean_name))
+    std::string clean_name = StdStringFromString8(mem_node->mem.clean_name);
+    if (members.find(clean_name) != members.end())
+     continue;
 				continue;
 
 				if (mem_node->mem.IsArray())
@@ -305,7 +307,7 @@ namespace native_fhir
 				}
 
 				CMListPush(arena, &class_def.members, mem_node->mem);
-				HashTable_Add(&members, mem_node->mem.clean_name, Str8Lit(""));
+    members.emplace(clean_name);
 			}
 
 		}

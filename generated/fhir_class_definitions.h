@@ -1,6 +1,6 @@
 #include "iso8601_time/iso8601_time.h"
 namespace native_fhir { 
-namespace nf_fhir_r4 {
+namespace fhir_r4 {
 struct Resource;
 struct Account;
 struct Account_Coverage;

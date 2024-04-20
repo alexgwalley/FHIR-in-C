@@ -1,3 +1,5 @@
+//////////////////
+// ~ STD Lib 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,13 +9,13 @@
 // ~ ANTLR - Parsing
 #define ANTLR4CPP_STATIC
 #include "antlr4-runtime.h"
-#include "generated/fhirpathLexer.h"
-#include "generated/fhirpathParser.h"
-#include "generated/fhirpathBaseVisitor.h"
+#include "antlr_generated/fhirpathLexer.h"
+#include "antlr_generated/fhirpathParser.h"
+#include "antlr_generated/fhirpathBaseVisitor.h"
 
-#include "generated/fhirpathLexer.cpp"
-#include "generated/fhirpathParser.cpp"
-#include "generated/fhirpathBaseVisitor.cpp"
+#include "antlr_generated/fhirpathLexer.cpp"
+#include "antlr_generated/fhirpathParser.cpp"
+#include "antlr_generated/fhirpathBaseVisitor.cpp"
 
 
 //////////////////
@@ -29,14 +31,14 @@
 
 
 //////////////////
-// ~ ARROW - Parquet Gen
+// ~ SIMD JSON
 #include "third_party/simdjson.h"
 #include "third_party/simdjson.cpp"
 
 
 //////////////////
 // ~ OURS
-#include "native_fhir_inc.h"
+#include "native_fhir/native_fhir_inc.h"
 #include "number/number.h"
 
 #include "fhir_r4_types.h"
@@ -55,16 +57,16 @@
 #include "view_definition/view_definition.h"
 #include "test_execution/test_execution.h"
 
-#include "native_fhir_inc.cc"
+#include "native_fhir/native_fhir_inc.cc"
 #include "number/number.cc"
 #include "fhir_path_visitor/fhir_path_visitor.cc"
 #include "fhir_path.cc"
 
 using namespace native_fhir;
-using namespace nf_fhir_r4;
+using namespace FHIR_VERSION;
 using namespace antlr4;
 
-nf_fhir_r4::Resource nil_resource = {};
+FHIR_VERSION::Resource nil_resource = {};
 
 #include "execution/path_execution.cc"
 #include "data_table/data_table.cc"
@@ -181,10 +183,10 @@ namespace native_fhir
   if (time.precision >= Precision::TimezoneMinute) { printf(":%02d", time.timezone_minute); }
  }
 
- void PrintSingleResourceMember(nf_fhir_r4::Resource *resource, int indent);
+ void PrintSingleResourceMember(FHIR_VERSION::Resource *resource, int indent);
 
  void
- PrintResourceMember(nf_fhir_r4::Resource *resource,
+ PrintResourceMember(FHIR_VERSION::Resource *resource,
                      SerializedClassMemberMetadata *mem,
                      SerializedValueTypeAndName tan,
                      int indent)
@@ -194,7 +196,7 @@ namespace native_fhir
   {
    case ValueType::ClassReference:
    {
-    nf_fhir_r4::Resource* child = DEREF_STRUCT(resource, mem->offset, nf_fhir_r4::Resource);
+    FHIR_VERSION::Resource* child = DEREF_STRUCT(resource, mem->offset, FHIR_VERSION::Resource);
     if (child)
     {
      PrintIndent(indent + 1);
@@ -238,7 +240,7 @@ namespace native_fhir
  }
 
  void
- PrintIndexedResourceMember(nf_fhir_r4::Resource *resource,
+ PrintIndexedResourceMember(FHIR_VERSION::Resource *resource,
                             SerializedClassMemberMetadata *mem,
                             SerializedValueTypeAndName tan,
                             int indent,
@@ -249,8 +251,8 @@ namespace native_fhir
   {
    case ValueType::ClassReference:
    {
-    nf_fhir_r4::Resource** resources = DEREF_STRUCT_ARRAY(resource, mem->offset, nf_fhir_r4::Resource);
-    nf_fhir_r4::Resource* child = resources[index];
+    FHIR_VERSION::Resource** resources = DEREF_STRUCT_ARRAY(resource, mem->offset, FHIR_VERSION::Resource);
+    FHIR_VERSION::Resource* child = resources[index];
     if (child)
     {
      PrintIndent(indent + 1);
@@ -297,7 +299,7 @@ namespace native_fhir
  }
 
  void
- PrintSingleResourceMember(nf_fhir_r4::Resource *resource, int indent)
+ PrintSingleResourceMember(FHIR_VERSION::Resource *resource, int indent)
  {
   if (!resource) return;
 
@@ -402,7 +404,7 @@ namespace native_fhir
 };
 
 ND_ContextNode*
-DeserializeFile(const char* fn, nf_fhir_r4::Resource** res)
+DeserializeFile(const char* fn, FHIR_VERSION::Resource** res)
 {
 	TimeFunction;
 	return ND_DeserializeFile((char*)fn, res);
@@ -422,20 +424,20 @@ LoadViewDefinitions(Arena *arena, String8 file_name)
  TimeFunction;
  ViewDefinitionList result = {};
 
- nf_fhir_r4::Resource* res = 0;
+ FHIR_VERSION::Resource* res = 0;
 
  String8 null_str = PushStr8Copy(arena, file_name);
  ND_ContextNode *context = ND_DeserializeFile((const char*)null_str.str, &res);
 
- Assert(res->resourceType == nf_fhir_r4::ResourceType::Bundle);
+ Assert(res->resourceType == FHIR_VERSION::ResourceType::Bundle);
 
- nf_fhir_r4::Bundle* bundle = (nf_fhir_r4::Bundle*)res;
+ FHIR_VERSION::Bundle* bundle = (FHIR_VERSION::Bundle*)res;
  for (int i = 0; i < bundle->_entry_count; i++)
  {
   Bundle_Entry* entry = bundle->_entry[i];
   if (entry->_resource && entry->_resource->resourceType == ResourceType::ViewDefinition)
   {
-   nf_fhir_r4::ViewDefinition* vd = (nf_fhir_r4::ViewDefinition*)entry->_resource;
+   FHIR_VERSION::ViewDefinition* vd = (FHIR_VERSION::ViewDefinition*)entry->_resource;
    native_fhir::ViewDefinition converted = ConvertViewDefinition(arena, vd);
    ViewDefinitionNode *node = PushStruct(arena, ViewDefinitionNode);
    node->v = converted;
@@ -481,7 +483,7 @@ main(void)
  Temp temp = ScratchBegin(0, 0);
  FileEntries entries = OS_EnumerateDirectory(temp.arena, Str8Lit("C:/Users/awalley/Code/FHIR-in-C/bundles/*")); 
 
- context.resources = PushArray(temp.arena, nf_fhir_r4::Resource*, entries.count);
+ context.resources = PushArray(temp.arena, FHIR_VERSION::Resource*, entries.count);
  context.res_count = entries.count;
 
  for (int i = 0; i < entries.count; i++)
@@ -526,10 +528,10 @@ main(void)
   for (int i = 0; i < context.res_count; i++)
   {
    if (!context.resources[i] || context.resources[i] == &nil_resource) continue;
-   nf_fhir_r4::Resource *r = context.resources[i];
+   FHIR_VERSION::Resource *r = context.resources[i];
    if (r->resourceType == ResourceType::Bundle)
    {
-    nf_fhir_r4::Bundle* b = (nf_fhir_r4::Bundle*)r;
+    FHIR_VERSION::Bundle* b = (FHIR_VERSION::Bundle*)r;
     for (int j = 0; j < b->_entry_count; j++)
     {
      Bundle_Entry *entry = b->_entry[j];

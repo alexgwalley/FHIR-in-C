@@ -138,7 +138,7 @@ DeserializeTestResult(Arena *arena, simdjson::ondemand::object base)
 }
 
 ViewElem*
-ConvertSelect(Arena *arena, nf_fhir_r4::ViewDefinition_Select *select)
+ConvertSelect(Arena *arena, FHIR_VERSION::ViewDefinition_Select *select)
 {
  ViewElem *result = PushStruct(arena, ViewElem);
  result->type = ViewElemType::Select;
@@ -146,7 +146,7 @@ ConvertSelect(Arena *arena, nf_fhir_r4::ViewDefinition_Select *select)
  // ~ Columns
  for (int i = 0; i < select->_column_count; i++)
  {
-  nf_fhir_r4::ViewDefinition_Select_Column* column = select->_column[i];
+  FHIR_VERSION::ViewDefinition_Select_Column* column = select->_column[i];
 
   ViewElem *col_view = PushStruct(arena, ViewElem);
 
@@ -233,7 +233,7 @@ ConvertSelect(Arena *arena, nf_fhir_r4::ViewDefinition_Select *select)
 }
 
 native_fhir::ViewDefinition
-ConvertViewDefinition(Arena *arena, nf_fhir_r4::ViewDefinition *vd)
+ConvertViewDefinition(Arena *arena, FHIR_VERSION::ViewDefinition *vd)
 {
  native_fhir::ViewDefinition result = {};
 
@@ -242,13 +242,13 @@ ConvertViewDefinition(Arena *arena, nf_fhir_r4::ViewDefinition *vd)
  const ResourceNameTypePair *pair = NF_ResourceNameTypePairFromString8(res_name);
  if (pair)
  {
-  result.resource_type = (nf_fhir_r4::ResourceType)pair->type;
+  result.resource_type = (FHIR_VERSION::ResourceType)pair->type;
  }
 
  // ~ Where
  for (int i = 0; i < vd->_where_count; i++)
  {
-  nf_fhir_r4::ViewDefinition_Where *where = vd->_where[i];
+  FHIR_VERSION::ViewDefinition_Where *where = vd->_where[i];
   String8 full_path = PushStr8F(arena, "%S", where->_path.str8);
   Str8ListPush(arena, &result.where, full_path);
  }
@@ -267,7 +267,7 @@ ConvertViewDefinition(Arena *arena, nf_fhir_r4::ViewDefinition *vd)
  }
  for (int i = 0; i < vd->_constant_count; i++)
  {
-  nf_fhir_r4::ViewDefinition_Constant* constant = vd->_constant[i];
+  FHIR_VERSION::ViewDefinition_Constant* constant = vd->_constant[i];
   Constant *c = &(result.constants[i]);
   Assert(constant->_name.has_value);
   c->name = PushStr8Copy(arena, constant->_name.str8);
@@ -275,15 +275,15 @@ ConvertViewDefinition(Arena *arena, nf_fhir_r4::ViewDefinition *vd)
   {
    default: NotImplemented;
     // Strings
-   case nf_fhir_r4::ViewDefinition_Constant::_valueType::Base64Binary: 
-   case nf_fhir_r4::ViewDefinition_Constant::_valueType::Canonical: 
-   case nf_fhir_r4::ViewDefinition_Constant::_valueType::Code:
-   case nf_fhir_r4::ViewDefinition_Constant::_valueType::Id:
-   case nf_fhir_r4::ViewDefinition_Constant::_valueType::Oid:
-   case nf_fhir_r4::ViewDefinition_Constant::_valueType::String:
-   case nf_fhir_r4::ViewDefinition_Constant::_valueType::Uri:
-   case nf_fhir_r4::ViewDefinition_Constant::_valueType::Url:
-   case nf_fhir_r4::ViewDefinition_Constant::_valueType::Uuid:
+   case FHIR_VERSION::ViewDefinition_Constant::_valueType::Base64Binary: 
+   case FHIR_VERSION::ViewDefinition_Constant::_valueType::Canonical: 
+   case FHIR_VERSION::ViewDefinition_Constant::_valueType::Code:
+   case FHIR_VERSION::ViewDefinition_Constant::_valueType::Id:
+   case FHIR_VERSION::ViewDefinition_Constant::_valueType::Oid:
+   case FHIR_VERSION::ViewDefinition_Constant::_valueType::String:
+   case FHIR_VERSION::ViewDefinition_Constant::_valueType::Uri:
+   case FHIR_VERSION::ViewDefinition_Constant::_valueType::Url:
+   case FHIR_VERSION::ViewDefinition_Constant::_valueType::Uuid:
    {
     if (constant->_value._valueString.has_value)
     {
@@ -291,23 +291,23 @@ ConvertViewDefinition(Arena *arena, nf_fhir_r4::ViewDefinition *vd)
     }
    } break;
 
-   case nf_fhir_r4::ViewDefinition_Constant::_valueType::Boolean: {
+   case FHIR_VERSION::ViewDefinition_Constant::_valueType::Boolean: {
     if (constant->_value._valueBoolean.has_value)
     {
      c->v = CollectionEntryFromBoolean(constant->_value._valueBoolean.value);
     }
    } break;
-   case nf_fhir_r4::ViewDefinition_Constant::_valueType::Date:
-   case nf_fhir_r4::ViewDefinition_Constant::_valueType::DateTime:
-   case nf_fhir_r4::ViewDefinition_Constant::_valueType::Instant:
-   case nf_fhir_r4::ViewDefinition_Constant::_valueType::Time:
+   case FHIR_VERSION::ViewDefinition_Constant::_valueType::Date:
+   case FHIR_VERSION::ViewDefinition_Constant::_valueType::DateTime:
+   case FHIR_VERSION::ViewDefinition_Constant::_valueType::Instant:
+   case FHIR_VERSION::ViewDefinition_Constant::_valueType::Time:
    {
     if (constant->_value._valueDate.precision > Precision::Unknown)
     {
      c->v = CollectionEntryFromDate(constant->_value._valueDate);
     }
    } break;
-   case nf_fhir_r4::ViewDefinition_Constant::_valueType::Integer64:
+   case FHIR_VERSION::ViewDefinition_Constant::_valueType::Integer64:
    {
     if (constant->_value._valueInteger64.has_value)
     {
@@ -317,9 +317,9 @@ ConvertViewDefinition(Arena *arena, nf_fhir_r4::ViewDefinition *vd)
      c->v = CollectionEntryFromNumber(num);
     }
    } break;
-   case nf_fhir_r4::ViewDefinition_Constant::_valueType::Integer:
-   case nf_fhir_r4::ViewDefinition_Constant::_valueType::PositiveInt:
-   case nf_fhir_r4::ViewDefinition_Constant::_valueType::UnsignedInt:
+   case FHIR_VERSION::ViewDefinition_Constant::_valueType::Integer:
+   case FHIR_VERSION::ViewDefinition_Constant::_valueType::PositiveInt:
+   case FHIR_VERSION::ViewDefinition_Constant::_valueType::UnsignedInt:
    {
     if (constant->_value._valueInteger.has_value)
     {
@@ -330,7 +330,7 @@ ConvertViewDefinition(Arena *arena, nf_fhir_r4::ViewDefinition *vd)
     }
    } break;
 
-   case nf_fhir_r4::ViewDefinition_Constant::_valueType::Decimal: {
+   case FHIR_VERSION::ViewDefinition_Constant::_valueType::Decimal: {
     c->type = ValueType::Decimal;
     if (constant->_value._valueDecimal.has_value)
     {
@@ -366,13 +366,13 @@ DeserializeTest(Arena *arena, simdjson::ondemand::object base)
  str.str = PushArray(arena, U8, str.size);
  MemoryCopy(str.str, view.data(), str.size);
 
- nf_fhir_r4::Resource* res = 0;
+ FHIR_VERSION::Resource* res = 0;
 
- ND_ContextNode *context = ND_DeserializeStringOfType((char*)str.str, str.size, &res, nf_fhir_r4::ResourceType::ViewDefinition);
+ ND_ContextNode *context = ND_DeserializeStringOfType((char*)str.str, str.size, &res, FHIR_VERSION::ResourceType::ViewDefinition);
  test.ctx = context;
 
- Assert(res->resourceType == nf_fhir_r4::ResourceType::ViewDefinition);
- test.vd = ConvertViewDefinition(arena, (nf_fhir_r4::ViewDefinition*)res);
+ Assert(res->resourceType == FHIR_VERSION::ResourceType::ViewDefinition);
+ test.vd = ConvertViewDefinition(arena, (FHIR_VERSION::ViewDefinition*)res);
 
  DataTable columns = GetColumnOrder(arena, test.vd);
  test.expectations = columns;
@@ -448,7 +448,7 @@ DeserializeTestCollection(Arena *arena, String8 file_name)
 
  base.reset();
 
- col.res = PushArray(arena, nf_fhir_r4::Resource*, col.res_count);
+ col.res = PushArray(arena, FHIR_VERSION::Resource*, col.res_count);
 
  int res_i = 0;
  for (simdjson::ondemand::object obj : base["resources"])
@@ -461,7 +461,7 @@ DeserializeTestCollection(Arena *arena, String8 file_name)
   str.str = PushArray(arena, U8, str.size);
   MemoryCopy(str.str, view.data(), str.size);
 
-  nf_fhir_r4::Resource* res = 0;
+  FHIR_VERSION::Resource* res = 0;
 
   ND_ContextNode *context = ND_DeserializeString((char*)str.str, str.size, &res);
 
@@ -501,7 +501,7 @@ enum class ViewDefinitionValidationError
 
 ViewDefinitionValidationError ValidateViewDefinition(native_fhir::ViewDefinition vd)
 {
- if (vd.resource_type == nf_fhir_r4::ResourceType::Unknown)
+ if (vd.resource_type == FHIR_VERSION::ResourceType::Unknown)
  {
   return ViewDefinitionValidationError::NoResourceType;
  }

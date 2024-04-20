@@ -14,7 +14,7 @@ namespace native_fhir
  {
   String8 title;
 
-  //nf_fhir_r4::ViewDefinition *vd;
+  //FHIR_VERSION::ViewDefinition *vd;
   native_fhir::ViewDefinition vd;
   ND_ContextNode* ctx;
 
@@ -34,7 +34,7 @@ namespace native_fhir
   String8 desc;
 
   S64 res_count;
-  nf_fhir_r4::Resource** res;
+  FHIR_VERSION::Resource** res;
   ND_ContextNode *ctx_first;
   ND_ContextNode *ctx_last;
 

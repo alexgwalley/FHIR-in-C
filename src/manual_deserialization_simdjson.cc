@@ -10,7 +10,7 @@
 
 namespace native_fhir
 {
-	namespace nf_fhir_r4
+	namespace FHIR_VERSION
 	{
 		#include "generated/gperf-inc.cc"
 		#include "generated/resource_types.cc"
@@ -19,10 +19,10 @@ namespace native_fhir
 //#undef strncmp
 
 using namespace native_fhir;
-using namespace nf_fhir_r4;
+using namespace FHIR_VERSION;
 
-// TODO(agw): this fhir_r4 should be a macro for which namespace to use
-nf_fhir_r4::Resource*
+// TODO(agw): this FHIR_VERSION should be a macro for which namespace to use
+FHIR_VERSION::Resource*
 Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
                                    Arena *arena,
                                    DeserializationOptions *options,
@@ -333,7 +333,7 @@ Deserialize_Array(ND_Context *context,
                 
 				ResourceType res_type = (ResourceType)mem_info->member_first_type_class_type;
 				U64 size = 0;
-				nf_fhir_r4::Resource *resource = Resource_Deserialize_Impl_SIMDJSON(
+				FHIR_VERSION::Resource *resource = Resource_Deserialize_Impl_SIMDJSON(
 					context,
 					arena,
 					options,
@@ -389,7 +389,7 @@ GetMemberMetadata(ND_Context *context,
 	return mem_and_offset;
 }
 
-nf_fhir_r4::Resource*
+FHIR_VERSION::Resource*
 Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
                                    Arena *arena,
                                    DeserializationOptions *options,
@@ -398,7 +398,7 @@ Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
 {
 	ResourceType resource_type = type;
     
-	nf_fhir_r4::Resource* out;
+	FHIR_VERSION::Resource* out;
 	
 	/////////////////////
 	// ~ Get resource type if unknown
@@ -423,7 +423,7 @@ Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
 	}
 
 	SerializedClassMetadata *meta = M_GetClassMetadata(options->meta_file, (int)resource_type);
-	out = (nf_fhir_r4::Resource*)ArenaPush(arena, meta->size);
+	out = (FHIR_VERSION::Resource*)ArenaPush(arena, meta->size);
 	out->resourceType = (ResourceType)resource_type;
 
     
@@ -609,7 +609,7 @@ Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
 	return out;
 }
 
-nf_fhir_r4::Resource*
+FHIR_VERSION::Resource*
 Resource_Deserialize_SIMDJSON(ND_Context *context,
                               Arena *arena,
                               DeserializationOptions *options,

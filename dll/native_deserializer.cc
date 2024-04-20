@@ -1,5 +1,5 @@
 using namespace native_fhir;
-using namespace nf_fhir_r4;
+using namespace FHIR_VERSION;
 
 ND_State nd_state = {0};
 

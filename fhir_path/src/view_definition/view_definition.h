@@ -11,7 +11,7 @@ namespace native_fhir
   ViewElem *last;
   int count;
 
-  nf_fhir_r4::ResourceType resource_type;
+  FHIR_VERSION::ResourceType resource_type;
 
   String8List where;
 

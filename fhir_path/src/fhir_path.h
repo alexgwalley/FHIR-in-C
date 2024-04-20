@@ -34,8 +34,8 @@ struct CollectionEntry
 
 	union
 	{
-		nf_fhir_r4::Resource *resource;
-		nf_fhir_r4::ResourceType resource_type;
+		FHIR_VERSION::Resource *resource;
+		FHIR_VERSION::ResourceType resource_type;
 		NullableString8 str;
 		ISO8601_Time time;
 		Number number;

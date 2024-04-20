@@ -1,10 +1,10 @@
-#ifndef NF_FHIR_R4_H
-#define NF_FHIR_R4_H
+#ifndef FHIR_VERSION_H
+#define FHIR_VERSION_H
 
 #define NF_NUM_RESOURCES 710
 namespace native_fhir
 {
-	namespace nf_fhir_r4 {
+	namespace fhir_r4 {
 		enum class ResourceType {
    Unknown,
    Resource,

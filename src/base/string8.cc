@@ -1054,3 +1054,15 @@ CStyleHexStringFromU64(Arena *arena, U64 x, B32 caps)
  
 	return result;
 }
+
+#ifdef __cplusplus
+
+#include <string>
+std::string
+StdStringFromString8(String8 str)
+{
+ std::string ret = std::string((char*)str.str, str.size);
+ return ret;
+}
+
+#endif

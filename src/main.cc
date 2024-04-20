@@ -2,19 +2,20 @@
 #include <string>
 #include <sstream>
 #include <fstream>
+#include <unordered_set>
 
 #include "third_party/cJSON.h"
-#include "native_fhir_inc.h"
-#include "fhir_structure/fhir_structure.h"
-#include "resource/resource.h"
+#include "native_fhir/native_fhir_inc.h"
+#include "code_generation/fhir_structure/fhir_structure.h"
+#include "code_generation/resource/resource.h"
 
 #include "manual_deserialization.h"
 
 
 #include "third_party/cJSON.c"
-#include "native_fhir_inc.cc"
-#include "fhir_structure/fhir_structure.cc"
-#include "resource/resource.cc"
+#include "native_fhir/native_fhir_inc.cc"
+#include "code_generation/fhir_structure/fhir_structure.cc"
+#include "code_generation/resource/resource.cc"
 
 using namespace native_fhir;
 
@@ -88,17 +89,18 @@ GetAllClassDefinitions(Arena *arena, FhirResourceList *res_list)
 	ResourceNode *ptr = res_list->first;
 
 	// TODO(agw): 4096 should be based on some actual number
-	HashTable completed = HashTable_Create(scratch.arena, 4096);
+ std::unordered_set<std::string> completed;
 	for (int i = 0; i < res_list->count; i++)
 	{
 		ClassDefinitionList def_list = GetClassDefinitionsFromResource(arena, &ptr->resource);
 		for (ClassDefinitionNode *node = def_list.first; node; node = node->next)
 		{
-			if (HashTable_Has(&completed, node->def.name))
-				continue;
-			
+   std::string node_name = StdStringFromString8(node->def.name);
+   if (completed.find(node_name) != completed.end())
+    continue;
+
 			CDListPush(arena, &result, node->def);
-			HashTable_Add(&completed, node->def.name, Str8Lit(""));
+   completed.emplace(node_name);
 		}
 		ptr = ptr->next;
 	}
@@ -117,7 +119,7 @@ OutputClassDefinitions(
 
 	if (options->namespace_name.size == 0)
 	{
-		options->namespace_name = Str8Lit("nf_fhir_r4");
+		options->namespace_name = Str8Lit("fhir_r4");
 	}
 
 	for (int i = 0; i < options->include_files_count; i++)
@@ -264,7 +266,7 @@ GPerfRow(Arena *arena, String8 name, size_t offset, size_t member_index, size_t 
 
 	// TODO(agw): make namespace non-constant
 	return PushStr8F(arena,
-	                 "%S, 0x%x, %d, %d, (uint16_t)nf_fhir_r4::ResourceType::%S, (uint16_t)nf_fhir_r4::ResourceType::%S, (uint8_t)native_fhir::ValueType::%S, Cardinality::%S\n",
+	                 "%S, 0x%x, %d, %d, (uint16_t)FHIR_VERSION::ResourceType::%S, (uint16_t)FHIR_VERSION::ResourceType::%S, (uint8_t)native_fhir::ValueType::%S, Cardinality::%S\n",
 	                 name,
 	                 (uint16_t)offset,
 	                 (uint8_t)member_index,

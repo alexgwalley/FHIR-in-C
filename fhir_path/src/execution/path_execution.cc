@@ -1,11 +1,11 @@
 namespace native_fhir
 {
- using namespace nf_fhir_r4;
+ using namespace FHIR_VERSION;
 
  Collection ExecuteExpression(Arena *arena, FP_ExecutionContext *context, Piece* node);
 
  ///////////////////
- // Empty Bool Helpers 
+ // ~ Empty Bool Helpers 
  enum class EmptyBoolOperationType
  {
   And,
@@ -57,7 +57,7 @@ namespace native_fhir
 
 
  ///////////////////
- // Collection Helpers
+ // ~ Collection Helpers
 
  B32 IsNilCollectionEntry(CollectionEntry *entry) { return entry == NULL; }
  B32 IsNilCollectionEntryNode(CollectionEntryNode *node) { return node == NULL || node == &nil_entry_node; }
@@ -211,13 +211,13 @@ namespace native_fhir
 
 
  local_function Collection
- GetResourcesOfType(Arena *arena, int res_count, nf_fhir_r4::Resource **resources, ResourceType type)
+ GetResourcesOfType(Arena *arena, int res_count, FHIR_VERSION::Resource **resources, ResourceType type)
  {
   Collection ret = { 0 };
 
   for (int i = 0; i < res_count; i++)
   {
-   nf_fhir_r4::Resource* res = resources[i];
+   FHIR_VERSION::Resource* res = resources[i];
    if(res->resourceType == type || type == ResourceType::Unknown)
    {
     CollectionEntry entry = {};
@@ -296,7 +296,7 @@ namespace native_fhir
      case ValueType::ClassReference:
      { 
       ent.type = EntryType::Resource;
-      nf_fhir_r4::Resource* ptr = DEREF_STRUCT(entry.resource, mem->offset, nf_fhir_r4::Resource);
+      FHIR_VERSION::Resource* ptr = DEREF_STRUCT(entry.resource, mem->offset, FHIR_VERSION::Resource);
       if (ptr)
       {
        ent.resource = ptr;
@@ -934,7 +934,7 @@ namespace native_fhir
     {
      String8 member_name = node->slice;
      Assert(context->entry_stack_first->v.type == EntryType::Resource);
-     nf_fhir_r4::Resource* resource = context->entry_stack_first->v.resource;
+     FHIR_VERSION::Resource* resource = context->entry_stack_first->v.resource;
 
      Temp temp = ScratchBegin(&arena, 1);
 

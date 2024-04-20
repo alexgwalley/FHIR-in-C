@@ -405,7 +405,7 @@ namespace native_fhir
  }
 
  local_function DataTable
- ExecuteView(Arena *arena, ViewElem* view, nf_fhir_r4::Resource* resource, FP_ExecutionContext* context)
+ ExecuteView(Arena *arena, ViewElem* view, FHIR_VERSION::Resource* resource, FP_ExecutionContext* context)
  {
   TimeFunction;
   DataTable result = {};

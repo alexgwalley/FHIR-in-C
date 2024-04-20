@@ -1,4 +1,7 @@
-#include "native_fhir_inc.h"
+#include <unordered_set>
+#include <mutex>
+
+#include "native_fhir/native_fhir_inc.h"
 
 #include <windows.h>
 #include "stdio.h"
@@ -6,21 +9,19 @@
 #include "third_party/cJSON.h"
 #include "third_party/simdjson.h"
 
-#include <mutex>
 
 #include "fhir_r4_types.h"
 #include "generated/fhir_class_definitions.h"
 
 #include "manual_deserialization.h"
 
-#include "generated/fhir_class_metadata.h"
 #include "native_deserializer.h"
 
-#include "native_fhir_inc.cc"
+#include "native_fhir/native_fhir_inc.cc"
 
 
 using namespace native_fhir;
-using namespace nf_fhir_r4;
+using namespace FHIR_VERSION;
 extern "C" Temp
 DLL_Scratch_Begin(ND_Context* context, Arena **conflicts, U64 conflict_count);
 
@@ -101,7 +102,7 @@ extern "C"
 	// ~ General Helpers
 	__declspec(dllexport)
  const native_fhir::MemberNameAndOffset*
- __cdecl NF_ClassMemberLookup(native_fhir::nf_fhir_r4::ResourceType resourceType, String8 member_name);
+ __cdecl NF_ClassMemberLookup(native_fhir::FHIR_VERSION::ResourceType resourceType, String8 member_name);
 
 	const native_fhir::MemberNameAndOffset*
 	NF_ClassMemberLookup(ResourceType resourceType, String8 member_name)
@@ -123,9 +124,9 @@ extern "C"
 	// ~ Deserializer
 	__declspec(dllexport) void __cdecl ND_Init(int num_contexts);
 	__declspec(dllexport) void __cdecl ND_Cleanup(void);
-	__declspec(dllexport) ND_ContextNode* __cdecl ND_DeserializeFile(const char* file_name, nf_fhir_r4::Resource **out);
-	__declspec(dllexport) ND_ContextNode* __cdecl ND_DeserializeString(char* bytes, size_t length, nf_fhir_r4::Resource **out);
- __declspec(dllexport) ND_ContextNode* __cdecl ND_DeserializeStringOfType(char* bytes, size_t length, nf_fhir_r4::Resource **out, nf_fhir_r4::ResourceType type);
+	__declspec(dllexport) ND_ContextNode* __cdecl ND_DeserializeFile(const char* file_name, FHIR_VERSION::Resource **out);
+	__declspec(dllexport) ND_ContextNode* __cdecl ND_DeserializeString(char* bytes, size_t length, FHIR_VERSION::Resource **out);
+ __declspec(dllexport) ND_ContextNode* __cdecl ND_DeserializeStringOfType(char* bytes, size_t length, FHIR_VERSION::Resource **out, FHIR_VERSION::ResourceType type);
 	__declspec(dllexport) void __cdecl ND_FreeContext(ND_ContextNode *node);
 
 
@@ -242,7 +243,7 @@ extern "C"
 
 
  ND_ContextNode*
- ND_DeserializeStringOfType(char* bytes, size_t length, nf_fhir_r4::Resource **out, nf_fhir_r4::ResourceType type)
+ ND_DeserializeStringOfType(char* bytes, size_t length, FHIR_VERSION::Resource **out, FHIR_VERSION::ResourceType type)
  {
 		ND_ContextNode *node = ND_GetFreeContext(contexts_arena);
 		if (node->value.main_arena)
@@ -294,7 +295,7 @@ extern "C"
 		simdjson::ondemand::object obj = obj_res.value_unsafe();
 
 		
-		nf_fhir_r4::Resource* result = Resource_Deserialize_SIMDJSON(&node->value,
+		FHIR_VERSION::Resource* result = Resource_Deserialize_SIMDJSON(&node->value,
 		                                                          node->value.main_arena,
 		                                                          &node->value.options,
 		                                                          type,
@@ -305,13 +306,13 @@ extern "C"
  }
 
 	ND_ContextNode*
-	ND_DeserializeString(char* bytes, size_t length, nf_fhir_r4::Resource **out)
+	ND_DeserializeString(char* bytes, size_t length, FHIR_VERSION::Resource **out)
 	{
-  return ND_DeserializeStringOfType(bytes, length, out, nf_fhir_r4::ResourceType::Unknown);
+  return ND_DeserializeStringOfType(bytes, length, out, FHIR_VERSION::ResourceType::Unknown);
 	}
 
 	ND_ContextNode*
-	ND_DeserializeFile(const char* file_name, nf_fhir_r4::Resource **out)
+	ND_DeserializeFile(const char* file_name, FHIR_VERSION::Resource **out)
 	{
 		ND_ContextNode *node = ND_GetFreeContext(contexts_arena);
 
@@ -328,7 +329,7 @@ extern "C"
 		simdjson::ondemand::document simd_doc = parser.iterate(simd_json);
 		node->value.options.file_name = Str8C((char*)file_name);
 		
-		nf_fhir_r4::Resource* result = Resource_Deserialize_SIMDJSON(&node->value,
+		FHIR_VERSION::Resource* result = Resource_Deserialize_SIMDJSON(&node->value,
 		                                                          node->value.main_arena,
 		                                                          &node->value.options,
 		                                                          ResourceType::Unknown,
