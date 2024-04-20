@@ -286,7 +286,8 @@ extern "C"
 
 
 		simdjson::ondemand::parser parser;
-		simdjson::ondemand::document simd_doc = parser.iterate(bytes, length - 64, length);
+  // NOTE(agw): theoretically we could be strict and allow _only_ exactly 64 bytes of padding, but this is probably fine
+		simdjson::ondemand::document simd_doc = parser.iterate(bytes, strlen(bytes), length);
 		node->value.options.file_name = Str8C("Unknown File Name");
 		auto obj_res = simd_doc.get_object();
 		if (obj_res.error())

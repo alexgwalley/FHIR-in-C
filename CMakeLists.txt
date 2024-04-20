@@ -33,9 +33,9 @@ add_executable(fhir_path_test fhir_path/src/fhir_path_test.cc)
 #link_directories(${CMAKE_SOURCE_DIR}/fhir_path/src/third_party/antlr)
 
 # Find ANTLR and link it
-find_library(ANTLR_LIB NAMES antlr4_runtime$<$<CMAKE_BUILD_TYPE:Release>_release> PATHS ${CMAKE_SOURCE_DIR}/libs)
-find_library(ARROW_LIB NAMES arrow$<$<CMAKE_BUILD_TYPE:Release>_release> PATHS ${CMAKE_SOURCE_DIR}/libs)
-find_library(PARQUET_LIB NAMES parquet$<$<CMAKE_BUILD_TYPE:Release>_release> PATHS ${CMAKE_SOURCE_DIR}/libs)
+find_library(ANTLR_LIB NAMES antlr4_runtime_release PATHS ${CMAKE_SOURCE_DIR}/libs)
+find_library(ARROW_LIB NAMES arrow_release PATHS ${CMAKE_SOURCE_DIR}/libs)
+find_library(PARQUET_LIB NAMES parquet_release PATHS ${CMAKE_SOURCE_DIR}/libs)
 target_link_libraries(fhir_path_test deserialization_dll ${ARROW_LIB} ${PARQUET_LIB} ${ANTLR_LIB})
 
 

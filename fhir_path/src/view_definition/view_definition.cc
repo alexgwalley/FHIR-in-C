@@ -4,7 +4,7 @@ namespace native_fhir
  DataTable
  ExecuteViewDefinition(Arena *arena,
                        native_fhir::ViewDefinition vd,
-                       Collection resources)
+                       ResourceStringProvider resource_provider)
  {
   DataTable table = {};
 
@@ -35,68 +35,100 @@ namespace native_fhir
   }
 
   // ~ Make a copy of the resources collection
-  Collection valid_resources = {};
-  for (CollectionEntryNode *node = resources.first; node; node = node->next)
+  ResourceStringHandle handle = 0;
+  while ((handle = resource_provider.GetNextString()))
   {
-   if (node->v.type == EntryType::Resource && node->v.resource && node->v.resource->resourceType == vd.resource_type)
+   NullableString8 resource_string = resource_provider.GetStringValue(handle);
+   FHIR_VERSION::Resource *res;
+   ND_ContextNode *resource_context;
+   TimeBlock("Deserialize")
    {
-    CollectionPushEntry(arena, &valid_resources, node->v);
+    resource_context = ND_DeserializeString((char*)resource_string.str, resource_string.size, &res);
    }
-  }
 
-  // ~ Filter out resources using where statements
-  Temp where_temp = ScratchBegin(0, 0);
-  for (String8Node *where_node = vd.where.first; where_node; where_node = where_node->next)
-  {
+
+   Collection valid_resources = {};
+   if (res->resourceType == ResourceType::Bundle)
+   {
+    FHIR_VERSION::Bundle* bundle = (FHIR_VERSION::Bundle*)res;
+    for (int i = 0; i < bundle->_entry_count; i++)
+    {
+     if (bundle->_entry[i]->_resource->resourceType == vd.resource_type)
+     {
+      CollectionEntry ent = {};
+      ent.resource = bundle->_entry[i]->_resource;
+      ent.type = EntryType::Resource;
+      CollectionPushEntry(arena, &valid_resources, ent);
+     }
+    }
+   }
+   else
+   {
+    CollectionEntry ent = {};
+    ent.resource = res;
+    ent.type = EntryType::Resource;
+    CollectionPushEntry(arena, &valid_resources, ent);
+   }
+
+
+
+   // ~ Filter out resources using where statements
+   Temp where_temp = ScratchBegin(0, 0);
+   for (String8Node *where_node = vd.where.first; where_node; where_node = where_node->next)
+   {
+    for (CollectionEntryNode *node = valid_resources.first; node; node = node->next)
+    {
+     // TODO(agw): we don't need to evaluate the where_node path every time
+     if (node->v.resource->resourceType != vd.resource_type)
+     {
+      DLLRemove(valid_resources.first, valid_resources.last, node);
+      valid_resources.count--;
+      continue;
+     }
+
+     Piece* root_piece = Antlr_ParseExpression(where_node->string);
+     context.Set(1, &node->v.resource, root_piece);
+
+     CollectionEntryNode *cpy = PushStruct(where_temp.arena, CollectionEntryNode);
+     MemoryCopy(cpy, node, sizeof(*node));
+     SLLStackPush(context.entry_stack_first, cpy);
+
+     Collection single_res = ExecutePieces(where_temp.arena, &context);
+     if (single_res.count == 0 || !single_res.first->v.b)
+     {
+      DLLRemove(valid_resources.first, valid_resources.last, node);
+      valid_resources.count--;
+     }
+    }
+   }
+   ScratchEnd(where_temp);
+
+   // for each resource
    for (CollectionEntryNode *node = valid_resources.first; node; node = node->next)
    {
-    // TODO(agw): we don't need to evaluate the where_node path every time
-    if (node->v.resource->resourceType != vd.resource_type)
+    if (node->v.type != EntryType::Resource) continue;
+
+    DataTableList table_list = {};
+    for (ViewElem *v = vd.first; v; v = v->next)
     {
-     DLLRemove(valid_resources.first, valid_resources.last, node);
-     valid_resources.count--;
-     continue;
+     DataTable next_table = ExecuteView(arena, v, node->v.resource, &context);
+     table_list.AddTable(arena, next_table);
     }
 
-    Piece* root_piece = Antlr_ParseExpression(where_node->string);
-    context.Set(1, &node->v.resource, root_piece);
+    DataTable temp = RowProduct(arena, table_list);
+    SortColumns(&temp, vd);
 
-    CollectionEntryNode *cpy = PushStruct(where_temp.arena, CollectionEntryNode);
-    MemoryCopy(cpy, node, sizeof(*node));
-    SLLStackPush(context.entry_stack_first, cpy);
-
-    Collection single_res = ExecutePieces(where_temp.arena, &context);
-    if (single_res.count == 0 || !single_res.first->v.b)
-    {
-     DLLRemove(valid_resources.first, valid_resources.last, node);
-     valid_resources.count--;
+    if (table.column_count == 0) { table = temp; }
+    else if(table.column_count == temp.column_count)
+    { 
+     DataTable_UnionDataTables(arena, &table, &temp, &context); 
     }
    }
+
+   SortColumns(&table, vd);
+
+   ND_FreeContext(resource_context);
   }
-  ScratchEnd(where_temp);
-
-  // for each resource
-  for (CollectionEntryNode *node = valid_resources.first; node; node = node->next)
-  {
-   if (node->v.type != EntryType::Resource) continue;
-
-   DataTableList table_list = {};
-   for (ViewElem *v = vd.first; v; v = v->next)
-   {
-    DataTable next_table = ExecuteView(arena, v, node->v.resource, &context);
-    table_list.AddTable(arena, next_table);
-   }
-
-   DataTable temp = RowProduct(arena, table_list);
-
-   if (table.column_count == 0) { table = temp; }
-   else if(table.column_count == temp.column_count)
-   { 
-    DataTable_UnionDataTables(arena, &table, &temp, &context); 
-   }
-  }
-
-  SortColumns(&table, vd);
 
   return table;
  }

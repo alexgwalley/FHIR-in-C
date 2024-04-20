@@ -49,6 +49,7 @@
 #include "fhir_path.h"
 #include "manual_deserialization.h"
 #include "native_deserializer.h"
+#include "resource_string_provider/resource_string_provider.h"
 
 #include "execution/path_execution.h"
 #include "fhir_class/fhir_class.h"
@@ -62,6 +63,7 @@
 #include "number/number.cc"
 #include "fhir_path_visitor/fhir_path_visitor.cc"
 #include "fhir_path.cc"
+#include "resource_string_provider/resource_string_provider.cc"
 
 using namespace native_fhir;
 using namespace FHIR_VERSION;
@@ -425,7 +427,7 @@ DeserializeFile(const char* fn, FHIR_VERSION::Resource** res)
 }
 
 DataTable
-CreateDataTableFromViewDefinition(Arena *arena, native_fhir::ViewDefinition vd, Collection resources)
+CreateDataTableFromViewDefinition(Arena *arena, native_fhir::ViewDefinition vd, ResourceStringProvider resources)
 {
   TimeFunction;
   DataTable table = ExecuteViewDefinition(arena, vd, resources);
@@ -507,6 +509,9 @@ main(void)
 
  ND_ContextList resource_contexts = {};
 
+ ResourceStringProvider res_provider = {};
+ res_provider.arena = ArenaAlloc(Megabytes(64));
+
  for (int i = 0; i < entries.count; i++)
  {
   FileEntry entry = entries.v[i];
@@ -517,6 +522,7 @@ main(void)
   }
 
   String8 full_name = PushStr8F(temp.arena, "C:/Users/awalley/Code/FHIR-in-C/bundles/%S", entry.file_name);
+  res_provider.AddJsonFile(full_name);
   ND_ContextNode* deserializer_context = DeserializeFile((char*)full_name.str, (Resource**) &context.resources[i]);
 
   QueuePush(resource_contexts.first, resource_contexts.last, deserializer_context);
@@ -560,12 +566,14 @@ main(void)
    }
   }
 
-  DataTable table = CreateDataTableFromViewDefinition(temp.arena, list.first->v, resources);
+  DataTable table = CreateDataTableFromViewDefinition(temp.arena, list.first->v, res_provider);
   auto t = ArrowTableFromDataTable(table);
   auto res = WriteTable(Str8Lit("./output.parquet"), t);
 
   EndAndPrintProfile();
  }
+
+ ArenaRelease(res_provider.arena);
 
 
 	char line[4096];

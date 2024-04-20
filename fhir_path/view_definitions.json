@@ -15,21 +15,6 @@
            "type": "id"
          }
        ]
-     },
-     {
-       "forEach": "name",
-       "column": [
-         {
-           "name": "last_name",
-           "path": "family",
-           "type": "string"
-         },
-         {
-           "name": "first_name",
-           "path": "given.join(' ')",
-           "type": "string"
-         }
-       ]
      }
     ]
    }

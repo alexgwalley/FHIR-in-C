@@ -156,7 +156,13 @@ ConvertSelect(Arena *arena, FHIR_VERSION::ViewDefinition_Select *select)
   {
    col_view->root_piece = Antlr_ParseExpression(column->_path.str8);
   }
-  col_view->name = column->_name;
+  if (column->_name.has_value)
+  {
+   NullableString8 ns = {};
+   ns.str8 = PushStr8Copy(arena, column->_name.str8);
+   ns.has_value = true;
+   col_view->name = ns;
+  }
   col_view->description = column->_description;
   col_view->collection = column->_collection;
   col_view->column_data_type = column->_type;
@@ -448,7 +454,7 @@ DeserializeTestCollection(Arena *arena, String8 file_name)
 
  base.reset();
 
- col.res = PushArray(arena, FHIR_VERSION::Resource*, col.res_count);
+ col.resource_strings = PushArray(arena, String8, col.res_count);
 
  int res_i = 0;
  for (simdjson::ondemand::object obj : base["resources"])
@@ -461,15 +467,8 @@ DeserializeTestCollection(Arena *arena, String8 file_name)
   str.str = PushArray(arena, U8, str.size);
   MemoryCopy(str.str, view.data(), str.size);
 
-  FHIR_VERSION::Resource* res = 0;
-
-  ND_ContextNode *context = ND_DeserializeString((char*)str.str, str.size, &res);
-
-  col.res[res_i] = res;
+  col.resource_strings[res_i] = str;
   res_i++;
-
-  // TODO(agw): should be able to deserialize into arena...(?)
-  QueuePush(col.ctx_first, col.ctx_last, context);
  }
 
  for (simdjson::ondemand::object obj : base["tests"])
@@ -539,21 +538,18 @@ ExecuteTestCollection(FP_TestCollection col)
    continue;
   }
 
-  Collection resources = {};
+  ResourceStringProvider res_provider = {};
+  res_provider.arena = ArenaAlloc(Megabytes(64));
   for (int i = 0; i < col.res_count; i++)
   {
-   if (test.vd.resource_type != col.res[i]->resourceType) continue;
 
-   CollectionEntry ent = {};
-   ent.type = EntryType::Resource;
-   ent.resource = col.res[i];
-   CollectionPushEntry(temp.arena, &resources, ent);
+   res_provider.AddResourceString(col.resource_strings[i]);
   }
 
   DataTable table = {};
   try
   {
-   table = ExecuteViewDefinition(temp.arena, test.vd, resources);
+   table = ExecuteViewDefinition(temp.arena, test.vd, res_provider);
   }
   // TODO(agw): proper throw catch for custom errors
   catch (std::bad_any_cast a)
@@ -564,6 +560,9 @@ ExecuteTestCollection(FP_TestCollection col)
   {
    table.execution_error = true;
   }
+
+
+  ArenaRelease(res_provider.arena);
 
   size_t num_rows = table.first ? table.first->v.num_values : 0;
   size_t test_num_rows = test.expectations.first ? test.expectations.first->v.num_values : 0;
@@ -658,11 +657,6 @@ ReadAndExecuteTests(String8 test_folder)
   for (int i = 0; i < test_col.test_count; i++)
   {
    ND_FreeContext(test_col.tests[i].ctx);
-  }
-
-  for (ND_ContextNode* node = test_col.ctx_first; node; node = node->next)
-  {
-   ND_FreeContext(node);
   }
 
   ScratchEnd(temp);

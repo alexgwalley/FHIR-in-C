@@ -34,9 +34,7 @@ namespace native_fhir
   String8 desc;
 
   S64 res_count;
-  FHIR_VERSION::Resource** res;
-  ND_ContextNode *ctx_first;
-  ND_ContextNode *ctx_last;
+  String8 *resource_strings;
 
   S64 test_count;
   FP_Test *tests;

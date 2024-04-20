@@ -591,6 +591,7 @@ namespace native_fhir
  void
  SortColumns(DataTable *table, native_fhir::ViewDefinition vd)
  {
+  TimeFunction;
   Temp temp = ScratchBegin(0, 0);
 
   DataTable order = GetColumnOrder(temp.arena, vd);

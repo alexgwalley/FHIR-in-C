@@ -297,7 +297,6 @@ namespace native_fhir
     std::string clean_name = StdStringFromString8(mem_node->mem.clean_name);
     if (members.find(clean_name) != members.end())
      continue;
-				continue;
 
 				if (mem_node->mem.IsArray())
 				{
