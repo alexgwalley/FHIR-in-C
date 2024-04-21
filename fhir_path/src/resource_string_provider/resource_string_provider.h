@@ -17,12 +17,14 @@ namespace native_fhir
 
   std::mutex mutex;
 
+  // NOTE(agw): unfortunate we have to do this because of _just_ mutex...
   ResourceStringProvider(): arena(), mutex(), json_strings(), string_arenas(), json_file_names(), strings(){}
 
   void
   AddJsonFile(String8 file_name)
   {
-   Str8ListPush(arena, &json_file_names, file_name);
+   String8 copy = PushStr8Copy(arena, file_name);
+   Str8ListPush(arena, &json_file_names, copy);
   }
 
   void
@@ -32,6 +34,22 @@ namespace native_fhir
   }
 
   ResourceStringHandle GetNextString();
+
+  NullableString8 GetNextFileName()
+  {
+   NullableString8 ret = {};
+   if (json_file_names.node_count > 0)
+   {
+    ret.str8 = json_file_names.first->string;
+    ret.has_value = true;
+
+    SLLStackPop(json_file_names.first);
+    json_file_names.node_count--;
+    return ret;
+   }
+
+   return ret;
+  }
 
   NullableString8 GetStringValue(ResourceStringHandle handle)
   {
@@ -47,10 +65,10 @@ namespace native_fhir
    /*
      NOTE(agw): when dealing with NDJSON files, we want to know when we can remove
      or release a certain part of the file (so we don't have to keep the whole thing 
-     in memory
+     in memory)
 
      alternatively...we could just pre-read the entire file, find the string slices
-     and then load a certain section of a file at a time... :)
+     and then load a certain section of a file at a time...
    */
 
    mutex.lock();

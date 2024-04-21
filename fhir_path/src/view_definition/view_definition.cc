@@ -36,14 +36,23 @@ namespace native_fhir
 
   // ~ Make a copy of the resources collection
   ResourceStringHandle handle = 0;
-  while ((handle = resource_provider->GetNextString()))
+  NullableString8 next = {};
+  int count = 0;
+  while ((next = resource_provider->GetNextFileName()).has_value)
   {
-   NullableString8 resource_string = resource_provider->GetStringValue(handle);
+   count++;
+   if (count % 1000 == 0) std::cout << count << std::endl;
+//   if (count > 1000) break;
+//   NullableString8 resource_string = resource_provider->GetStringValue(handle);
    FHIR_VERSION::Resource *res;
    ND_ContextNode *resource_context;
    TimeBlock("Deserialize")
    {
-    resource_context = ND_DeserializeString((char*)resource_string.str, resource_string.size, &res);
+    Temp temp = ScratchBegin(&arena, 1);
+    String8 fn = PushStr8Copy(temp.arena, next.str8);
+    resource_context = ND_DeserializeFile((const char*)fn.str, &res);
+    //resource_context = ND_DeserializeString((char*)resource_string.str, resource_string.size, &res);
+    ScratchEnd(temp);
    }
 
 

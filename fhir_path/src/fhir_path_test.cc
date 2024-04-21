@@ -157,7 +157,7 @@ WriteTable(String8 file_path, std::shared_ptr <arrow::Table> table)
 
  ARROW_RETURN_NOT_OK(parquet::arrow::WriteTable(*table.get(),
                                                 arrow::default_memory_pool(), outfile,
-                                                /*chunk_size=*/3, props, arrow_props));
+                                                /*chunk_size=*/1024*1024, props, arrow_props));
  return arrow::Status::OK();
 }
 
@@ -457,6 +457,7 @@ LoadViewDefinitions(Arena *arena, String8 file_name)
    native_fhir::ViewDefinition converted = ConvertViewDefinition(arena, vd);
    ViewDefinitionNode *node = PushStruct(arena, ViewDefinitionNode);
    node->v = converted;
+
    SLLQueuePush(result.first, result.last, node);
    result.count++;
   }
@@ -486,7 +487,9 @@ main(void)
  ND_Init(1);
 
  Temp temp = ScratchBegin(0, 0);
- FileEntries entries = OS_EnumerateDirectory(temp.arena, Str8Lit("../bundles/*")); 
+ String8 base_file_name = Str8Lit("C:/Users/awalley/Code/Ncqa.HT.Firely/Hedis2023/BuildArtifacts/Decks/13698_extracted");
+
+ FileEntries entries = OS_EnumerateDirectory(temp.arena, PushStr8F(temp.arena, "%S/*", base_file_name)); 
 
  ResourceStringProvider res_provider = {};
  res_provider.arena = ArenaAlloc(Megabytes(64));
@@ -500,7 +503,7 @@ main(void)
    continue;
   }
 
-  String8 full_name = PushStr8F(temp.arena, "../bundles/%S", entry.file_name);
+  String8 full_name = PushStr8F(temp.arena, "%S/%S",base_file_name, entry.file_name);
   res_provider.AddJsonFile(full_name);
  }
 
@@ -511,7 +514,16 @@ main(void)
  ViewDefinitionList list = LoadViewDefinitions(temp.arena, Str8Lit("view_definitions.json"));
  if (list.count > 0)
  {
-  DataTable table = CreateDataTableFromViewDefinition(temp.arena, list.first->v, &res_provider);
+  DataTable table = {};
+  for (ViewDefinitionNode *node = list.first; node; node = node->next)
+  {
+   DataTable next_table = CreateDataTableFromViewDefinition(temp.arena, node->v, &res_provider);
+
+   for (DataColumnNode *col = next_table.first; col; col = col->next)
+   {
+    table.AddColumn(temp.arena, col->v);
+   }
+  }
   auto t = ArrowTableFromDataTable(table);
   auto res = WriteTable(Str8Lit("./output.parquet"), t);
 

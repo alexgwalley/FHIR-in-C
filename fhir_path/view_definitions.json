@@ -4,7 +4,7 @@
   {
    "resource": {
     "resourceType": "ViewDefinition",
-    "resource": "Patient",
+    "resource": "Claim",
     "status": "active",
     "select": [
      {
@@ -15,6 +15,31 @@
            "type": "id"
          }
        ]
+     },
+     {
+      "forEach": "extension",
+      "column": [
+       {
+        "name": "linenumber",
+        "path": "value.ofType(string)",
+        "type": "string"
+       }
+      ]
+     },
+     {
+      "forEach": "meta.tag",
+      "column": [
+       {
+        "name": "extension_system",
+        "path": "system",
+        "type": "string"
+       },
+       {
+        "name": "extension_code",
+        "path": "code",
+        "type": "string"
+       }
+      ]
      }
     ]
    }

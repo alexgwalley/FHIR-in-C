@@ -373,7 +373,7 @@ namespace native_fhir
         CollectionPushEntry(arena, &ret, ent);
        }
       } break;
-      case ValueType::String:
+      case VALUE_TYPE_STRING_CASES:
       {
        NullableString8* strings = DEREF_VALUE_ARRAY(entry.resource, mem->offset, NullableString8);
        for (int i = 0; i < count; i++)

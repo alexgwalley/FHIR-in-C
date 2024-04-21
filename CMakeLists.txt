@@ -21,7 +21,7 @@ include_directories(fhir_path/src/third_party/antlr .)
 include_directories(fhir_path/src/third_party/arrow .)
 
 if (MSVC)
- set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd5033 /wd4244")
+ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd5033 /wd4244 /EHsc")
 endif()
 
 # generated targets

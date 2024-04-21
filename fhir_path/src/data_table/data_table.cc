@@ -213,15 +213,12 @@ namespace native_fhir
     for (int i = 0; i < chunk->count; i++)
     {
      // TODO(agw): this is possibly wasteful for repeated columns...
-     if (arr[i].has_value)
-     {
-      ColumnValue val = {};
-      val.value_type = ColumnValueType::String;
-      val.str.str8 = PushStr8Copy(arena, arr[i].str8);
-      val.str.has_value = true;
-      // TODO(agw): may be slow
-      this->AddValue(arena, val);
-     }
+     ColumnValue val = {};
+     val.value_type = ColumnValueType::String;
+     val.str.str8 = PushStr8Copy(arena, arr[i].str8);
+     val.str.has_value = true;
+     // TODO(agw): may be slow
+     this->AddValue(arena, val);
     }
    }
 
@@ -475,20 +472,21 @@ namespace native_fhir
 
      ///////////////////////
      // ~ Calculate Columns
-     DataTable column_result = {};
      for (ViewElem *node = view->column_first; node; node = node->next)
      {
       DataTable node_table = ExecuteView(arena, node, ent_node->v.resource, context);
+      table_list.AddTable(arena, node_table);
 
       // Since we are select, just append a new column
+      /*
       for (DataColumnNode *col_node = node_table.first; col_node; col_node = col_node->next)
       {
        FP_Assert(col_node->v.num_values == 1, context, Str8Lit(""));
        column_result.AddColumn(arena, col_node->v);
       }
+      */
      }
 
-     table_list.AddTable(arena, column_result);
 
      ///////////////////////
      // ~ Calculate Select

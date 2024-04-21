@@ -287,15 +287,30 @@ extern "C"
 
 
   // NOTE(agw): theoretically we could be strict and allow _only_ exactly 64 bytes of padding, but this is probably fine
-		simdjson::ondemand::document simd_doc = node->value.parser->iterate(bytes, strlen(bytes), length);
-		node->value.options.file_name = Str8C("Unknown File Name");
-		auto obj_res = simd_doc.get_object();
-		if (obj_res.error())
-		{
-			*out = nullptr;
-			return NULL;
-		}
-		simdjson::ondemand::object obj = obj_res.value_unsafe();
+  simdjson::ondemand::document simd_doc;
+  simdjson::ondemand::object obj;
+  try {
+   size_t actual_len = strlen(bytes);
+   simd_doc = node->value.parser->iterate(bytes, actual_len, length);
+   node->value.options.file_name = Str8C("Unknown File Name");
+   obj = simd_doc.get_object();
+   /*
+   if (obj_res.error())
+   {
+//    const char* err = obj_res.error();
+    const char *loc = simd_doc.current_location();
+    *out = nullptr;
+    return NULL;
+   }
+   obj = obj_res.value_unsafe();
+   */
+  } catch (simdjson::simdjson_error &error) {
+   std::cerr << "JSON error: " << error.what() << " near "
+    << simd_doc.current_location();
+
+   *out = nullptr;
+   return NULL;
+  }
 
 		
 		FHIR_VERSION::Resource* result = Resource_Deserialize_SIMDJSON(&node->value,
