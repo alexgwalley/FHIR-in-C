@@ -482,32 +482,11 @@ main(void)
 	MetadataFile file = M_Deserialize(meta_arena, &g_metadata, ArrayCount(g_metadata));
 	g_meta_file = PushStruct(meta_arena, MetadataFile);
 	MemoryCopy(g_meta_file, &file, sizeof(MetadataFile));
- 
- /////////////////// 
- // Parse Expression
-	String8 expr = Str8Lit("");
 
  ND_Init(1);
 
- /////////////////// 
- // Execute Expression
-	FP_ExecutionContext context = { 0 };
-	context.arena = ArenaAlloc(Gigabytes(1));
- context.entry_stack_first = context.entry_stack_last = &nil_entry_node;
- context.meta_file = g_meta_file;
-
  Temp temp = ScratchBegin(0, 0);
- FileEntries entries = OS_EnumerateDirectory(temp.arena, Str8Lit("C:/Users/awalley/Code/FHIR-in-C/bundles/*")); 
-
- context.resources = PushArray(temp.arena, FHIR_VERSION::Resource*, entries.count);
- context.res_count = entries.count;
-
- for (int i = 0; i < entries.count; i++)
- {
-  context.resources[i] = &nil_resource;
- }
-
- ND_ContextList resource_contexts = {};
+ FileEntries entries = OS_EnumerateDirectory(temp.arena, Str8Lit("../bundles/*")); 
 
  ResourceStringProvider res_provider = {};
  res_provider.arena = ArenaAlloc(Megabytes(64));
@@ -521,51 +500,17 @@ main(void)
    continue;
   }
 
-  String8 full_name = PushStr8F(temp.arena, "C:/Users/awalley/Code/FHIR-in-C/bundles/%S", entry.file_name);
+  String8 full_name = PushStr8F(temp.arena, "../bundles/%S", entry.file_name);
   res_provider.AddJsonFile(full_name);
-  ND_ContextNode* deserializer_context = DeserializeFile((char*)full_name.str, (Resource**) &context.resources[i]);
-
-  QueuePush(resource_contexts.first, resource_contexts.last, deserializer_context);
-  resource_contexts.count++;
- }
-
- if (setjmp(context.error_buf) != 0)
- {
-  if (context.error_message.size > 0)
-  {
-   printf("ERROR: %.*s\n", PRINT_STR8(context.error_message));
-  }
  }
 
 // ReadAndExecuteTests(Str8Lit(""));
 
  BeginProfile();
 
- ViewDefinitionList list = LoadViewDefinitions(temp.arena, Str8Lit("C:/Users/awalley/Code/FHIR-in-C/fhir_path/view_definitions.json"));
+ ViewDefinitionList list = LoadViewDefinitions(temp.arena, Str8Lit("view_definitions.json"));
  if (list.count > 0)
  {
-  Collection resources = {};
-  for (int i = 0; i < context.res_count; i++)
-  {
-   if (!context.resources[i] || context.resources[i] == &nil_resource) continue;
-   FHIR_VERSION::Resource *r = context.resources[i];
-   if (r->resourceType == ResourceType::Bundle)
-   {
-    FHIR_VERSION::Bundle* b = (FHIR_VERSION::Bundle*)r;
-    for (int j = 0; j < b->_entry_count; j++)
-    {
-     Bundle_Entry *entry = b->_entry[j];
-     if (entry->_resource)
-     {
-      CollectionEntry ent = {};
-      ent.type = EntryType::Resource;
-      ent.resource = entry->_resource;
-      CollectionPushEntry(temp.arena, &resources, ent);
-     }
-    }
-   }
-  }
-
   DataTable table = CreateDataTableFromViewDefinition(temp.arena, list.first->v, res_provider);
   auto t = ArrowTableFromDataTable(table);
   auto res = WriteTable(Str8Lit("./output.parquet"), t);
@@ -574,52 +519,6 @@ main(void)
  }
 
  ArenaRelease(res_provider.arena);
-
-
-	char line[4096];
-	Assert(expr.size < sizeof(line));
-	MemoryCopy(&line, expr.str, expr.size);
-	line[expr.size] = '\0';
-
-	while (true)
-	{
-
-		String8 line_str = Str8C(line);
-
-  if (line_str.size > 0)
-  {
-
-   ArenaPopTo(context.arena, 0);
-   context.entry_stack_first = context.entry_stack_last = &nil_entry_node;
-   context.meta_file = g_meta_file;
-
-   BeginProfile();
-
-   Piece *tok = Antlr_ParseExpression(line_str);
-   context.root_node = tok;
-
-   try
-   {
-    Collection collection = ExecutePieces(context.arena, &context);
-
-    PrintCollection(collection);
-
-    EndAndPrintProfile();
-
-    double gb2 = context.arena->commit_pos / (double)Gigabytes(1);
-    printf("context arena: %f GB\n", gb2);
-   }
-   catch (int err)
-   {
-    if (context.error_message.size > 0)
-    {
-     printf("ERROR: %.*s\n", PRINT_STR8(context.error_message));
-    }
-   }
-  }
-
-		fgets(&line[0], ArrayCount(line), stdin);
-	}
 
 	ND_Cleanup();
  ScratchEnd(temp);

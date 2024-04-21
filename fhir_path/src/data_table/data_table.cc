@@ -205,6 +205,29 @@ namespace native_fhir
 
   Assert(col.value_type == value_type);
 
+  if (value_type == ColumnValueType::String)
+  {
+   for (DataChunkNode *chunk = col.first; chunk; chunk = chunk->next)
+   {
+    NullableString8 *arr = (NullableString8*)chunk->data;
+    for (int i = 0; i < chunk->count; i++)
+    {
+     // TODO(agw): this is possibly wasteful for repeated columns...
+     if (arr[i].has_value)
+     {
+      ColumnValue val = {};
+      val.value_type = ColumnValueType::String;
+      val.str.str8 = PushStr8Copy(arena, arr[i].str8);
+      val.str.has_value = true;
+      // TODO(agw): may be slow
+      this->AddValue(arena, val);
+     }
+    }
+   }
+
+   return;
+  }
+
   for (DataChunkNode *node = col.first; node; node = node->next)
   {
    size_t n_data_size = node->count * column_value_sizes[(int)col.value_type];
@@ -589,10 +612,10 @@ namespace native_fhir
  }
 
  void
- SortColumns(DataTable *table, native_fhir::ViewDefinition vd)
+ SortColumns(Arena *arena, DataTable *table, native_fhir::ViewDefinition vd)
  {
   TimeFunction;
-  Temp temp = ScratchBegin(0, 0);
+  Temp temp = ScratchBegin(&arena, 1);
 
   DataTable order = GetColumnOrder(temp.arena, vd);
 
@@ -613,6 +636,16 @@ namespace native_fhir
   }
 
   ScratchEnd(temp);
+ }
+
+ void
+ DataTable_CopyAllStringsTo(Arena *arena, DataTable *table)
+ {
+
+  for (DataColumnNode *node = table->first; node; node = node->next)
+  {
+  }
+
  }
 
 };

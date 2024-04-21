@@ -12,6 +12,7 @@ namespace native_fhir
 			Arena *scratch_arenas[2];
 			Log log;
 			DeserializationOptions options;
+   simdjson::ondemand::parser* parser;
 		};
 
 		struct ND_ContextNode {

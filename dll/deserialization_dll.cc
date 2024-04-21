@@ -139,22 +139,22 @@ extern "C"
 		// should probably have a way to check this
 		for (ND_ContextNode *node = contexts.first; node; node = node->next)
 		{
-			ND_Context context = node->value;
-			for (U64 arena_idx = 0; arena_idx < ArrayCount(context.scratch_arenas); arena_idx += 1)
+   node->value.parser->~parser();
+			for (U64 arena_idx = 0; arena_idx < ArrayCount(node->value.scratch_arenas); arena_idx += 1)
 			{
-				if (context.scratch_arenas[arena_idx])
+				if (node->value.scratch_arenas[arena_idx])
 				{
-					ArenaRelease(context.scratch_arenas[arena_idx]);
+					ArenaRelease(node->value.scratch_arenas[arena_idx]);
 				}
 			}
-			if (context.log.arena)
+			if (node->value.log.arena)
 			{
-				ArenaRelease(context.log.arena);
+				ArenaRelease(node->value.log.arena);
 			}
 
-			if (context.main_arena)
+			if (node->value.main_arena)
 			{
-				ArenaRelease(context.main_arena);
+				ArenaRelease(node->value.main_arena);
 			}
 		}
 
@@ -169,6 +169,7 @@ extern "C"
 		context->options = {};
 		context->options.meta_file = meta_file;
 		context->main_arena = ArenaAlloc(Gigabytes(8));
+  context->parser = new simdjson::ondemand::parser();
 
 		for (U64 arena_idx = 0; arena_idx < ArrayCount(context->scratch_arenas); arena_idx += 1)
 		{
@@ -285,9 +286,8 @@ extern "C"
 		#endif
 
 
-		simdjson::ondemand::parser parser;
   // NOTE(agw): theoretically we could be strict and allow _only_ exactly 64 bytes of padding, but this is probably fine
-		simdjson::ondemand::document simd_doc = parser.iterate(bytes, strlen(bytes), length);
+		simdjson::ondemand::document simd_doc = node->value.parser->iterate(bytes, strlen(bytes), length);
 		node->value.options.file_name = Str8C("Unknown File Name");
 		auto obj_res = simd_doc.get_object();
 		if (obj_res.error())
@@ -328,8 +328,7 @@ extern "C"
 			return NULL;
 		}
 
-		simdjson::ondemand::parser parser;
-		simdjson::ondemand::document simd_doc = parser.iterate(simd_json);
+		simdjson::ondemand::document simd_doc = node->value.parser->iterate(simd_json);
 		node->value.options.file_name = Str8C((char*)file_name);
 		
 		FHIR_VERSION::Resource* result = Resource_Deserialize_SIMDJSON(&node->value,

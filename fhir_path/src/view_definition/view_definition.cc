@@ -6,7 +6,7 @@ namespace native_fhir
                        native_fhir::ViewDefinition vd,
                        ResourceStringProvider resource_provider)
  {
-  DataTable table = {};
+  DataTable table = GetColumnOrder(arena, vd);
 
   FP_ExecutionContext context = { 0 };
   context.arena = ArenaAlloc(Megabytes(64));
@@ -48,7 +48,7 @@ namespace native_fhir
 
 
    Collection valid_resources = {};
-   if (res->resourceType == ResourceType::Bundle)
+   if (vd.resource_type != ResourceType::Bundle && res->resourceType == ResourceType::Bundle)
    {
     FHIR_VERSION::Bundle* bundle = (FHIR_VERSION::Bundle*)res;
     for (int i = 0; i < bundle->_entry_count; i++)
@@ -73,7 +73,7 @@ namespace native_fhir
 
 
    // ~ Filter out resources using where statements
-   Temp where_temp = ScratchBegin(0, 0);
+   Temp where_temp = ScratchBegin(&arena, 1);
    for (String8Node *where_node = vd.where.first; where_node; where_node = where_node->next)
    {
     for (CollectionEntryNode *node = valid_resources.first; node; node = node->next)
@@ -103,6 +103,7 @@ namespace native_fhir
    }
    ScratchEnd(where_temp);
 
+   Temp view_temp = ScratchBegin(&arena, 1);
    // for each resource
    for (CollectionEntryNode *node = valid_resources.first; node; node = node->next)
    {
@@ -111,21 +112,19 @@ namespace native_fhir
     DataTableList table_list = {};
     for (ViewElem *v = vd.first; v; v = v->next)
     {
-     DataTable next_table = ExecuteView(arena, v, node->v.resource, &context);
-     table_list.AddTable(arena, next_table);
+     DataTable next_table = ExecuteView(view_temp.arena, v, node->v.resource, &context);
+     table_list.AddTable(view_temp.arena, next_table);
     }
 
-    DataTable temp = RowProduct(arena, table_list);
-    SortColumns(&temp, vd);
-
-    if (table.column_count == 0) { table = temp; }
-    else if(table.column_count == temp.column_count)
-    { 
-     DataTable_UnionDataTables(arena, &table, &temp, &context); 
-    }
+    DataTable temp = RowProduct(view_temp.arena, table_list);
+    SortColumns(view_temp.arena, &temp, vd);
+    // NOTE(agw): before we merge, we want to make sure that the strings will stay
+    DataTable_CopyAllStringsTo(arena, &temp);
+    DataTable_UnionDataTables(arena, &table, &temp, &context);
    }
+   ScratchEnd(view_temp);
 
-   SortColumns(&table, vd);
+   SortColumns(arena, &table, vd);
 
    ND_FreeContext(resource_context);
   }
