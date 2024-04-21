@@ -4,6 +4,8 @@ src/code/**/*
 bundles/
 CMakeFiles/
 
+*.parquet
+
 *.4ed
 *.exp
 *.10x
