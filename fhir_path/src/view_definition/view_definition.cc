@@ -4,7 +4,7 @@ namespace native_fhir
  DataTable
  ExecuteViewDefinition(Arena *arena,
                        native_fhir::ViewDefinition vd,
-                       ResourceStringProvider resource_provider)
+                       ResourceStringProvider* resource_provider)
  {
   DataTable table = GetColumnOrder(arena, vd);
 
@@ -36,9 +36,9 @@ namespace native_fhir
 
   // ~ Make a copy of the resources collection
   ResourceStringHandle handle = 0;
-  while ((handle = resource_provider.GetNextString()))
+  while ((handle = resource_provider->GetNextString()))
   {
-   NullableString8 resource_string = resource_provider.GetStringValue(handle);
+   NullableString8 resource_string = resource_provider->GetStringValue(handle);
    FHIR_VERSION::Resource *res;
    ND_ContextNode *resource_context;
    TimeBlock("Deserialize")

@@ -549,7 +549,7 @@ ExecuteTestCollection(FP_TestCollection col)
   DataTable table = {};
   try
   {
-   table = ExecuteViewDefinition(temp.arena, test.vd, res_provider);
+   table = ExecuteViewDefinition(temp.arena, test.vd, &res_provider);
   }
   // TODO(agw): proper throw catch for custom errors
   catch (std::bad_any_cast a)

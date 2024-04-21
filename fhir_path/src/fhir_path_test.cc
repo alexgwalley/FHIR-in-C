@@ -427,7 +427,7 @@ DeserializeFile(const char* fn, FHIR_VERSION::Resource** res)
 }
 
 DataTable
-CreateDataTableFromViewDefinition(Arena *arena, native_fhir::ViewDefinition vd, ResourceStringProvider resources)
+CreateDataTableFromViewDefinition(Arena *arena, native_fhir::ViewDefinition vd, ResourceStringProvider* resources)
 {
   TimeFunction;
   DataTable table = ExecuteViewDefinition(arena, vd, resources);
@@ -511,7 +511,7 @@ main(void)
  ViewDefinitionList list = LoadViewDefinitions(temp.arena, Str8Lit("view_definitions.json"));
  if (list.count > 0)
  {
-  DataTable table = CreateDataTableFromViewDefinition(temp.arena, list.first->v, res_provider);
+  DataTable table = CreateDataTableFromViewDefinition(temp.arena, list.first->v, &res_provider);
   auto t = ArrowTableFromDataTable(table);
   auto res = WriteTable(Str8Lit("./output.parquet"), t);
 

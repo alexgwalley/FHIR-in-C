@@ -30,6 +30,7 @@ namespace native_fhir
  ResourceStringProvider::GetNextString()
  {
   TimeFunction;
+  std::lock_guard<std::mutex> lock(mutex);
 
   for (int i = 1; i < ArrayCount(json_strings); i++)
   {

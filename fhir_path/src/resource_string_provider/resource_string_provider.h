@@ -15,6 +15,9 @@ namespace native_fhir
   NullableString8 json_strings[50];
   Arena *string_arenas[50];
 
+  std::mutex mutex;
+
+  ResourceStringProvider(): arena(), mutex(), json_strings(), string_arenas(), json_file_names(), strings(){}
 
   void
   AddJsonFile(String8 file_name)
@@ -32,7 +35,9 @@ namespace native_fhir
 
   NullableString8 GetStringValue(ResourceStringHandle handle)
   {
+   mutex.lock();
    NullableString8 ret = json_strings[handle];
+   mutex.unlock();
    return ret;
   }
 
@@ -48,8 +53,10 @@ namespace native_fhir
      and then load a certain section of a file at a time... :)
    */
 
+   mutex.lock();
    json_strings[handle].has_value = false;
    ArenaPopTo(string_arenas[handle], 0);
+   mutex.unlock();
   }
 
  };
