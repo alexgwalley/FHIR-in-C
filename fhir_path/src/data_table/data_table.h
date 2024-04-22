@@ -536,6 +536,48 @@ namespace native_fhir
   B32 for_each_is_null;
  };
 
+ struct ColumnIterator
+ {
+  // NOTE(agw): must be set by caller
+  DataColumn *col;
+  U16 stride;
+  U16 offset;
+
+  // NOTE(agw): internal state
+  int curr_count_in_chunk;
+  DataChunkNode *curr_chunk;
+  void* curr_pos;
+
+  void Init(DataColumn *col, U16 off)
+  {
+   curr_chunk = col->first;
+   curr_pos = (void*)((U8*)curr_chunk->data + off);
+   offset = off;
+  }
+
+  void* Next()
+  {
+   if (curr_count_in_chunk < curr_chunk->count)
+   {
+    void* ret = curr_pos;
+    curr_count_in_chunk++;
+    curr_pos = (void*)((U8*)curr_pos + stride);
+    return ret;
+   } else if (curr_chunk->next)
+   {
+    curr_chunk = curr_chunk->next;
+    void* ret = (void*)((U8*)curr_chunk->data + offset);
+
+    curr_count_in_chunk = 1;
+    curr_pos = (void*)((U8*)ret + stride);
+    return ret;
+   }
+
+   return 0;
+  }
+
+ };
+
 
 
 };

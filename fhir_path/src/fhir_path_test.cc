@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <csetjmp>
+#include <thread>
 
 //////////////////
 // ~ ANTLR - Parsing
@@ -102,12 +103,34 @@ ArrowTableFromDataTable(DataTable table)
      auto field = arrow::field(name, arrow::utf8());
      fields.push_back(field);
      arrow::StringBuilder builder;
+     ColumnIterator it = {};
+     it.Init(&(col->v), offsetof(NullableString8, str8));
+     it.stride = sizeof(NullableString8);
+
      for (int i = 0; i < col->v.num_values; i++)
      {
-      // TODO(agw): slow
-      ColumnValue val = col->v[i];
-      std::string str((char*)val.str.str, val.str.size);
+      String8* ptr = (String8*)it.Next();
+      std::string str((char*)ptr->str, ptr->size);
       PARQUET_THROW_NOT_OK(builder.Append(str));
+     }
+
+     std::shared_ptr < arrow::Array > arr;
+     PARQUET_THROW_NOT_OK(builder.Finish(&arr));
+     arrays.push_back(arr);
+    } break;
+    case ColumnValueType::Boolean:
+    {
+     auto field = arrow::field(name, arrow::boolean());
+     fields.push_back(field);
+     arrow::BooleanBuilder builder;
+     ColumnIterator it = {};
+     it.Init(&(col->v), offsetof(NullableBoolean, value));
+     it.stride = sizeof(NullableBoolean);
+
+     for (int i = 0; i < col->v.num_values; i++)
+     {
+      B32* ptr = (B32*)it.Next();
+      PARQUET_THROW_NOT_OK(builder.Append((bool)*ptr));
      }
 
      std::shared_ptr < arrow::Array > arr;
@@ -116,6 +139,68 @@ ArrowTableFromDataTable(DataTable table)
     } break;
     case ColumnValueType::ISO8601_Time:
     {
+     auto field = arrow::field(name, arrow::timestamp(arrow::TimeUnit::MILLI, "UTC"));
+//     arrow::TimestampBuilder builder(arrow::TimeUnit::MILLI, "UTC");
+
+     // TODO(agw) convert to 64-bit int for milliseconds since unix time
+
+    } break;
+    case ColumnValueType::Int32:
+    {
+     auto field = arrow::field(name, arrow::int32());
+     fields.push_back(field);
+     arrow::Int32Builder builder;
+     ColumnIterator it = {};
+     it.Init(&(col->v), offsetof(NullableInt32, value));
+     it.stride = sizeof(NullableInt32);
+
+     for (int i = 0; i < col->v.num_values; i++)
+     {
+      S32* ptr = (S32*)it.Next();
+      PARQUET_THROW_NOT_OK(builder.Append(*ptr));
+     }
+
+     std::shared_ptr < arrow::Array > arr;
+     PARQUET_THROW_NOT_OK(builder.Finish(&arr));
+     arrays.push_back(arr);
+    } break;
+    case ColumnValueType::Int64:
+    {
+     auto field = arrow::field(name, arrow::int64());
+     fields.push_back(field);
+     arrow::Int64Builder builder;
+     ColumnIterator it = {};
+     it.Init(&(col->v), offsetof(NullableInt64, value));
+     it.stride = sizeof(NullableInt64);
+
+     for (int i = 0; i < col->v.num_values; i++)
+     {
+      S64* ptr = (S64*)it.Next();
+      PARQUET_THROW_NOT_OK(builder.Append(*ptr));
+     }
+
+     std::shared_ptr < arrow::Array > arr;
+     PARQUET_THROW_NOT_OK(builder.Finish(&arr));
+     arrays.push_back(arr);
+    } break;
+    case ColumnValueType::Double:
+    {
+     auto field = arrow::field(name, arrow::int64());
+     fields.push_back(field);
+     arrow::DoubleBuilder builder;
+     ColumnIterator it = {};
+     it.Init(&(col->v), offsetof(NullableDouble, value));
+     it.stride = sizeof(NullableDouble);
+
+     for (int i = 0; i < col->v.num_values; i++)
+     {
+      double* ptr = (double*)it.Next();
+      PARQUET_THROW_NOT_OK(builder.Append(*ptr));
+     }
+
+     std::shared_ptr < arrow::Array > arr;
+     PARQUET_THROW_NOT_OK(builder.Finish(&arr));
+     arrays.push_back(arr);
     } break;
    }
   }
@@ -468,6 +553,40 @@ LoadViewDefinitions(Arena *arena, String8 file_name)
  return result;
 }
 
+struct ToThread
+{
+ ResourceStringProvider *res_provider;
+ ViewDefinitionList view_definitions;
+ DataTable *out;
+ std::shared_ptr<arrow::Table> arrow_table;
+};
+
+void ThreadWork(ToThread* opts)
+{
+	ThreadCtx tctx = ThreadCtxAlloc();
+	SetThreadCtx(&tctx);
+
+ Temp temp = ScratchBegin(0, 0);
+ if (opts->view_definitions.count > 0)
+ {
+  DataTable table = {};
+  for (ViewDefinitionNode *node = opts->view_definitions.first; node; node = node->next)
+  {
+   DataTable next_table = CreateDataTableFromViewDefinition(temp.arena, node->v, opts->res_provider);
+
+   for (DataColumnNode *col = next_table.first; col; col = col->next)
+   {
+    table.AddColumn(temp.arena, col->v);
+   }
+  }
+
+//  *(opts.out) = table;
+  auto t = ArrowTableFromDataTable(table);
+  opts->arrow_table = t;
+  //auto res = WriteTable(Str8Lit("./output.parquet"), t);
+ }
+ ScratchEnd(temp);
+}
 
 int 
 main(void)
@@ -509,26 +628,78 @@ main(void)
 
 // ReadAndExecuteTests(Str8Lit(""));
 
- BeginProfile();
+BeginProfile();
 
- ViewDefinitionList list = LoadViewDefinitions(temp.arena, Str8Lit("view_definitions.json"));
+ViewDefinitionList list = LoadViewDefinitions(temp.arena, Str8Lit("view_definitions.json"));
+// NOTE(agw): set for multi-threading
+ #if 0
+ const int num_threads = std::thread::hardware_concurrency();
+ DataTable *tables = PushArray(temp.arena, DataTable, num_threads);
+ ToThread *to_threads = PushArray(temp.arena, ToThread, num_threads);
+
+ std::vector<std::thread> threads;
+ for (int i = 0; i < num_threads; i++)
+ {
+  ToThread *to_thread = &(to_threads[i]);
+  to_thread->res_provider = &res_provider;
+  to_thread->view_definitions = list;
+  to_thread->out = &(tables[i]);
+
+  std::thread worker_thread(ThreadWork, to_thread);
+  threads.push_back(std::move(worker_thread));
+ }
+
+ for (int i = 0; i < num_threads; i++)
+ {
+  threads[i].join();
+ }
+
+ std::vector<std::shared_ptr<arrow::Table>> arrow_tables;
+ for (int i = 0; i < num_threads; i++)
+ {
+  arrow_tables.push_back(to_threads[i].arrow_table);
+ }
+ auto res_merged_table = arrow::ConcatenateTables(arrow_tables);
+ if (res_merged_table.ok())
+ {
+  std::shared_ptr<arrow::Table> merged_table = res_merged_table.ValueOrDie();
+  auto res = WriteTable(Str8Lit("./output.parquet"), merged_table);
+ }
+ else
+ {
+  std::cout << "Error merging tables" << std::endl;
+ }
+#else
  if (list.count > 0)
  {
   DataTable table = {};
+  DataTableList table_list = {};
   for (ViewDefinitionNode *node = list.first; node; node = node->next)
   {
    DataTable next_table = CreateDataTableFromViewDefinition(temp.arena, node->v, &res_provider);
 
+   DataTableNode *n = PushStruct(temp.arena, DataTableNode);
+   n->table = next_table;
+   SLLQueuePush(table_list.first, table_list.last, n);
+   table_list.count++;
+
+   /*
    for (DataColumnNode *col = next_table.first; col; col = col->next)
    {
     table.AddColumn(temp.arena, col->v);
    }
+   */
+
   }
+
+  table = RowProduct(temp.arena, table_list);
   auto t = ArrowTableFromDataTable(table);
   auto res = WriteTable(Str8Lit("./output.parquet"), t);
-
-  EndAndPrintProfile();
  }
+#endif
+
+ EndAndPrintProfile();
+
 
  ArenaRelease(res_provider.arena);
 

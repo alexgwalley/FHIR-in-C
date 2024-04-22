@@ -36,10 +36,9 @@ namespace native_fhir
 		uint8_t timezone_minute;
 
 		uint16_t year;
-		uint16_t millisecond;
 		Precision precision;
 		Precision min_precision;
-		uint8_t reserved[2];
+		uint32_t millisecond;
 	};
 
 

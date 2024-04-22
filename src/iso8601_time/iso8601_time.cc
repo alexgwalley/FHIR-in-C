@@ -150,17 +150,18 @@ Deserialize_ISO8601_Impl(String8 str,
 			Assert(*ptr == '.');
 			ptr++;
 
-			////////////////////////
-			// SECOND
-			time.millisecond += (U8)CharToInt(*ptr) * 100;
-			ptr++;
-			time.millisecond += (U8)CharToInt(*ptr) * 10;
-			ptr++;
-			time.millisecond += (U8)CharToInt(*ptr);
-			ptr++;
+   ////////////////////////
+   // SECOND
+   int num_digits = 0;
+   while (CharIsDigit(*ptr) && num_digits <= 9)
+   {
+    time.millisecond *= 10;
+    time.millisecond += (U8)CharToInt(*ptr);
+    ptr++;
+    num_digits++;
+   }
 
 			time.precision = Precision::Millisecond;
-			Assert(time.millisecond >= 0 && time.millisecond < 1000);
 		}
 
 		if (exclude & ISO_TIME_OFFSET)

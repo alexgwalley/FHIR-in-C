@@ -542,7 +542,6 @@ ExecuteTestCollection(FP_TestCollection col)
   res_provider.arena = ArenaAlloc(Megabytes(1));
   for (int i = 0; i < col.res_count; i++)
   {
-
    res_provider.AddResourceString(col.resource_strings[i]);
   }
 

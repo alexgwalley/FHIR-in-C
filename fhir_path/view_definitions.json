@@ -1,7 +1,7 @@
 {
  "resourceType": "Bundle",
  "entry": [
-  {
+ {
    "resource": {
     "resourceType": "ViewDefinition",
     "resource": "Claim",
@@ -40,6 +40,24 @@
         "type": "string"
        }
       ]
+     }
+    ]
+   }
+  },
+ {
+   "resource": {
+    "resourceType": "ViewDefinition",
+    "resource": "Bundle",
+    "status": "active",
+    "select": [
+     {
+       "column": [
+         {
+           "name": "claim_count",
+           "path": "entry.resource.select($this as Claim).count()",
+           "type": "integer"
+         }
+       ]
      }
     ]
    }

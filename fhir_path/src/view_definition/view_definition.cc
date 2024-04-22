@@ -34,6 +34,13 @@ namespace native_fhir
    return data_table;
   }
 
+  DataTable order = GetColumnOrder(arena, vd);
+  String8List order_reversed = {};
+  for (DataColumnNode *node = order.first; node; node = node->next)
+  {
+   Str8ListPushFront(arena, &order_reversed, node->v.name);
+  }
+
   // ~ Make a copy of the resources collection
   ResourceStringHandle handle = 0;
   NullableString8 next = {};
@@ -42,7 +49,7 @@ namespace native_fhir
   {
    count++;
    if (count % 1000 == 0) std::cout << count << std::endl;
-//   if (count > 1000) break;
+   if (count > 1000) break;
 //   NullableString8 resource_string = resource_provider->GetStringValue(handle);
    FHIR_VERSION::Resource *res;
    ND_ContextNode *resource_context;
@@ -55,6 +62,7 @@ namespace native_fhir
     ScratchEnd(temp);
    }
 
+   std::string file_name = StdStringFromString8(next.str8);
 
    Collection valid_resources = {};
    if (vd.resource_type != ResourceType::Bundle && res->resourceType == ResourceType::Bundle)
@@ -126,14 +134,14 @@ namespace native_fhir
     }
 
     DataTable temp = RowProduct(view_temp.arena, table_list);
-    SortColumns(view_temp.arena, &temp, vd);
-    // NOTE(agw): before we merge, we want to make sure that the strings will stay
+    SortColumns(view_temp.arena, &temp, order_reversed);
+
     DataTable_CopyAllStringsTo(arena, &temp);
     DataTable_UnionDataTables(arena, &table, &temp, &context);
    }
    ScratchEnd(view_temp);
 
-   SortColumns(arena, &table, vd);
+   SortColumns(arena, &table, order_reversed);
 
    ND_FreeContext(resource_context);
   }

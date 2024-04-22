@@ -205,6 +205,7 @@ namespace native_fhir
 
   Assert(col.value_type == value_type);
 
+  /*
   if (value_type == ColumnValueType::String)
   {
    for (DataChunkNode *chunk = col.first; chunk; chunk = chunk->next)
@@ -224,6 +225,7 @@ namespace native_fhir
 
    return;
   }
+  */
 
   for (DataChunkNode *node = col.first; node; node = node->next)
   {
@@ -398,11 +400,34 @@ namespace native_fhir
    for (int tr_idx = 0; tr_idx < table_node->table.GetRowCount(); tr_idx++)
    {
     DataRow table_row = table_node->table.GetRow(arena, tr_idx);
-     // for each row of existing table
+
+    DataColumnNode *col = new_table.first;
+    // Copy column value res.GetRowCount()
+    for (int i = 0; i < table_row.count; i++)
+    {
+     for (int rr_idx = 0; rr_idx < res.GetRowCount(); rr_idx++)
+     {
+      col->v.AddValue(arena, table_row.v[i]);
+     }
+     col = col->next;
+    }
+
+    // Copy res row
+    DataColumnNode *res_col = res.first;
+    for (int i = 0; i < res.column_count; i++)
+    {
+     col->v.AddAllValuesFromColumn(arena, res_col->v);
+     col = col->next;
+     res_col = res_col->next;
+    }
+
+    // for each row of existing table
+    /*
     for (int rr_idx = 0; rr_idx < res.GetRowCount(); rr_idx++)
     {
      DataRow res_row = res.GetRow(arena, rr_idx);
      // Merge the two
+
      DataColumnNode *col = new_table.first;
      for (int i = 0; i < table_row.count; i++)
      {
@@ -416,10 +441,14 @@ namespace native_fhir
       col = col->next;
      }
     }
+   */
    }
 
    res = new_table;
+   res.GetRowCount();
   }
+
+  res.GetRowCount();
 
   return res;
  }
@@ -610,18 +639,12 @@ namespace native_fhir
  }
 
  void
- SortColumns(Arena *arena, DataTable *table, native_fhir::ViewDefinition vd)
+ SortColumns(Arena *arena, DataTable *table, String8List order_reversed)
  {
   TimeFunction;
   Temp temp = ScratchBegin(&arena, 1);
 
-  DataTable order = GetColumnOrder(temp.arena, vd);
 
-  String8List order_reversed = {};
-  for (DataColumnNode *node = order.first; node; node = node->next)
-  {
-   Str8ListPushFront(temp.arena, &order_reversed, node->v.name);
-  }
 
   for (String8Node *node = order_reversed.first; node; node = node->next)
   {
