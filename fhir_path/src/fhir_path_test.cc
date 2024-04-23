@@ -57,8 +57,11 @@
 #include "fhir_path_visitor/fhir_path_visitor.h"
 
 #include "data_table/data_table.h"
+#include "parquet/apache_arrow.h"
 #include "view_definition/view_definition.h"
 #include "test_execution/test_execution.h"
+
+// .CC files
 
 #include "native_fhir/native_fhir_inc.cc"
 #include "number/number.cc"
@@ -74,435 +77,99 @@ FHIR_VERSION::Resource nil_resource = {};
 
 #include "execution/path_execution.cc"
 #include "data_table/data_table.cc"
+#include "parquet/apache_arrow.cc"
 #include "view_definition/view_definition.cc"
 #include "test_execution/test_execution.cc"
+#include "print_collection.cc"
 
 
-//////////////////
-// ARROW PARQUET TEST
-std::shared_ptr<arrow::Table> 
-ArrowTableFromDataTable(DataTable table) 
+/////////////////
+// ~ Argument Parsing
+
+enum class ArgumentType
 {
- TimeFunction;
-
- Temp temp = ScratchBegin(0, 0);
-
- std::vector<std::shared_ptr < arrow::Array> > arrays;
- arrow::FieldVector fields;
-
- TimeBlock("ARROW - Copying Values")
- {
-  for (DataColumnNode *col = table.first; col; col = col->next)
-  {
-   std::string name((char*)col->v.name.str, col->v.name.size);
-   switch (col->v.value_type)
-   {
-    default: NotImplemented;
-    case ColumnValueType::String:
-    {
-     auto field = arrow::field(name, arrow::utf8());
-     fields.push_back(field);
-     arrow::StringBuilder builder;
-     ColumnIterator it = {};
-     it.Init(&(col->v), offsetof(NullableString8, str8));
-     it.stride = sizeof(NullableString8);
-
-     for (int i = 0; i < col->v.num_values; i++)
-     {
-      String8* ptr = (String8*)it.Next();
-      std::string str((char*)ptr->str, ptr->size);
-      PARQUET_THROW_NOT_OK(builder.Append(str));
-     }
-
-     std::shared_ptr < arrow::Array > arr;
-     PARQUET_THROW_NOT_OK(builder.Finish(&arr));
-     arrays.push_back(arr);
-    } break;
-    case ColumnValueType::Boolean:
-    {
-     auto field = arrow::field(name, arrow::boolean());
-     fields.push_back(field);
-     arrow::BooleanBuilder builder;
-     ColumnIterator it = {};
-     it.Init(&(col->v), offsetof(NullableBoolean, value));
-     it.stride = sizeof(NullableBoolean);
-
-     for (int i = 0; i < col->v.num_values; i++)
-     {
-      B32* ptr = (B32*)it.Next();
-      PARQUET_THROW_NOT_OK(builder.Append((bool)*ptr));
-     }
-
-     std::shared_ptr < arrow::Array > arr;
-     PARQUET_THROW_NOT_OK(builder.Finish(&arr));
-     arrays.push_back(arr);
-    } break;
-    case ColumnValueType::ISO8601_Time:
-    {
-     auto field = arrow::field(name, arrow::timestamp(arrow::TimeUnit::MILLI, "UTC"));
-//     arrow::TimestampBuilder builder(arrow::TimeUnit::MILLI, "UTC");
-
-     // TODO(agw) convert to 64-bit int for milliseconds since unix time
-
-    } break;
-    case ColumnValueType::Int32:
-    {
-     auto field = arrow::field(name, arrow::int32());
-     fields.push_back(field);
-     arrow::Int32Builder builder;
-     ColumnIterator it = {};
-     it.Init(&(col->v), offsetof(NullableInt32, value));
-     it.stride = sizeof(NullableInt32);
-
-     for (int i = 0; i < col->v.num_values; i++)
-     {
-      S32* ptr = (S32*)it.Next();
-      PARQUET_THROW_NOT_OK(builder.Append(*ptr));
-     }
-
-     std::shared_ptr < arrow::Array > arr;
-     PARQUET_THROW_NOT_OK(builder.Finish(&arr));
-     arrays.push_back(arr);
-    } break;
-    case ColumnValueType::Int64:
-    {
-     auto field = arrow::field(name, arrow::int64());
-     fields.push_back(field);
-     arrow::Int64Builder builder;
-     ColumnIterator it = {};
-     it.Init(&(col->v), offsetof(NullableInt64, value));
-     it.stride = sizeof(NullableInt64);
-
-     for (int i = 0; i < col->v.num_values; i++)
-     {
-      S64* ptr = (S64*)it.Next();
-      PARQUET_THROW_NOT_OK(builder.Append(*ptr));
-     }
-
-     std::shared_ptr < arrow::Array > arr;
-     PARQUET_THROW_NOT_OK(builder.Finish(&arr));
-     arrays.push_back(arr);
-    } break;
-    case ColumnValueType::Double:
-    {
-     auto field = arrow::field(name, arrow::int64());
-     fields.push_back(field);
-     arrow::DoubleBuilder builder;
-     ColumnIterator it = {};
-     it.Init(&(col->v), offsetof(NullableDouble, value));
-     it.stride = sizeof(NullableDouble);
-
-     for (int i = 0; i < col->v.num_values; i++)
-     {
-      double* ptr = (double*)it.Next();
-      PARQUET_THROW_NOT_OK(builder.Append(*ptr));
-     }
-
-     std::shared_ptr < arrow::Array > arr;
-     PARQUET_THROW_NOT_OK(builder.Finish(&arr));
-     arrays.push_back(arr);
-    } break;
-   }
-  }
- }
-
-  std::shared_ptr < arrow::Schema > schema;
-  std::shared_ptr < arrow::Table > ret;
-  TimeBlock("ARROW - Making Schema")
-  {
-   schema = arrow::schema(fields);
-  }
-
-  TimeBlock("ARROW - Making Table")
-  {
-   ret = arrow::Table::Make(schema, arrays);
-  }
-  return ret;
-}
-
-arrow::Status
-WriteTable(String8 file_path, std::shared_ptr <arrow::Table> table)
-{
- TimeFunction;
- using parquet::ArrowWriterProperties;
- using parquet::WriterProperties;
-
-
- // Choose compression
- std::shared_ptr <WriterProperties> props =
-  WriterProperties::Builder().compression(arrow::Compression::UNCOMPRESSED)->build();
-
- // Opt to store Arrow schema for easier reads back into Arrow
- std::shared_ptr <ArrowWriterProperties> arrow_props =
-  ArrowWriterProperties::Builder().store_schema()->build();
-
- std::shared_ptr < arrow::io::FileOutputStream > outfile;
- std::string path_to_file((char*)file_path.str, file_path.size);
- ARROW_ASSIGN_OR_RAISE(outfile, arrow::io::FileOutputStream::Open(path_to_file));
-
- ARROW_RETURN_NOT_OK(parquet::arrow::WriteTable(*table.get(),
-                                                arrow::default_memory_pool(), outfile,
-                                                /*chunk_size=*/1024*1024, props, arrow_props));
- return arrow::Status::OK();
-}
-
-namespace native_fhir
-{
- // builders
- // append data
- // make schema
- // make table
-
- // write table to file
-
-
- //////////////////
- // ~ Printing
- void
- PrintIndent(int indent)
- {
-  for (int i = 0; i < indent; i++)
-  {
-   printf(" ");
-  }
- }
-
- void
- PrintISO8601_Time(ISO8601_Time time)
- {
-  if (time.precision >= Precision::Year) { printf("%04d", time.year); }
-  if (time.precision >= Precision::Month) { printf("-%02d", time.month); }
-  if (time.precision >= Precision::Day) { printf("-%02d", time.day); }
-  if (time.precision >= Precision::Hour) { printf(":%02d", time.hour); }
-  if (time.precision >= Precision::Minute) { printf(":%02d", time.minute); }
-  if (time.precision >= Precision::Second) { printf(":%02d", time.second); }
-  if (time.precision >= Precision::Millisecond) { printf(":%03d", time.millisecond); }
-
-  if (time.timezone_char) { printf("%c", time.timezone_char); }
-
-  if (time.precision >= Precision::TimezoneHour) { printf("%02d", time.timezone_hour); }
-  if (time.precision >= Precision::TimezoneMinute) { printf(":%02d", time.timezone_minute); }
- }
-
- void PrintSingleResourceMember(FHIR_VERSION::Resource *resource, int indent);
-
- void
- PrintResourceMember(FHIR_VERSION::Resource *resource,
-                     SerializedClassMemberMetadata *mem,
-                     SerializedValueTypeAndName tan,
-                     int indent)
- {
-  String8 mem_name = M_GetStringFromHandle(g_meta_file, mem->name);
-  switch (tan.type)
-  {
-   case ValueType::ClassReference:
-   {
-    FHIR_VERSION::Resource* child = DEREF_STRUCT(resource, mem->offset, FHIR_VERSION::Resource);
-    if (child)
-    {
-     PrintIndent(indent + 1);
-     printf("%.*s\n", PRINT_STR8(mem_name));
-    }
-    PrintSingleResourceMember(child, indent + 2);
-   } break;
-   case VALUE_TYPE_STRING_CASES:
-   case ValueType::Decimal:
-   {
-    NullableString8 str = DEREF_VALUE(resource, mem->offset, NullableString8);
-    if (str.has_value)
-    {
-     PrintIndent(indent);
-     printf(" - %10.*s: %.*s\n", PRINT_STR8(mem_name), PRINT_STR8(str));
-    }
-   } break;
-   case ValueType::Boolean:
-   {
-    NullableBoolean b_value = DEREF_VALUE(resource, mem->offset, NullableBoolean);
-    if (b_value.has_value)
-    {
-     PrintIndent(indent);
-     if (b_value.value) { printf("true\n"); }
-     else { printf("false\n"); }
-    }
-   } break;
-
-   case VALUE_TYPE_TIME_CASES:
-   {
-    ISO8601_Time time = DEREF_VALUE(resource, mem->offset, ISO8601_Time);
-    if (time.precision != Precision::Unknown)
-    {
-     printf(" - %10.*s: ", PRINT_STR8(mem_name));
-     PrintIndent(indent);
-     PrintISO8601_Time(time);
-     printf("\n");
-    }
-   } break;
-  }
- }
-
- void
- PrintIndexedResourceMember(FHIR_VERSION::Resource *resource,
-                            SerializedClassMemberMetadata *mem,
-                            SerializedValueTypeAndName tan,
-                            int indent,
-                            int index)
- {
-  String8 mem_name = M_GetStringFromHandle(g_meta_file, mem->name);
-  switch (tan.type)
-  {
-   case ValueType::ClassReference:
-   {
-    FHIR_VERSION::Resource** resources = DEREF_STRUCT_ARRAY(resource, mem->offset, FHIR_VERSION::Resource);
-    FHIR_VERSION::Resource* child = resources[index];
-    if (child)
-    {
-     PrintIndent(indent + 1);
-     printf("%.*s\n", PRINT_STR8(mem_name));
-    }
-    PrintSingleResourceMember(child, indent + 2);
-   } break;
-   case VALUE_TYPE_STRING_CASES:
-   case ValueType::Decimal:
-   {
-    NullableString8* strs = DEREF_VALUE_ARRAY(resource, mem->offset, NullableString8);
-    NullableString8 str = strs[index];
-    if (str.has_value)
-    {
-     PrintIndent(indent);
-     printf(" - %10.*s: %.*s\n", PRINT_STR8(mem_name), PRINT_STR8(str));
-    }
-   } break;
-   case ValueType::Boolean:
-   {
-    NullableBoolean* bools = DEREF_VALUE_ARRAY(resource, mem->offset, NullableBoolean);
-    NullableBoolean b_value = bools[index];
-    if (b_value.has_value)
-    {
-     PrintIndent(indent);
-     if (b_value.value) { printf("true\n"); }
-     else { printf("false\n"); }
-    }
-   } break;
-
-   case VALUE_TYPE_TIME_CASES:
-   {
-    ISO8601_Time* times = DEREF_VALUE_ARRAY(resource, mem->offset, ISO8601_Time);
-    ISO8601_Time time = times[index];
-    if (time.precision != Precision::Unknown)
-    {
-     printf(" - %10.*s: ", PRINT_STR8(mem_name));
-     PrintIndent(indent);
-     PrintISO8601_Time(time);
-     printf("\n");
-    }
-   } break;
-  }
- }
-
- void
- PrintSingleResourceMember(FHIR_VERSION::Resource *resource, int indent)
- {
-  if (!resource) return;
-
-  SerializedClassMetadata *meta = M_GetClassMetadata(g_meta_file, (int)resource->resourceType);
-  String8 meta_name = M_GetStringFromHandle(g_meta_file, meta->name);
-
-  PrintIndent(indent);
-  printf("%.*s\n", PRINT_STR8(meta_name));
-
-  for (int i = 0; i < meta->members_count; i++)
-  {
-   SerializedClassMemberMetadata *mem = M_GetClassMemberMetadata(meta, i);
-   switch (mem->cardinality)
-   {
-    case Cardinality::ZeroToOne:
-    case Cardinality::OneToOne:
-    {
-     if (mem->type == ClassMemberType::Single)
-     {
-      SerializedValueTypeAndName tan = M_GetClassMemberType(mem, 0);
-      PrintResourceMember(resource, mem, tan, indent);
-     } else if (mem->type == ClassMemberType::Union)
-     {
-      SerializedClassMemberMetadata *enum_mem = M_GetClassMemberMetadata(meta, i + 1);
-
-      U32 type_index = DEREF_VALUE(resource, enum_mem->offset, U32);
-
-      SerializedValueTypeAndName tan = M_GetClassMemberType(mem, type_index);
-      PrintResourceMember(resource, mem, tan, indent);
-     }
-    } break;
-    case Cardinality::OneToInf:
-    case Cardinality::ZeroToInf:
-    {
-     if (mem->type == ClassMemberType::Single)
-     {
-      SerializedClassMemberMetadata *count_mem = M_GetClassMemberMetadata(meta, i - 1);
-      size_t count = DEREF_COUNT(resource, count_mem->offset);
-      for (int j = 0; j < count; j++)
-      {
-       printf("[%d]: ", j);
-       SerializedValueTypeAndName tan = M_GetClassMemberType(mem, 0);
-       PrintIndexedResourceMember(resource, mem, tan, indent, j);
-      }
-     }
-    } break;
-   }
-  }
- }
-
- void
- PrintCollection(Collection col)
- {
-  printf("Collection: -----------------\n");
-  TimeFunction;
-  for (CollectionEntryNode *node = col.first; !IsNilCollectionEntryNode(node); node = node->next)
-  {
-   switch (node->v.type)
-   {
-    case EntryType::Resource:
-    {
-     PrintSingleResourceMember(node->v.resource, 0);
-    } break;
-    case EntryType::String:
-    {
-     PrintIndent(0);
-     printf("%.*s\n", PRINT_STR8(node->v.str));
-    } break;
-    case EntryType::Number:
-    {
-     switch (node->v.number.type)
-     {
-      case NumberType::Integer:
-      {
-       printf("%lld\n", node->v.number.s64);
-      } break;
-      case NumberType::Decimal:
-      {
-       Temp temp = ScratchBegin(0, 0);
-       String8 str = Str8FromDecimal(temp.arena, node->v.number.decimal);
-       printf("%.*s\n", PRINT_STR8(str));
-       ScratchEnd(temp);
-      } break;
-     }
-    } break;
-    case EntryType::Boolean:
-    {
-     if (node->v.b) { printf("true\n"); }
-     else { printf("false\n"); }
-    } break;
-    case EntryType::Iso8601:
-    {
-     PrintISO8601_Time(node->v.time);
-     printf("\n");
-    } break;
-   }
-  }
-
-  printf("-------------------------------- ");
-  printf("Collection Count: %llu\n", col.count);
- }
+ Unknown,
+ BundleCount,
+ BundleDir,
+ Parallel
 };
+
+struct Argument
+{
+ String8 name;
+ ArgumentType type;
+
+ union
+ {
+  S64 s64;
+  String8 str;
+ };
+};
+
+struct ArgumentNode
+{
+ ArgumentNode* next;
+ Argument arg;
+};
+
+struct ExecutionArguments
+{
+ int bundle_count;
+ String8 bundle_dir;
+ B32 parallel;
+};
+
+Argument arguments[] = 
+{
+ {Str8Lit("--count"), ArgumentType::BundleCount},
+ {Str8Lit("--dir"), ArgumentType::BundleDir},
+ {Str8Lit("--parallel"), ArgumentType::Parallel}
+};
+
+ExecutionArguments
+ParseArguments(Arena *arena, int count, char** args)
+{
+ /*
+  --count max_count_per_thread
+  --dir directory_of_bundles
+ */
+
+ ExecutionArguments ret = {};
+
+ for (int i = 0; i < count; i++)
+ {
+  String8 str = Str8C(args[i]);
+  for (int j = 0; j < ArrayCount(arguments); j++)
+  {
+   if (Str8Match(arguments[j].name, str, 0))
+   {
+    if (arguments[j].type == ArgumentType::BundleCount)
+    {
+     i++;
+     String8 value = Str8C(args[i]);
+     int int_val = atoi(args[i]);
+     ret.bundle_count = int_val;
+     std::cout << "Set bundle count: " << int_val << std::endl;
+    } else if (arguments[j].type == ArgumentType::BundleDir)
+    {
+     i++;
+     String8 value = Str8C(args[i]);
+     ret.bundle_dir = value;
+     std::cout << "Set bundle dir: " << value << std::endl;
+    } else if (arguments[j].type == ArgumentType::Parallel)
+    {
+     ret.parallel = true;
+     std::cout << "Set parallel" << std::endl;
+    }
+   }
+  }
+ }
+
+ return ret;
+}
+
+/////////////////
+// ~ Running
 
 ND_ContextNode*
 DeserializeFile(const char* fn, FHIR_VERSION::Resource** res)
@@ -512,10 +179,10 @@ DeserializeFile(const char* fn, FHIR_VERSION::Resource** res)
 }
 
 DataTable
-CreateDataTableFromViewDefinition(Arena *arena, native_fhir::ViewDefinition vd, ResourceStringProvider* resources)
+CreateDataTableFromViewDefinition(Arena *arena, native_fhir::ViewDefinition vd, ResourceStringProvider* resources, int stopping_count)
 {
   TimeFunction;
-  DataTable table = ExecuteViewDefinition(arena, vd, resources);
+  DataTable table = ExecuteViewDefinition(arena, vd, resources, stopping_count);
   return table;
 }
 
@@ -558,6 +225,7 @@ struct ToThread
  ResourceStringProvider *res_provider;
  ViewDefinitionList view_definitions;
  DataTable *out;
+ int bundle_stopping_count;
  std::shared_ptr<arrow::Table> arrow_table;
 };
 
@@ -570,9 +238,10 @@ void ThreadWork(ToThread* opts)
  if (opts->view_definitions.count > 0)
  {
   DataTable table = {};
+   // TODO(agw): This loop needs to go inside the CreateDataTable function (one deserialization per resource)
   for (ViewDefinitionNode *node = opts->view_definitions.first; node; node = node->next)
   {
-   DataTable next_table = CreateDataTableFromViewDefinition(temp.arena, node->v, opts->res_provider);
+   DataTable next_table = CreateDataTableFromViewDefinition(temp.arena, node->v, opts->res_provider, opts->bundle_stopping_count);
 
    for (DataColumnNode *col = next_table.first; col; col = col->next)
    {
@@ -580,16 +249,14 @@ void ThreadWork(ToThread* opts)
    }
   }
 
-//  *(opts.out) = table;
   auto t = ArrowTableFromDataTable(table);
   opts->arrow_table = t;
-  //auto res = WriteTable(Str8Lit("./output.parquet"), t);
  }
  ScratchEnd(temp);
 }
 
 int 
-main(void)
+main(int argc, char** argv)
 {
  /////////////////// 
  // Setup
@@ -597,6 +264,7 @@ main(void)
 	ThreadCtx tctx = ThreadCtxAlloc();
 	tctx.is_main_thread = 1;
 	SetThreadCtx(&tctx);
+
 
 	Arena *meta_arena = ArenaAlloc(Megabytes(64));
 	MetadataFile file = M_Deserialize(meta_arena, &g_metadata, ArrayCount(g_metadata));
@@ -606,7 +274,14 @@ main(void)
  ND_Init(1);
 
  Temp temp = ScratchBegin(0, 0);
+
+ ExecutionArguments args = ParseArguments(temp.arena, argc, argv);
+
  String8 base_file_name = Str8Lit("C:/Users/awalley/Code/Ncqa.HT.Firely/Hedis2023/BuildArtifacts/Decks/13698_extracted");
+ if (args.bundle_dir.size > 0)
+ {
+  base_file_name = args.bundle_dir;
+ }
 
  FileEntries entries = OS_EnumerateDirectory(temp.arena, PushStr8F(temp.arena, "%S/*", base_file_name)); 
 
@@ -632,7 +307,8 @@ BeginProfile();
 
 ViewDefinitionList list = LoadViewDefinitions(temp.arena, Str8Lit("view_definitions.json"));
 // NOTE(agw): set for multi-threading
- #if 0
+if (args.parallel)
+{
  const int num_threads = std::thread::hardware_concurrency();
  DataTable *tables = PushArray(temp.arena, DataTable, num_threads);
  ToThread *to_threads = PushArray(temp.arena, ToThread, num_threads);
@@ -640,10 +316,15 @@ ViewDefinitionList list = LoadViewDefinitions(temp.arena, Str8Lit("view_definiti
  std::vector<std::thread> threads;
  for (int i = 0; i < num_threads; i++)
  {
-  ToThread *to_thread = &(to_threads[i]);
+  ToThread *to_thread = & (to_threads[i]);
   to_thread->res_provider = &res_provider;
   to_thread->view_definitions = list;
-  to_thread->out = &(tables[i]);
+  to_thread->out = & (tables[i]);
+
+  if (args.bundle_count != 0)
+  {
+   to_thread->bundle_stopping_count = args.bundle_count / num_threads;
+  }
 
   std::thread worker_thread(ThreadWork, to_thread);
   threads.push_back(std::move(worker_thread));
@@ -654,7 +335,7 @@ ViewDefinitionList list = LoadViewDefinitions(temp.arena, Str8Lit("view_definiti
   threads[i].join();
  }
 
- std::vector<std::shared_ptr<arrow::Table>> arrow_tables;
+ std::vector<std::shared_ptr < arrow::Table> > arrow_tables;
  for (int i = 0; i < num_threads; i++)
  {
   arrow_tables.push_back(to_threads[i].arrow_table);
@@ -662,21 +343,23 @@ ViewDefinitionList list = LoadViewDefinitions(temp.arena, Str8Lit("view_definiti
  auto res_merged_table = arrow::ConcatenateTables(arrow_tables);
  if (res_merged_table.ok())
  {
-  std::shared_ptr<arrow::Table> merged_table = res_merged_table.ValueOrDie();
+  std::shared_ptr < arrow::Table > merged_table = res_merged_table.ValueOrDie();
   auto res = WriteTable(Str8Lit("./output.parquet"), merged_table);
  }
  else
  {
   std::cout << "Error merging tables" << std::endl;
  }
-#else
+}
+else
+{
  if (list.count > 0)
  {
   DataTable table = {};
   DataTableList table_list = {};
   for (ViewDefinitionNode *node = list.first; node; node = node->next)
   {
-   DataTable next_table = CreateDataTableFromViewDefinition(temp.arena, node->v, &res_provider);
+   DataTable next_table = CreateDataTableFromViewDefinition(temp.arena, node->v, &res_provider, args.bundle_count);
 
    DataTableNode *n = PushStruct(temp.arena, DataTableNode);
    n->table = next_table;
@@ -696,7 +379,7 @@ ViewDefinitionList list = LoadViewDefinitions(temp.arena, Str8Lit("view_definiti
   auto t = ArrowTableFromDataTable(table);
   auto res = WriteTable(Str8Lit("./output.parquet"), t);
  }
-#endif
+}
 
  EndAndPrintProfile();
 

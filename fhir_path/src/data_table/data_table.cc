@@ -205,27 +205,6 @@ namespace native_fhir
 
   Assert(col.value_type == value_type);
 
-  /*
-  if (value_type == ColumnValueType::String)
-  {
-   for (DataChunkNode *chunk = col.first; chunk; chunk = chunk->next)
-   {
-    NullableString8 *arr = (NullableString8*)chunk->data;
-    for (int i = 0; i < chunk->count; i++)
-    {
-     // TODO(agw): this is possibly wasteful for repeated columns...
-     ColumnValue val = {};
-     val.value_type = ColumnValueType::String;
-     val.str.str8 = PushStr8Copy(arena, arr[i].str8);
-     val.str.has_value = true;
-     // TODO(agw): may be slow
-     this->AddValue(arena, val);
-    }
-   }
-
-   return;
-  }
-  */
 
   for (DataChunkNode *node = col.first; node; node = node->next)
   {
@@ -259,7 +238,7 @@ namespace native_fhir
     this->AddChunk(arena);
 
     // TODO(agw): this could be worked around for different sized chunks, for now I will just place this assert
-    Assert(n_count_remaining < last->max_count);
+    Assert(n_count_remaining <= last->max_count);
 
     size_t n_data_remaining = (U8*)n_data_end - (U8*)n_data_ptr;
     MemoryCopy(last->data, n_data_ptr, n_data_remaining);
@@ -274,6 +253,7 @@ namespace native_fhir
  DataColumn_AddCollection(Arena *arena, FP_ExecutionContext *context, DataColumn *column, Collection col)
  {
   TimeFunction;
+  // TODO(agw): I think all collection values will be the same...could do this in bulk conversion
 
   DataChunkNode *chunk_node = column->last;
   if (!chunk_node)
@@ -341,6 +321,10 @@ namespace native_fhir
    return;
   }
 
+  // TODO(agw): wondering if we could just bulk add all values to the end, then try to merge any chunks that are 
+  // not completly full
+  // Union does not guarantee row ordering
+
   FP_Assert(dst->column_count == src->column_count, context, Str8Lit("UnionAll column count mismatch"));
   // ~ Add columns that if not present,
   DataColumnNode *dst_node = dst->first;
@@ -400,13 +384,16 @@ namespace native_fhir
    for (int tr_idx = 0; tr_idx < table_node->table.GetRowCount(); tr_idx++)
    {
     DataRow table_row = table_node->table.GetRow(arena, tr_idx);
+    ColumnIterator itr = {};
 
+    #if 1
     DataColumnNode *col = new_table.first;
     // Copy column value res.GetRowCount()
     for (int i = 0; i < table_row.count; i++)
     {
      for (int rr_idx = 0; rr_idx < res.GetRowCount(); rr_idx++)
      {
+      // TODO(agw): this could by an iterator
       col->v.AddValue(arena, table_row.v[i]);
      }
      col = col->next;
@@ -422,7 +409,7 @@ namespace native_fhir
     }
 
     // for each row of existing table
-    /*
+    #else
     for (int rr_idx = 0; rr_idx < res.GetRowCount(); rr_idx++)
     {
      DataRow res_row = res.GetRow(arena, rr_idx);
@@ -441,7 +428,7 @@ namespace native_fhir
       col = col->next;
      }
     }
-   */
+    #endif
    }
 
    res = new_table;
@@ -662,11 +649,24 @@ namespace native_fhir
  void
  DataTable_CopyAllStringsTo(Arena *arena, DataTable *table)
  {
-
   for (DataColumnNode *node = table->first; node; node = node->next)
   {
-  }
+   if (node->v.value_type == ColumnValueType::String)
+   {
+    ColumnIterator itr = {};
+    for (int i = 0; i < node->v.num_values; i++)
+    {
+     itr.Init( & (node->v), 0);
+     NullableString8* str = (NullableString8*)itr.Next();
 
+     if (str->has_value)
+     {
+      str->str8 = PushStr8Copy(arena, str->str8);
+     }
+
+    }
+   }
+  }
  }
 
 };

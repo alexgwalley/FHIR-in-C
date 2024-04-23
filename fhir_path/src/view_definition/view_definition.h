@@ -36,7 +36,8 @@ namespace native_fhir
  DataTable
  ExecuteViewDefinition(Arena *arena, 
                        ViewDefinition vd,
-                       ResourceStringProvider resources);
+                       ResourceStringProvider resources,
+                       int stopping_count = 0);
 };
 
 #endif

@@ -1,10 +1,10 @@
 {
  "resourceType": "Bundle",
  "entry": [
- {
+  {
    "resource": {
     "resourceType": "ViewDefinition",
-    "resource": "Claim",
+    "resource": "Encounter",
     "status": "active",
     "select": [
      {
@@ -13,49 +13,11 @@
            "name": "id",
            "path": "id",
            "type": "id"
-         }
-       ]
-     },
-     {
-      "forEach": "extension",
-      "column": [
-       {
-        "name": "linenumber",
-        "path": "value.ofType(string)",
-        "type": "string"
-       }
-      ]
-     },
-     {
-      "forEach": "meta.tag",
-      "column": [
-       {
-        "name": "extension_system",
-        "path": "system",
-        "type": "string"
-       },
-       {
-        "name": "extension_code",
-        "path": "code",
-        "type": "string"
-       }
-      ]
-     }
-    ]
-   }
-  },
- {
-   "resource": {
-    "resourceType": "ViewDefinition",
-    "resource": "Bundle",
-    "status": "active",
-    "select": [
-     {
-       "column": [
+         },
          {
-           "name": "claim_count",
-           "path": "entry.resource.select($this as Claim).count()",
-           "type": "integer"
+           "name": "period_start",
+           "path": "period.start",
+           "type": "dateTime"
          }
        ]
      }

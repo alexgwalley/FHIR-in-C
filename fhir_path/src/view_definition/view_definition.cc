@@ -4,7 +4,8 @@ namespace native_fhir
  DataTable
  ExecuteViewDefinition(Arena *arena,
                        native_fhir::ViewDefinition vd,
-                       ResourceStringProvider* resource_provider)
+                       ResourceStringProvider* resource_provider,
+                       int stopping_count = 0)
  {
   DataTable table = GetColumnOrder(arena, vd);
 
@@ -49,7 +50,7 @@ namespace native_fhir
   {
    count++;
    if (count % 1000 == 0) std::cout << count << std::endl;
-   if (count > 1000) break;
+   if (stopping_count > 0 && count > stopping_count) break;
 //   NullableString8 resource_string = resource_provider->GetStringValue(handle);
    FHIR_VERSION::Resource *res;
    ND_ContextNode *resource_context;

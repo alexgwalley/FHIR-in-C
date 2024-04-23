@@ -3,7 +3,7 @@
 
 namespace native_fhir
 {
- #define CHUNK_SIZE 64
+ #define CHUNK_SIZE 64 
 
 
  enum class ColumnValueType
@@ -350,6 +350,7 @@ namespace native_fhir
   DataRow
   GetRow(Arena *arena, int idx)
   {
+   TimeFunction;
    DataRow res = {};
    res.count = column_count;
    res.v = PushArray(arena, ColumnValue, res.count);
@@ -550,8 +551,11 @@ namespace native_fhir
 
   void Init(DataColumn *col, U16 off)
   {
-   curr_chunk = col->first;
-   curr_pos = (void*)((U8*)curr_chunk->data + off);
+   if (col->chunk_count > 0)
+   {
+    curr_chunk = col->first;
+    curr_pos = (void*)((U8 *)curr_chunk->data + off);
+   }
    offset = off;
   }
 

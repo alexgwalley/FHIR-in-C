@@ -180,7 +180,7 @@ static void PrintTimeElapsed(u64 TotalTSCElapsed, profile_anchor *Anchor, u64 CP
 
 static void BeginProfile(void)
 {
-	MemorySet(&GlobalProfiler, 0, sizeof(GlobalProfiler));
+	memset(&GlobalProfiler, 0, sizeof(GlobalProfiler));
 	GlobalProfilerParent = 0;
 	GlobalProfiler.StartTSC = ReadCPUTimer();
 }
@@ -197,7 +197,7 @@ static void EndAndPrintProfile()
 		printf("\nTotal time: %0.4fms (CPU freq %llu)\n", 1000.0 * (f64)TotalCPUElapsed / (f64)CPUFreq, CPUFreq);
 	}
     
-	for(u32 AnchorIndex = 0; AnchorIndex < ArrayCount(GlobalProfiler.Anchors); ++AnchorIndex)
+ for(u32 AnchorIndex = 0; AnchorIndex < (sizeof(GlobalProfiler.Anchors) / sizeof(GlobalProfiler.Anchors[0])); ++AnchorIndex)
 	{
 		profile_anchor *Anchor = GlobalProfiler.Anchors + AnchorIndex;
 		if(Anchor->TSCElapsed)
@@ -206,4 +206,3 @@ static void EndAndPrintProfile()
 		}
 	}
 }
-        
