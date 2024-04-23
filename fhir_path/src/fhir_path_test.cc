@@ -301,9 +301,11 @@ main(int argc, char** argv)
   res_provider.AddJsonFile(full_name);
  }
 
-// ReadAndExecuteTests(Str8Lit(""));
+ ReadAndExecuteTests(Str8Lit(""));
 
 BeginProfile();
+
+Arena *main_arena = ArenaAlloc(Megabytes(64));
 
 ViewDefinitionList list = LoadViewDefinitions(temp.arena, Str8Lit("view_definitions.json"));
 // NOTE(agw): set for multi-threading
@@ -336,14 +338,19 @@ if (args.parallel)
  }
 
  std::vector<std::shared_ptr < arrow::Table> > arrow_tables;
+ S64 row_count = 0;
  for (int i = 0; i < num_threads; i++)
  {
   arrow_tables.push_back(to_threads[i].arrow_table);
+
  }
+
  auto res_merged_table = arrow::ConcatenateTables(arrow_tables);
  if (res_merged_table.ok())
  {
   std::shared_ptr < arrow::Table > merged_table = res_merged_table.ValueOrDie();
+  auto num_rows = merged_table->num_rows();
+  std::cout << "Output Table # of rows: " << num_rows << std::endl;
   auto res = WriteTable(Str8Lit("./output.parquet"), merged_table);
  }
  else
@@ -359,9 +366,9 @@ else
   DataTableList table_list = {};
   for (ViewDefinitionNode *node = list.first; node; node = node->next)
   {
-   DataTable next_table = CreateDataTableFromViewDefinition(temp.arena, node->v, &res_provider, args.bundle_count);
+   DataTable next_table = CreateDataTableFromViewDefinition(main_arena, node->v, &res_provider, args.bundle_count);
 
-   DataTableNode *n = PushStruct(temp.arena, DataTableNode);
+   DataTableNode *n = PushStruct(main_arena, DataTableNode);
    n->table = next_table;
    SLLQueuePush(table_list.first, table_list.last, n);
    table_list.count++;
@@ -375,7 +382,7 @@ else
 
   }
 
-  table = RowProduct(temp.arena, table_list);
+  table = RowProduct(main_arena, table_list);
   auto t = ArrowTableFromDataTable(table);
   auto res = WriteTable(Str8Lit("./output.parquet"), t);
  }

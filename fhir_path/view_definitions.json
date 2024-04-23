@@ -1,28 +1,133 @@
 {
- "resourceType": "Bundle",
- "entry": [
-  {
-   "resource": {
-    "resourceType": "ViewDefinition",
-    "resource": "Encounter",
-    "status": "active",
-    "select": [
-     {
-       "column": [
-         {
-           "name": "id",
-           "path": "id",
-           "type": "id"
-         },
-         {
-           "name": "period_start",
-           "path": "period.start",
-           "type": "dateTime"
-         }
-       ]
-     }
-    ]
-   }
-  }
- ]
+  "resourceType": "Bundle",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "ViewDefinition",
+        "resource": "Encounter",
+        "status": "active",
+        "select": [
+          {
+            "column": [
+              {
+                "name": "id",
+                "path": "id",
+                "type": "id"
+              },
+              {
+                "name": "period_start",
+                "path": "period.start",
+                "type": "dateTime"
+              },
+              {
+                "name": "period_end",
+                "path": "period.end",
+                "type": "dateTime"
+              },
+              {
+                "name": "status",
+                "path": "status",
+                "type": "string"
+              },
+              {
+                "name": "class_system",
+                "path": "class.system",
+                "type": "string"
+              },
+              {
+                "name": "class_code",
+                "path": "class.code",
+                "type": "string"
+              },
+              {
+                "name": "class_display",
+                "path": "class.display",
+                "type": "string"
+              },
+              {
+                "name": "subject_reference",
+                "path": "subject.reference",
+                "type": "string"
+              }
+            ]
+          },
+          {
+            "forEachOrNull": "meta.tag",
+            "column": [
+              {
+                "name": "meta_system",
+                "path": "system",
+                "type": "string"
+              },
+              {
+                "name": "meta_code",
+                "path": "code",
+                "type": "string"
+              }
+            ]
+          },
+          {
+            "forEachOrNull": "meta.profile",
+            "column": [
+              {
+                "name": "profile",
+                "path": "$this",
+                "type": "string"
+              }
+            ]
+          },
+          {
+            "forEachOrNull": "extension",
+            "column": [
+              {
+                "name": "extension_id",
+                "path": "id",
+                "type": "string"
+              },
+              {
+                "name": "extension_url",
+                "path": "url",
+                "type": "string"
+              },
+              {
+                "name": "extension_string",
+                "path": "value.ofType(string)",
+                "type": "string"
+              }
+            ]
+          },
+          {
+            "forEachOrNull": "type",
+            "select": [
+              {
+                "forEachOrNull": "coding",
+                "column": [
+                  {
+                    "name": "type_system",
+                    "path": "system",
+                    "type": "string"
+                  },
+                  {
+                    "name": "type_code",
+                    "path": "code",
+                    "type": "string"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "forEachOrNull": "participant",
+            "column": [
+              {
+                "name": "part_ref",
+                "path": "individual.reference",
+                "type": "string"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
 }

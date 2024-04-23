@@ -163,17 +163,18 @@ struct profile_block
 #define TimeBlock(Name) profile_block NameConcat(Block, __LINE__)(Name, __COUNTER__ + 1);
 #define TimeFunction TimeBlock(__func__)
 
-static void PrintTimeElapsed(u64 TotalTSCElapsed, profile_anchor *Anchor, u64 CPUFreq)
+static void PrintTimeElapsed(u64 TotalTSCElapsed, profile_anchor *Anchor, u64 CPUFreq, int max_str_len)
 {
 	u64 TSCElapsedSelf = Anchor->TSCElapsed - Anchor->TSCElapsedChildren;
 	f64 Percent = 100.0 * ((f64)TSCElapsedSelf / (f64)TotalTSCElapsed);
 
 	f64 MsSelf = 1000.0 * (f64)TSCElapsedSelf / (f64)CPUFreq;
-	printf("  %s[%llu]: %llu (%.2f%%, %0.4fms", Anchor->Label, Anchor->HitCount, TSCElapsedSelf, Percent, MsSelf);
+	f64 MsTotal = 1000.0 * (f64)Anchor->TSCElapsed / (f64)CPUFreq;
+	printf("  %-*s[%llu]: %llu (%.2f%%, %0.4fms", max_str_len, Anchor->Label, Anchor->HitCount, TSCElapsedSelf, Percent, MsSelf);
 	if(Anchor->TSCElapsedAtRoot != TSCElapsedSelf)
 	{
 		f64 PercentWithChildren = 100.0 * ((f64)Anchor->TSCElapsedAtRoot / (f64)TotalTSCElapsed);
-		printf(", %.2f%% w/children", PercentWithChildren);
+		printf(", %.2f%% %0.4fms w/children", PercentWithChildren, MsTotal);
 	}
 	printf(")\n");
 }
@@ -196,13 +197,42 @@ static void EndAndPrintProfile()
 	{
 		printf("\nTotal time: %0.4fms (CPU freq %llu)\n", 1000.0 * (f64)TotalCPUElapsed / (f64)CPUFreq, CPUFreq);
 	}
+
+ // Sort Anchors
+	profile_anchor Anchors[4096];
+
+ u64 prev_max = (u64)-1;
+ int max_str_len = 0;
+ for (int i = 0; i < 4096; i++)
+ {
+  u64 max_value = 0;
+  int idx_of_max = 0;
+
+  if (GlobalProfiler.Anchors[i].Label && strlen(GlobalProfiler.Anchors[i].Label) > max_str_len)
+  {
+   max_str_len = strlen(GlobalProfiler.Anchors[i].Label);
+  }
+
+  for (int j = 0; j < 4096; j++)
+  {
+   u64 elapsed = GlobalProfiler.Anchors[j].TSCElapsed;
+   if (elapsed > max_value && elapsed < prev_max)
+   {
+    max_value = elapsed;
+    idx_of_max = j;
+   }
+  }
+
+  Anchors[i] = GlobalProfiler.Anchors[idx_of_max];
+  prev_max = max_value;
+ }
     
  for(u32 AnchorIndex = 0; AnchorIndex < (sizeof(GlobalProfiler.Anchors) / sizeof(GlobalProfiler.Anchors[0])); ++AnchorIndex)
 	{
-		profile_anchor *Anchor = GlobalProfiler.Anchors + AnchorIndex;
+		profile_anchor *Anchor = Anchors + AnchorIndex;
 		if(Anchor->TSCElapsed)
 		{
-			PrintTimeElapsed(TotalCPUElapsed, Anchor, CPUFreq);
+			PrintTimeElapsed(TotalCPUElapsed, Anchor, CPUFreq, max_str_len);
 		}
 	}
 }

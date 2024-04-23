@@ -110,12 +110,14 @@ namespace native_fhir
 
   DataChunkNode *AddChunk(Arena *arena)
   {
+   TimeFunction;
    DataChunkNode *ret = PushStruct(arena, DataChunkNode);
 
    ret->value_type = value_type; // TODO(agw): this probably isn't necessary
 
    ret->max_count = CHUNK_SIZE;
    size_t value_size = column_value_sizes[(int)value_type];
+   // TODO(agw): may be able to get away with not zero'ing
    ret->data = ArenaPush(arena, value_size * ret->max_count);
 
    SLLQueuePush(first, last, ret);
@@ -556,6 +558,8 @@ namespace native_fhir
     curr_chunk = col->first;
     curr_pos = (void*)((U8 *)curr_chunk->data + off);
    }
+
+   stride = column_value_sizes[(int)col->value_type];
    offset = off;
   }
 

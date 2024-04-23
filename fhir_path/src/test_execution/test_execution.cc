@@ -370,7 +370,7 @@ DeserializeTest(Arena *arena, simdjson::ondemand::object base)
  str.str = (U8 *)view.data();
 
  str.str = PushArray(arena, U8, str.size);
- MemoryCopy(str.str, view.data(), str.size);
+ MemoryCopy(str.str, view.data(), view.size());
 
  FHIR_VERSION::Resource* res = 0;
 
@@ -461,11 +461,11 @@ DeserializeTestCollection(Arena *arena, String8 file_name)
  {
   std::string_view view = obj.raw_json();
   String8 str = {};
-  str.size = view.size() + 64;
+  str.size = view.size() + 128;
   str.str = (U8*)view.data();
 
   str.str = PushArray(arena, U8, str.size);
-  MemoryCopy(str.str, view.data(), str.size);
+  MemoryCopy(str.str, view.data(), view.size());
 
   col.resource_strings[res_i] = str;
   res_i++;

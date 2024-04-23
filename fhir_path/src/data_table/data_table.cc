@@ -125,6 +125,7 @@ namespace native_fhir
  void
  DataColumn::AddValue(Arena *arena, ColumnValue val)
  {
+  TimeFunction;
   if (!last || last->count >= last->max_count)
   {
    DataChunkNode* _ = AddChunk(arena);
@@ -187,6 +188,7 @@ namespace native_fhir
  void
  DataColumn::AddAllValuesFromColumn(Arena *arena, DataColumn col)
  {
+  TimeFunction;
   if (!last || last->count >= last->max_count)
   {
    DataChunkNode* _ = AddChunk(arena);
@@ -649,14 +651,17 @@ namespace native_fhir
  void
  DataTable_CopyAllStringsTo(Arena *arena, DataTable *table)
  {
+
+  TimeFunction;
   for (DataColumnNode *node = table->first; node; node = node->next)
   {
+   // TODO(agw): copy map of strings to reduce duplication
    if (node->v.value_type == ColumnValueType::String)
    {
     ColumnIterator itr = {};
+    itr.Init( & (node->v), 0);
     for (int i = 0; i < node->v.num_values; i++)
     {
-     itr.Init( & (node->v), 0);
      NullableString8* str = (NullableString8*)itr.Next();
 
      if (str->has_value)
