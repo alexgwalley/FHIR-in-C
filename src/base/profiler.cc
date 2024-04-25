@@ -14,7 +14,6 @@ typedef unsigned int u32;
 typedef double f64;
 
 #if _WIN32
-
 #include <intrin.h>
 #include <windows.h>
 
@@ -31,7 +30,6 @@ static u64 ReadOSTimer(void)
 	QueryPerformanceCounter(&Value);
 	return Value.QuadPart;
 }
-
 #else
 
 #include <x86intrin.h>

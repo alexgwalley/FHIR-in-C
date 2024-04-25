@@ -19,7 +19,6 @@
 #include "generated/fhir_class_definitions.h"
 #include "generated/fhir_class_metadata.h"
 
-#include "manual_deserialization.h"
 #include "native_deserializer.h"
 
 #include "fhir_class/fhir_class.h"

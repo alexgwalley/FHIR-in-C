@@ -10,7 +10,7 @@
           {
             "column": [
               {
-                "name": "id",
+                "name": "id2",
                 "path": "id",
                 "type": "id"
               },

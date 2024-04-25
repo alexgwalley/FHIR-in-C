@@ -13,9 +13,7 @@
 #include "fhir_r4_types.h"
 #include "generated/fhir_class_definitions.h"
 
-#include "manual_deserialization.h"
-
-#include "native_deserializer.h"
+#include "deserializer/native_deserializer.h"
 
 #include "native_fhir/native_fhir_inc.cc"
 
@@ -29,7 +27,7 @@ DLL_Scratch_Begin(ND_Context* context, Arena **conflicts, U64 conflict_count);
 #define USE_PROFILER
 #include "third_party/simdjson.cpp"
 #include "base/profiler.cc"
-#include "manual_deserialization_simdjson.cc"
+#include "deserializer/manual_deserialization_simdjson.cc"
 
 
 

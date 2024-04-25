@@ -96,9 +96,9 @@ CheckNil(nil,p) ? \
 #define OS_DebugBreak raise(SIGTRAP)
 #endif
 
-
 //#ifdef DEBUG
-#define Assert(b) do { if(!(b)) { OS_DebugBreak; } } while(0)
+#define Assert(b) do { if (!(b)) { OS_DebugBreak; } } while (0)
+#define AssertMsg(b, msg) do { if (!(b)) { std::cout << msg << std::endl; OS_DebugBreak; } } while (0)
 //#else
 //#define Assert(...)
 //#endif
@@ -128,6 +128,31 @@ CheckNil(nil,p) ? \
 #define PRINT_STR8(str8) (int)(str8).size, (str8).str
 
 #define DeferLoop(start, end) for (int _i_ = ((start), 0); _i_ == 0; _i_ += 1, (end))
+
+////////////////////////////////
+//~ rjf: ASAN 
+#if defined(_MSC_VER)
+# if defined(__SANITIZE_ADDRESS__)
+#  define ASAN_ENABLED 1
+#  define NO_ASAN __declspec(no_sanitize_address)
+# else
+#  define NO_ASAN
+# endif
+#else
+# error "NO_ASAN is not defined for this compiler."
+#endif
+
+#if ASAN_ENABLED
+#pragma comment(lib, "clang_rt.asan-x86_64.lib")
+extern "C" void __asan_poison_memory_region(void const volatile *addr, size_t size);
+extern "C" void __asan_unpoison_memory_region(void const volatile *addr, size_t size);
+# define AsanPoisonMemoryRegion(addr, size)   __asan_poison_memory_region((addr), (size))
+# define AsanUnpoisonMemoryRegion(addr, size) __asan_unpoison_memory_region((addr), (size))
+#else
+# define AsanPoisonMemoryRegion(addr, size)   ((void)(addr), (void)(size))
+# define AsanUnpoisonMemoryRegion(addr, size) ((void)(addr), (void)(size))
+#endif
+
 
 ////////////////////////////////
 //~ rjf: Base-Types
