@@ -12,13 +12,12 @@ This is in active development and the repository is highly volatile. Use at your
 mkdir build
 cd build
 cmake ..
-cmake -build .
+cmake --build . (--config Release)
 ```
 
 ### To generate struct and metadata
-copy build/main.exe to root folder
-
-run `./main.exe` (make sure gperf.exe is in root folder as well)
+cd 'FHIR-in-C'
+run `./build/Debug/main.exe` (make sure gperf.exe is in root folder as well)
 
 This will export:
 - generated/fhir_class_definitions.h
