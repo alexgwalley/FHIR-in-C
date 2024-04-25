@@ -18,6 +18,7 @@ namespace native_fhir
  struct ResourceSource
  {
   ResourceSourceType type;
+  int id;
 
   union
   {
@@ -35,6 +36,8 @@ namespace native_fhir
 
   NullableString8 json_strings[50];
   Arena *string_arenas[50];
+
+  int count;
 
   std::mutex mutex;
 
@@ -61,27 +64,10 @@ namespace native_fhir
   ResourceStringHandle GetNextString();
   ResourceSource GetNextSource();
 
-  NullableString8 GetNextFileName()
-  {
-   NullableString8 ret = {};
-   if (json_file_names.node_count > 0)
-   {
-    ret.str8 = json_file_names.first->string;
-    ret.has_value = true;
-
-    SLLStackPop(json_file_names.first);
-    json_file_names.node_count--;
-    return ret;
-   }
-
-   return ret;
-  }
 
   NullableString8 GetStringValue(ResourceStringHandle handle)
   {
-   mutex.lock();
    NullableString8 ret = json_strings[handle];
-   mutex.unlock();
    return ret;
   }
 
@@ -97,10 +83,10 @@ namespace native_fhir
      and then load a certain section of a file at a time...
    */
 
-   mutex.lock();
+   std::lock_guard<std::mutex> lock(mutex);
+
    json_strings[handle].has_value = false;
    ArenaPopTo(string_arenas[handle], 0);
-   mutex.unlock();
   }
 
  };

@@ -30,8 +30,9 @@ namespace native_fhir
   int count = 0;
   while ((next_source = resource_provider->GetNextSource()).type != ResourceSourceType::Unknown)
   {
+   if (stopping_count > 0 && next_source.id > stopping_count) break;
    count++;
-   if (count % 1000 == 0) std::cout << count << std::endl;
+   if (next_source.id % 1000 == 0) std::cout << next_source.id << std::endl;
    if (stopping_count > 0 && count > stopping_count) break;
    //   NullableString8 resource_string = resource_provider->GetStringValue(handle);
    FHIR_VERSION::Resource *res;

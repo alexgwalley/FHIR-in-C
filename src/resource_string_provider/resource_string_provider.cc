@@ -3,11 +3,13 @@ namespace native_fhir
 
  ResourceStringProvider::ResourceStringProvider() :  mutex(), json_strings(), string_arenas(), json_file_names(), strings()
  {
+  count = 0;
   arena = ArenaAlloc(Megabytes(1));
  }
 
  ResourceStringProvider::ResourceStringProvider(String8 folder) :  mutex(), json_strings(), string_arenas(), json_file_names(), strings()
  {
+  count = 0;
   arena = ArenaAlloc(Megabytes(1));
   Temp temp = ScratchBegin(0, 0);
 
@@ -75,7 +77,6 @@ namespace native_fhir
  ResourceStringProvider::GetNextString()
  {
   TimeFunction;
-  std::lock_guard<std::mutex> lock(mutex);
 
   for (int i = 1; i < ArrayCount(json_strings); i++)
   {
@@ -124,7 +125,10 @@ namespace native_fhir
   ResourceStringProvider::GetNextSource()
   {
    ResourceSource ret = {};
+   std::lock_guard<std::mutex> lock(mutex);
 
+   count++;
+   ret.id = count;
    if (strings.node_count > 0)
    {
     ret.type = ResourceSourceType::String;

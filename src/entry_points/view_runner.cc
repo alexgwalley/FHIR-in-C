@@ -209,7 +209,7 @@ void ThreadWork(ToThread* opts)
  ThreadCtx tctx = ThreadCtxAlloc();
  SetThreadCtx(&tctx);
 
- Temp temp = ScratchBegin(0, 0);
+ Arena *arena = ArenaAlloc(Megabytes(64));
  if (opts->view_definitions.count > 0)
  {
   DataTable table = {};
@@ -217,19 +217,20 @@ void ThreadWork(ToThread* opts)
   // TODO(agw): This loop needs to go inside the CreateDataTable function (one deserialization per resource)
   for (ViewDefinitionNode *node = opts->view_definitions.first; node; node = node->next)
   {
-   DataTable next_table = ExecuteViewDefinition(temp.arena, node->v, opts->res_provider, opts->bundle_stopping_count);
+   DataTable next_table = ExecuteViewDefinition(arena, node->v, opts->res_provider, opts->bundle_stopping_count);
 
    for (DataColumnNode *col = next_table.first; col; col = col->next)
    {
-    table.AddColumn(temp.arena, col->v);
+    table.AddColumn(arena, col->v);
    }
   }
 
+  std::cout << "Num rows in table: " << table.GetRowCount() << std::endl;
   auto t = ArrowTableFromDataTable(table);
   opts->arrow_table = t;
  }
 
- ScratchEnd(temp);
+ ArenaRelease(arena);
  ThreadCtxRelease(&tctx);
 }
 
@@ -290,7 +291,7 @@ main(int argc, char** argv)
 
    if (args.bundle_count != 0)
    {
-    to_thread->bundle_stopping_count = args.bundle_count / num_threads;
+    to_thread->bundle_stopping_count = args.bundle_count;
    }
 
    std::thread worker_thread(ThreadWork, to_thread);
@@ -302,6 +303,9 @@ main(int argc, char** argv)
    threads[i].join();
   }
 
+
+  std::cout << "All threads joined" << std::endl;
+
   std::vector<std::shared_ptr < arrow::Table> > arrow_tables;
   S64 row_count = 0;
   for (int i = 0; i < num_threads; i++)
@@ -309,9 +313,13 @@ main(int argc, char** argv)
    arrow_tables.push_back(to_threads[i].arrow_table);
   }
 
+
+  std::cout << "Pushed all tables" << std::endl;
+
   auto res_merged_table = arrow::ConcatenateTables(arrow_tables);
   if (res_merged_table.ok())
   {
+   std::cout << "Before value or die" << std::endl;
    std::shared_ptr < arrow::Table > merged_table = res_merged_table.ValueOrDie();
    auto num_rows = merged_table->num_rows();
    std::cout << "Output Table # of rows: " << num_rows << std::endl;
@@ -319,7 +327,7 @@ main(int argc, char** argv)
   }
   else
   {
-   std::cout << "Error merging tables" << std::endl;
+   std::cerr << "Error merging tables" << std::endl;
   }
  }
  //////////////////////////////
@@ -344,6 +352,7 @@ main(int argc, char** argv)
 
    table = RowProduct(main_arena, table_list);
    auto t = ArrowTableFromDataTable(table);
+   std::cout << "Row count: " << table.GetRowCount() << std::endl;
    auto res = WriteTable(Str8Lit("./output.parquet"), t);
 
    ArenaRelease(main_arena);
