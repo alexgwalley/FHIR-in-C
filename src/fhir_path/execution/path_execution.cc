@@ -908,7 +908,7 @@ namespace native_fhir
 
     U64 id = context->unique_ids[str];
 
-    FHIR_VERSION::ResourceType type = context->resource_type[id];
+    FHIR_VERSION::ResourceType type = context->resource_types[id];
 
     // TODO(agw): get resource type of id
     if (func_node->params.count > 0)

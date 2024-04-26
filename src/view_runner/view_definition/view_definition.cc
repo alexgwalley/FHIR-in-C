@@ -37,6 +37,7 @@ namespace native_fhir
 
    // NOTE(agw): we can clear these because we don't have references across Bundles
    context.unique_ids.clear();
+   context.resource_types.clear();
 
    U64 resource_id_start;
 
@@ -73,7 +74,7 @@ namespace native_fhir
      ArenaPopTo(t.arena, t.pos);
      std::string str = StdStringFromString8(bundle->_entry[i]->_resource->_id.str8);
      context.unique_ids.insert( { str, resource_id });
-     context.resource_type.insert( { resource_id,  bundle->_entry[i]->_resource->resourceType });
+     context.resource_types.insert( { resource_id,  bundle->_entry[i]->_resource->resourceType });
 
      if (bundle->_entry[i]->_resource->resourceType == vd.resource_type)
      {
@@ -102,7 +103,7 @@ namespace native_fhir
 
      std::string str = StdStringFromString8(res->_id.str8);
      context.unique_ids.insert( { str, resource_id_start });
-     context.resource_type.insert( { resource_id_start,  res->resourceType });
+     context.resource_types.insert( { resource_id_start,  res->resourceType });
    }
 
    // ~ Filter out resources using where statements

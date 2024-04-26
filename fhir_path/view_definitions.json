@@ -16,7 +16,7 @@
               },
               {
                 "name": "patient_id",
-                "path": "subject.getReferenceKey(Practitione)",
+                "path": "subject.getReferenceKey(Patient)",
                 "type": "integer"
               },
               {
