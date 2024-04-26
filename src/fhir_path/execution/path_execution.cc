@@ -101,11 +101,22 @@ namespace native_fhir
  }
 
  Collection
- CollectionFromString(Arena *arena, NullableString8 str)
+ CollectionFromNullableString(Arena *arena, NullableString8 str)
  {
   CollectionEntry entry = {};
   entry.type = EntryType::String;
   entry.str = str;
+  return CollectionFromEntry(arena, entry);
+ }
+
+
+ Collection
+ CollectionFromString(Arena *arena, String8 str)
+ {
+  CollectionEntry entry = {};
+  entry.type = EntryType::String;
+  entry.str.str8 = str;
+  entry.str.has_value = true;
   return CollectionFromEntry(arena, entry);
  }
 
@@ -683,7 +694,7 @@ namespace native_fhir
     NullableString8 nullable_str = {};
     nullable_str.str8 = str;
     nullable_str.has_value = TRUE;
-    ret = CollectionFromString(arena, nullable_str);
+    ret = CollectionFromNullableString(arena, nullable_str);
 
     ScratchEnd(temp);
 
@@ -861,6 +872,18 @@ namespace native_fhir
     // or if the input collection is empty ({ }) take returns an empty collection."
     if (num <= 0 && function_type == Function::Take) ret = { 0 };
     else ret = ExecuteSubsetting(arena, context, left_col, min, max, 0);
+   } break;
+   case Function::GetResourceKey:
+   {
+    if (left_col.count == 0) return ret;
+    FP_Assert(!IsNilCollectionEntryNode(context->entry_stack_first), context, Str8Lit("context->entry_stack_first is null when calling getResourceKey()"));
+    FP_Assert(context->entry_stack_first->v.type == EntryType::Resource, context, Str8Lit("getResourceKey() can only be called on a resource entry"));
+
+    ret = CollectionFromInteger(arena, context->unique_id);
+
+   } break;
+   case Function::GetReferenceKey:
+   {
    } break;
    default:
    {
@@ -1091,7 +1114,7 @@ namespace native_fhir
      NullableString8 ns = {};
      ns.str8 = concatted;
      ns.has_value = TRUE;
-     Collection ret = CollectionFromString(arena, ns);
+     Collection ret = CollectionFromNullableString(arena, ns);
      ScratchEnd(temp);
      return ret;
     }
@@ -1204,7 +1227,7 @@ namespace native_fhir
    {
    } break;
 
-   case Piece_String: { return CollectionFromString(arena, node->value.str); } break;
+   case Piece_String: { return CollectionFromNullableString(arena, node->value.str); } break;
    case Piece_Number: { return CollectionFromNumber(arena, node->value.num); } break;
    case Piece_Date:   { return CollectionFromDate(arena, node->value.time); } break;
    case Piece_Boolean:   { return CollectionFromBoolean(arena, node->value.b); } break;

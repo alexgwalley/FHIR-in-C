@@ -1,5 +1,8 @@
 namespace native_fhir
 {
+
+ std::atomic<U64> g_res_id;
+
  DataTable
  ExecuteViewDefinition(Arena *arena,
                        native_fhir::ViewDefinition vd,
@@ -27,14 +30,16 @@ namespace native_fhir
   // ~ Make a copy of the resources collection
   ResourceStringHandle handle = 0;
   ResourceSource next_source = {};
-  int count = 0;
   while ((next_source = resource_provider->GetNextSource()).type != ResourceSourceType::Unknown)
   {
    if (stopping_count > 0 && next_source.id > stopping_count) break;
-   count++;
-   if (next_source.id % 1000 == 0) std::cout << next_source.id << std::endl;
-   if (stopping_count > 0 && count > stopping_count) break;
-   //   NullableString8 resource_string = resource_provider->GetStringValue(handle);
+   if (next_source.id % 10000 == 0) std::cout << next_source.id << std::endl;
+
+   // NOTE(agw): we can clear these because we don't have references across Bundles
+   context.unique_ids.clear();
+
+   U64 resource_id_start;
+
    FHIR_VERSION::Resource *res;
    ND_ContextNode *resource_context;
    TimeBlock("Deserialize")
@@ -68,6 +73,8 @@ namespace native_fhir
       CollectionPushEntry(arena, &valid_resources, ent);
      }
     }
+
+    resource_id_start = g_res_id.fetch_add(bundle->_entry_count);
    }
    else if (vd.resource_type != res->resourceType)
    {
@@ -79,9 +86,21 @@ namespace native_fhir
     ent.resource = res;
     ent.type = EntryType::Resource;
     CollectionPushEntry(arena, &valid_resources, ent);
+
+    resource_id_start = g_res_id.fetch_add(1);
    }
 
-
+   int resource_id = resource_id_start;
+   Temp t = ScratchBegin(&arena, 1);
+   // ~ Add all unique_ids for this bundle
+   for (CollectionEntryNode *node = valid_resources.first; node; node = node->next, resource_id++)
+   {
+    ArenaPopTo(t.arena, t.pos);
+    String8 unique_id_string = PushStr8F(t.arena, "%d", resource_id);
+    std::string str = StdStringFromString8(unique_id_string);
+    context.unique_ids.insert( { str, resource_id });
+   }
+   ScratchEnd(t);
 
    // ~ Filter out resources using where statements
    Temp where_temp = ScratchBegin(&arena, 1);
@@ -114,10 +133,14 @@ namespace native_fhir
    }
    ScratchEnd(where_temp);
 
+
+
    Temp view_temp = ScratchBegin(&arena, 1);
-   // for each resource
-   for (CollectionEntryNode *node = valid_resources.first; node; node = node->next)
+
+   resource_id = resource_id_start;
+   for (CollectionEntryNode *node = valid_resources.first; node; node = node->next, resource_id++)
    {
+    context.unique_id = resource_id;
     if (node->v.type != EntryType::Resource) continue;
 
     DataTableList table_list = {};

@@ -10,9 +10,9 @@
           {
             "column": [
               {
-                "name": "id2",
-                "path": "id",
-                "type": "id"
+                "name": "id",
+                "path": "getResourceKey()",
+                "type": "integer"
               },
               {
                 "name": "period_start",

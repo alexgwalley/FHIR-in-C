@@ -23,6 +23,8 @@ namespace native_fhir
 		Not,
 		Join,
 		Extension,
+		GetResourceKey,
+  GetReferenceKey,
 		Function_Count,
 	};
 
@@ -49,7 +51,9 @@ namespace native_fhir
 		{ Str8LitComp("ofType"),  Function::OfType },
 		{ Str8LitComp("not"),     Function::Not },
 		{ Str8LitComp("join"),    Function::Join },
-		{ Str8LitComp("extension"),    Function::Extension }
+		{ Str8LitComp("extension"),         Function::Extension },
+		{ Str8LitComp("getResourceKey"),    Function::GetResourceKey },
+		{ Str8LitComp("getReferenceKey"),   Function::GetReferenceKey },
 	};
 
 
@@ -85,6 +89,9 @@ struct FP_ExecutionContext
 	CollectionEntry *free_entry_last;
 
  std::unordered_map<std::string, Constant> constants;
+
+ U64 unique_id;
+ std::unordered_map<std::string, U64> unique_ids;
 
 	String8 error_message;
 

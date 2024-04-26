@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <thread>
+#include <atomic>
 
 //////////////////
 // ~ OURS       //
@@ -304,17 +305,12 @@ main(int argc, char** argv)
   }
 
 
-  std::cout << "All threads joined" << std::endl;
-
   std::vector<std::shared_ptr < arrow::Table> > arrow_tables;
   S64 row_count = 0;
   for (int i = 0; i < num_threads; i++)
   {
    arrow_tables.push_back(to_threads[i].arrow_table);
   }
-
-
-  std::cout << "Pushed all tables" << std::endl;
 
   auto res_merged_table = arrow::ConcatenateTables(arrow_tables);
   if (res_merged_table.ok())
@@ -329,6 +325,8 @@ main(int argc, char** argv)
   {
    std::cerr << "Error merging tables" << std::endl;
   }
+
+  std::cout << "Num resources: " << g_res_id << std::endl;
  }
  //////////////////////////////
  // ~ Single Thread Execution
