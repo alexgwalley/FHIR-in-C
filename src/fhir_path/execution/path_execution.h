@@ -92,6 +92,8 @@ struct FP_ExecutionContext
 
  U64 unique_id;
  std::unordered_map<std::string, U64> unique_ids;
+ // From unique id -> resource type
+ std::unordered_map<U64, FHIR_VERSION::ResourceType> resource_type;
 
 	String8 error_message;
 

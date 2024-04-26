@@ -884,6 +884,45 @@ namespace native_fhir
    } break;
    case Function::GetReferenceKey:
    {
+
+    FP_Assert(left_col.count == 1, context, Str8Lit("getReferenceKey() needs cardinality of 1 to operate on"));
+    FP_Assert(left_col.first->v.type == EntryType::Resource, context, Str8Lit("getReferenceKey() operates on references"));
+    FP_Assert(left_col.first->v.resource->resourceType == FHIR_VERSION::ResourceType::Reference, context, Str8Lit("getReferenceKey() operates on references"));
+
+    Reference* reference = (Reference*)left_col.first->v.resource;
+    if (!reference->_reference.has_value) return ret;
+    String8 ref = reference->_reference.str8;
+    U64 pos = FindSubstr8(ref, Str8Lit("/"), 0, 0);
+    if (pos != ref.size)
+    {
+     ref = Str8Skip(ref, pos + 1);
+    }
+
+    std::string str = StdStringFromString8(ref);
+
+    if (context->unique_ids.find(str) == context->unique_ids.end())
+    {
+     return ret;
+    }
+
+
+    U64 id = context->unique_ids[str];
+
+    FHIR_VERSION::ResourceType type = context->resource_type[id];
+
+    // TODO(agw): get resource type of id
+    if (func_node->params.count > 0)
+    {
+     Temp temp = ScratchBegin(&arena, 1);
+
+     const native_fhir::ResourceNameTypePair *pair = NF_ResourceNameTypePairFromString8(func_node->params.first->v->slice);
+     FP_Assert(pair, context, Str8Lit("Could not find matching resource type from getReferenceKey() parameter"));
+     if ((FHIR_VERSION::ResourceType)pair->type != type) return ret;
+
+     ScratchEnd(temp);
+    }
+
+    return CollectionFromInteger(arena, id);
    } break;
    default:
    {

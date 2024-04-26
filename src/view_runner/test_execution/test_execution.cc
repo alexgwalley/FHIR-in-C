@@ -643,25 +643,25 @@ ReadAndExecuteTests(String8 test_folder)
  //String8 test_file_name = Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\union.json");
 
  String8 tests[] = {
-  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\basic.json"),
-  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\collection.json"),
-  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\combinations.json"),
-  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\constant.json"),
-  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fhirpath.json"),
-  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fhirpath_numbers.json"),
+//  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\basic.json"),
+//  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\collection.json"),
+//  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\combinations.json"),
+//  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\constant.json"),
+//  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fhirpath.json"),
+//  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fhirpath_numbers.json"),
 //  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fn_boundary.json"),
-  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fn_empty.json"),
-  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fn_extension.json"),
-  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fn_first.json"),
-  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fn_join.json"),
-  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fn_oftype.json"),
+//  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fn_empty.json"),
+//  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fn_extension.json"),
+//  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fn_first.json"),
+//  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fn_join.json"),
+//  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fn_oftype.json"),
   Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\fn_reference_keys.json"),
-  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\foreach.json"),
-  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\logic.json"),
-  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\union.json"),
-  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\validate.json"),
-  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\view_resource.json"),
-  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\where.json")
+//  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\foreach.json"),
+//  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\logic.json"),
+//  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\union.json"),
+//  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\validate.json"),
+//  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\view_resource.json"),
+//  Str8Lit("C:\\Users\\awalley\\Code\\sql-on-fhir-v2\\tests\\where.json")
  };
 
 

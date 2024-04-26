@@ -58,13 +58,23 @@ namespace native_fhir
     ScratchEnd(temp);
    }
 
-
    Collection valid_resources = {};
    if (vd.resource_type != ResourceType::Bundle && res->resourceType == ResourceType::Bundle)
    {
     FHIR_VERSION::Bundle* bundle = (FHIR_VERSION::Bundle *)res;
-    for (int i = 0; i < bundle->_entry_count; i++)
+    resource_id_start = g_res_id.fetch_add(bundle->_entry_count);
+
+
+   Temp t = ScratchBegin(&arena, 1);
+
+   U64 resource_id = resource_id_start;
+    for (int i = 0; i < bundle->_entry_count; i++, resource_id++)
     {
+     ArenaPopTo(t.arena, t.pos);
+     std::string str = StdStringFromString8(bundle->_entry[i]->_resource->_id.str8);
+     context.unique_ids.insert( { str, resource_id });
+     context.resource_type.insert( { resource_id,  bundle->_entry[i]->_resource->resourceType });
+
      if (bundle->_entry[i]->_resource->resourceType == vd.resource_type)
      {
       CollectionEntry ent = {};
@@ -74,7 +84,8 @@ namespace native_fhir
      }
     }
 
-    resource_id_start = g_res_id.fetch_add(bundle->_entry_count);
+   ScratchEnd(t);
+
    }
    else if (vd.resource_type != res->resourceType)
    {
@@ -88,19 +99,11 @@ namespace native_fhir
     CollectionPushEntry(arena, &valid_resources, ent);
 
     resource_id_start = g_res_id.fetch_add(1);
-   }
 
-   int resource_id = resource_id_start;
-   Temp t = ScratchBegin(&arena, 1);
-   // ~ Add all unique_ids for this bundle
-   for (CollectionEntryNode *node = valid_resources.first; node; node = node->next, resource_id++)
-   {
-    ArenaPopTo(t.arena, t.pos);
-    String8 unique_id_string = PushStr8F(t.arena, "%d", resource_id);
-    std::string str = StdStringFromString8(unique_id_string);
-    context.unique_ids.insert( { str, resource_id });
+     std::string str = StdStringFromString8(res->_id.str8);
+     context.unique_ids.insert( { str, resource_id_start });
+     context.resource_type.insert( { resource_id_start,  res->resourceType });
    }
-   ScratchEnd(t);
 
    // ~ Filter out resources using where statements
    Temp where_temp = ScratchBegin(&arena, 1);
@@ -137,7 +140,7 @@ namespace native_fhir
 
    Temp view_temp = ScratchBegin(&arena, 1);
 
-   resource_id = resource_id_start;
+   U64 resource_id = resource_id_start;
    for (CollectionEntryNode *node = valid_resources.first; node; node = node->next, resource_id++)
    {
     context.unique_id = resource_id;

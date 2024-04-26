@@ -15,6 +15,11 @@
                 "type": "integer"
               },
               {
+                "name": "patient_id",
+                "path": "subject.getReferenceKey(Practitione)",
+                "type": "integer"
+              },
+              {
                 "name": "period_start",
                 "path": "period.start",
                 "type": "dateTime"

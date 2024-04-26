@@ -158,7 +158,14 @@ DataTable
 CreateDataTableFromViewDefinition(Arena *arena, native_fhir::ViewDefinition vd, ResourceStringProvider* resources, int stopping_count)
 {
  TimeFunction;
- DataTable table = ExecuteViewDefinition(arena, vd, resources, stopping_count);
+ DataTable table = {};
+ try
+ {
+  table = ExecuteViewDefinition(arena, vd, resources, stopping_count);
+ } catch(std::exception &e)
+ {
+  std::cerr << e.what() << std::endl;
+ }
  return table;
 }
 

@@ -1,7 +1,7 @@
 #ifndef NF_FHIR_PATH_H
 #define NF_FHIR_PATH_H
 
-#define FP_AssertAll(cond, context, msg, _break) if (!(cond)) { (context)->error_message = msg; if ((_break)) { OS_DebugBreak; } throw -1; }
+#define FP_AssertAll(cond, context, msg, _break) if (!(cond)) { (context)->error_message = msg; if ((_break)) { OS_DebugBreak; } throw std::runtime_error(StdStringFromString8(msg)); }
 
 #define NF_NotImplemented OS_DebugBreak
 #define FP_Assert(cond, context, msg) FP_AssertAll(cond, context, msg, 0)
