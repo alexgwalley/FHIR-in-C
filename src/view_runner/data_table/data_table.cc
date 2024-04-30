@@ -231,8 +231,8 @@ namespace native_fhir
    U8* data_end = (U8 *)last->data + (last->count * value_size);
    size_t data_size_remaining = (last->max_count - last->count) * value_size;
 
-   size_t copy_length = Min(data_size_remaining, n_data_size);
-   size_t count = Min(node->count, last->max_count - last->count);
+   size_t copy_length = MIN(data_size_remaining, n_data_size);
+   size_t count = MIN(node->count, last->max_count - last->count);
    MemoryCopy(data_end, node->data, copy_length);
 
    n_data_count_remaining -= count;

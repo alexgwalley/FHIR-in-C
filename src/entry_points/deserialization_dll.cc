@@ -9,7 +9,6 @@
 #include "third_party/cJSON.h"
 #include "third_party/simdjson.h"
 
-
 #include "fhir_r4_types.h"
 #include "generated/fhir_class_definitions.h"
 
@@ -17,6 +16,12 @@
 
 #include "native_fhir/native_fhir_inc.cc"
 
+#ifdef STATIC_BUILD
+#define NF_PUBLIC_EXPORT
+#else
+#pragma message("dynamic build")
+#define NF_PUBLIC_EXPORT __declspec(dllexport)
+#endif
 
 using namespace native_fhir;
 using namespace FHIR_VERSION;
@@ -28,8 +33,6 @@ DLL_Scratch_Begin(ND_Context* context, Arena **conflicts, U64 conflict_count);
 #include "third_party/simdjson.cpp"
 #include "base/profiler.cc"
 #include "deserializer/manual_deserialization_simdjson.cc"
-
-
 
 extern "C"
 {
@@ -76,6 +79,7 @@ extern "C"
 		return scratch;
 	}
 
+#ifndef STATIC_BUILD
 	BOOL APIENTRY DllMain(
 		HANDLE hModule, // Handle to DLL module
 		DWORD ul_reason_for_call, // Reason for calling function
@@ -98,9 +102,10 @@ extern "C"
 		}
 		return TRUE;
 	}
+ #endif
 
 	// ~ General Helpers
-	__declspec(dllexport)
+ NF_PUBLIC_EXPORT
  const native_fhir::MemberNameAndOffset*
  __cdecl NF_ClassMemberLookup(native_fhir::FHIR_VERSION::ResourceType resourceType, String8 member_name);
 
@@ -110,7 +115,7 @@ extern "C"
 		return ClassMemberLookup(resourceType, member_name);
 	}
 
-	__declspec(dllexport)
+ NF_PUBLIC_EXPORT
 	const ResourceNameTypePair *
 	__cdecl NF_ResourceNameTypePairFromString8(String8 str);
 
@@ -122,12 +127,14 @@ extern "C"
 
 
 	// ~ Deserializer
-	__declspec(dllexport) void __cdecl ND_Init(int num_contexts);
-	__declspec(dllexport) void __cdecl ND_Cleanup(void);
-	__declspec(dllexport) ND_ContextNode* __cdecl ND_DeserializeFile(const char* file_name, FHIR_VERSION::Resource **out);
-	__declspec(dllexport) ND_ContextNode* __cdecl ND_DeserializeString(char* bytes, size_t length, FHIR_VERSION::Resource **out);
- __declspec(dllexport) ND_ContextNode* __cdecl ND_DeserializeStringOfType(char* bytes, size_t length, FHIR_VERSION::Resource **out, FHIR_VERSION::ResourceType type);
-	__declspec(dllexport) void __cdecl ND_FreeContext(ND_ContextNode *node);
+ #ifndef STATIC_BUILD
+ NF_PUBLIC_EXPORT void __cdecl ND_Init(int num_contexts);
+	NF_PUBLIC_EXPORT void __cdecl ND_Cleanup(void);
+	NF_PUBLIC_EXPORT ND_ContextNode* __cdecl ND_DeserializeFile(const char* file_name, FHIR_VERSION::Resource **out);
+	NF_PUBLIC_EXPORT ND_ContextNode* __cdecl ND_DeserializeString(char* bytes, size_t length, FHIR_VERSION::Resource **out);
+ NF_PUBLIC_EXPORT ND_ContextNode* __cdecl ND_DeserializeStringOfType(char* bytes, size_t length, FHIR_VERSION::Resource **out, FHIR_VERSION::ResourceType type);
+	NF_PUBLIC_EXPORT void __cdecl ND_FreeContext(ND_ContextNode *node);
+ #endif
 
 
 	void
@@ -161,6 +168,7 @@ extern "C"
 	ND_ContextNode*
 	ND_CreateContext(Arena *arena)
 	{
+  TimeFunction;
 		ND_ContextNode *node = PushStruct(contexts_arena, ND_ContextNode);
 		ND_Context *context = &node->value;
 
@@ -330,6 +338,7 @@ extern "C"
 	ND_ContextNode*
 	ND_DeserializeFile(const char* file_name, FHIR_VERSION::Resource **out)
 	{
+  TimeFunction;
 		ND_ContextNode *node = ND_GetFreeContext(contexts_arena);
 
 		std::string_view file_string_view { file_name };
@@ -353,6 +362,7 @@ extern "C"
 		*out = result;
 		return node;
 	}
+
 
 	void
 	ND_FreeContext(ND_ContextNode *node)

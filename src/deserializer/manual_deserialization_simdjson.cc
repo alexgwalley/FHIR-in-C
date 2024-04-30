@@ -6,7 +6,7 @@
 #include "native_deserializer.h"
 // NOTE(agw): if we can assume every key is unique, then
 // we don't need to do a string compare...
-//#define strncmp(...) 0
+#define strncmp(...) 0
 
 namespace native_fhir
 {
@@ -16,7 +16,7 @@ namespace native_fhir
 		#include "generated/resource_types.cc"
 	};
 };
-//#undef strncmp
+#undef strncmp
 
 using namespace native_fhir;
 using namespace FHIR_VERSION;
@@ -92,6 +92,7 @@ Deserialize_NullableInt32(ND_Context *context,
 /////////////////////////////////////
 // NOTE (agw): ISO8601 Time ========================================================
 
+/*
 ISO8601_Time
 Deserialize_ISO8601(String8 str,
                     ValueType type)
@@ -129,6 +130,7 @@ Deserialize_ISO8601(String8 str,
 	                                optional,
 	                                exclude);
 }
+*/
 
 /////////////////////////////////////
 // NOTE (agw): ArrayValues ========================================================
@@ -570,11 +572,12 @@ Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
 			} break;
 		}
 
-		BitField_ResetIndex(&meta->required_members, mem_info->member_index);
+		//BitField_ResetIndex(&meta->required_members, mem_info->member_index);
 	}
 
 	/////////////////////
 	// ~ Error checking for missing member fields
+ /*
 	{
 		BitField required_members = meta->required_members;
 		for (int i = 0; i < ArrayCount(required_members.values); i++)
@@ -605,6 +608,7 @@ Resource_Deserialize_Impl_SIMDJSON(ND_Context *context,
 				}
 		}
 	}
+ */
     
 	return out;
 }

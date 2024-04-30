@@ -322,7 +322,7 @@ namespace native_fhir
 			ClassMetadata *curr_meta = ClassMetadataFromClassDefinition(temp.arena,
 			                                                            CppOptions(temp.arena),
 			                                                            &node->def);
-			max_str_len = Max(max_str_len, curr_meta->name.size);
+			max_str_len = MAX(max_str_len, curr_meta->name.size);
 			sum_str_len += curr_meta->name.size;
 
 			SerializedClassMetadata *meta = PushStruct(meta_arena, SerializedClassMetadata);
@@ -352,7 +352,7 @@ namespace native_fhir
 				s_meta->type = mem_meta.type;
 				s_meta->types_count = mem_meta.types_count;
 
-				max_str_len = Max(max_str_len, mem_meta.name.size);
+				max_str_len = MAX(max_str_len, mem_meta.name.size);
 				sum_str_len += mem_meta.name.size;
 
 				U8* type_ptr = (U8*)s_meta + sizeof(SerializedClassMemberMetadata);

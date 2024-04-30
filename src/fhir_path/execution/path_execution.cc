@@ -501,7 +501,7 @@ namespace native_fhir
 
    case EntryType::Iso8601:
    {
-    Precision min_precision = (Precision)Min((int)ent->time.precision, (int)ent2->time.precision);
+    Precision min_precision = (Precision)MIN((int)ent->time.precision, (int)ent2->time.precision);
 
     ent_greater_or_equal = EmptyBool::False;
     if (min_precision >= Precision::Year        && ent->time.year   > ent2->time.year)   { ent_greater_or_equal = EmptyBool::True; }
@@ -574,10 +574,10 @@ namespace native_fhir
   S64 min = min_index < 0 ? left_col.count + min_index : min_index;
   S64 max = max_index < 0 ? left_col.count + max_index : max_index;
 
-  min = Min(min, max);
-  max = Max(min, max);
+  min = MIN(min, max);
+  max = MAX(min, max);
 
-  max = Min(max, left_col.count - 1);
+  max = MIN(max, left_col.count - 1);
 
   Assert(min >= 0);
   Assert(max >= 0);
@@ -865,7 +865,7 @@ namespace native_fhir
 
     S64 min = (function_type == Function::Skip) ? num : 0;
     S64 max = (function_type == Function::Skip) ? -1  : num - 1;
-    min = Max(0, min);
+    min = MAX(0, min);
 
     // NOTE(agw): due to rule on "take" function: 
     // "If num is less than or equal to 0,

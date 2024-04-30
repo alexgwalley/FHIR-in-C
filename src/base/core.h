@@ -96,15 +96,15 @@ CheckNil(nil,p) ? \
 #define OS_DebugBreak raise(SIGTRAP)
 #endif
 
-//#ifdef DEBUG
+#ifndef NDEBUG
 #define Assert(b) do { if (!(b)) { OS_DebugBreak; } } while (0)
 #define AssertMsg(b, msg) do { if (!(b)) { std::cout << msg << std::endl; OS_DebugBreak; } } while (0)
-//#else
-//#define Assert(...)
-//#endif
+#else
+#define Assert(...)
+#endif
 
-#define Min(a, b) (((a)<(b)) ? (a) : (b))
-#define Max(a, b) (((a)>(b)) ? (a) : (b))
+#define MIN(a, b) (((a)<(b)) ? (a) : (b))
+#define MAX(a, b) (((a)>(b)) ? (a) : (b))
 #define Clamp(a, x, b) (((a)>(x))?(a):((b)<(x))?(b):(x))
 
 #define MemoryCopy memcpy

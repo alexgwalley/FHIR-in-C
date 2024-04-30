@@ -1,3 +1,4 @@
+#pragma once
 /* ========================================================================
 
 (C) Copyright 2023 by Molly Rocket, Inc., All Rights Reserved.
@@ -160,6 +161,7 @@ struct profile_block
 #define NameConcat(A, B) NameConcat2(A, B)
 #define TimeBlock(Name) profile_block NameConcat(Block, __LINE__)(Name, __COUNTER__ + 1);
 #define TimeFunction TimeBlock(__func__)
+#define TimeFunction 
 
 static void PrintTimeElapsed(u64 TotalTSCElapsed, profile_anchor *Anchor, u64 CPUFreq, int max_str_len)
 {
@@ -182,6 +184,7 @@ static void BeginProfile(void)
 	memset(&GlobalProfiler, 0, sizeof(GlobalProfiler));
 	GlobalProfilerParent = 0;
 	GlobalProfiler.StartTSC = ReadCPUTimer();
+	GlobalProfiler.EndTSC = 0;
 }
 
 static void EndAndPrintProfile()

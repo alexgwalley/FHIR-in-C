@@ -86,3 +86,10 @@ The first thing that I noticed with the conversion process is the speed of Const
 The same applied for GetValue and SetValue
 
 I believe I should be able to "compile" these at runtime using Expression's which is said to have a performance increase.
+
+
+////////////////////////////////////////
+62.7 MB
+
+Time to _only_ get simdjson primatives: 049 ms == 1.24 GB/s -> SIMDJSON Recursive
+Control:                                122 ms

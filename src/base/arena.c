@@ -230,7 +230,7 @@ ArenaPushNoZero(Arena *arena, U64 size)
  if (current->commit_pos < new_pos)
  {
   U64 cmt_new_aligned = AlignPow2(new_pos, ARENA_COMMIT_GRANULARITY);
-  U64 cmt_new_clamped = Min(cmt_new_aligned, current->reserve_size);
+  U64 cmt_new_clamped = MIN(cmt_new_aligned, current->reserve_size);
   U64 cmt_new_size    = cmt_new_clamped - current->commit_pos;
   ArenaImpl_Commit((U8 *)current + current->commit_pos, cmt_new_size);
   arena->commit_pos += cmt_new_size;
@@ -293,7 +293,7 @@ void
 ArenaPopTo(Arena *arena, U64 pos)
 {
  U64 min_pos = ARENA_HEADER_SIZE;
- U64 new_pos = Max(min_pos, pos);
+ U64 new_pos = MAX(min_pos, pos);
  arena->pos = new_pos;
 
  Arena *current = arena->current;
@@ -330,9 +330,9 @@ void
 ArenaPop(Arena *arena, U64 size)
 {
  U64 min_pos = ARENA_HEADER_SIZE;
- U64 size_to_pop = Min(size, arena->pos);
+ U64 size_to_pop = MIN(size, arena->pos);
  U64 new_pos = arena->pos - size_to_pop;
- new_pos = Max(new_pos, min_pos);
+ new_pos = MAX(new_pos, min_pos);
  ArenaPopTo(arena, new_pos);
 }
 

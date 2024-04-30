@@ -11,6 +11,7 @@
 // ~ OURS       //
 //////////////////
 
+#define NDEBUG
 // Native Fhir
 #include "native_fhir/native_fhir_inc.h"
 #include "resource_string_provider/resource_string_provider.h"
@@ -36,11 +37,16 @@
 #include "native_fhir/native_fhir_inc.cc"
 #include "resource_string_provider/resource_string_provider.cc"
 
+#ifdef STATIC_BUILD
+#include "entry_points/deserialization_dll.cc"
+#endif
+
 // Fhir Path
 #include "fhir_path/fhir_path_inc.cc"
 
 // View Runner
 #include "view_runner/view_runner_inc.cc"
+
 
 using namespace native_fhir;
 using namespace FHIR_VERSION;

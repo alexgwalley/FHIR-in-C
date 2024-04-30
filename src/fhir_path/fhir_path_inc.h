@@ -1,7 +1,11 @@
 //////////////////
 // ~ ANTLR - Parsing
+
+#ifdef STATIC_BUILD
 #define ANTLR4CPP_STATIC
-#include "third_party/antlr/antlr4-runtime.h"
+#endif
+
+#include "antlr4-runtime.h"
 #include "third_party/antlr_generated/fhirpathLexer.h"
 #include "third_party/antlr_generated/fhirpathParser.h"
 #include "third_party/antlr_generated/fhirpathBaseVisitor.h"
